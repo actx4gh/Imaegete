@@ -13,18 +13,25 @@ class ImageHandler:
         self.image_list = self.get_image_list()
         self.image_index = 0
         self.undo_stack = []
+        self.image_cache = {}
 
     def get_image_list(self):
         image_files = [f for f in os.listdir(self.source_folder) if f.lower().endswith(self.supported_extensions)]
         image_files = os_sorted(image_files)  # Sort files using os_sorted for natural sort order
         return image_files
 
-    def load_image(self):
-        if self.image_index < len(self.image_list):
-            image_path = os.path.join(self.source_folder, self.image_list[self.image_index])
+    def load_image(self, index=None):
+        if index is None:
+            index = self.image_index
+        if index < len(self.image_list):
+            image_path = os.path.join(self.source_folder, self.image_list[index])
             logging.info(f"Loading image: {image_path}")
             try:
-                return Image.open(image_path)
+                if image_path in self.image_cache:
+                    return self.image_cache[image_path]
+                image = Image.open(image_path)
+                self.image_cache[image_path] = image
+                return image
             except Exception as e:
                 logging.error(f"Failed to load image {image_path}: {e}")
         return None
@@ -95,4 +102,5 @@ class ImageHandler:
         self.image_list = self.get_image_list()
         if self.image_index >= len(self.image_list):
             self.image_index = max(0, len(self.image_list) - 1)
+
 

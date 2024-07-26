@@ -117,3 +117,30 @@ class ImageSorterGUI:
         self.image_handler.undo_last_action()
         self.load_image()
 
+def main():
+    import argparse
+    import yaml
+
+    parser = argparse.ArgumentParser(description="Image Sorter Application")
+    parser.add_argument('--config', type=str, help="Path to the configuration file")
+    args = parser.parse_args()
+
+    if args.config:
+        with open(args.config, 'r') as file:
+            config = yaml.safe_load(file)
+    else:
+        config = {
+            'source_folder': '.',
+            'categories': ['Sorted'],
+            'base_dir': '.',
+            'delete_folder': './deleted'
+        }
+        config['dest_folders'] = {cat: os.path.join(config['base_dir'], cat) for cat in config['categories']}
+
+    root = Tk()
+    sorter_gui = ImageSorterGUI(root, config)
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
+
