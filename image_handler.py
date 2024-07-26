@@ -80,7 +80,7 @@ class ImageHandler:
     def undo_last_action(self):
         if not self.undo_stack:
             logging.info("No actions to undo")
-            return
+            return None
 
         last_action = self.undo_stack.pop()
         action_type = last_action[0]
@@ -102,5 +102,6 @@ class ImageHandler:
         self.image_list = self.get_image_list()
         if self.image_index >= len(self.image_list):
             self.image_index = max(0, len(self.image_list) - 1)
-
+        
+        return last_action
 

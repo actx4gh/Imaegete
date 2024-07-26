@@ -55,6 +55,8 @@ class ImageSorterGUI:
         self.master.bind('<KP_Delete>', self.delete_image)
         self.master.bind('<Right>', self.next_image)
         self.master.bind('<Left>', self.previous_image)
+        self.master.bind('<Home>', self.first_image)
+        self.master.bind('<End>', self.last_image)
         self.master.bind('u', self.undo_last_action)
 
     def toggle_top_bar(self, event):
@@ -113,8 +115,24 @@ class ImageSorterGUI:
         else:
             logging.info("No previous images to display.")
 
+    def first_image(self, event):
+        self.image_handler.image_index = 0
+        self.load_image()
+        logging.info(f"Moved to first image: {self.image_handler.image_list[self.image_handler.image_index]}")
+
+    def last_image(self, event):
+        self.image_handler.image_index = len(self.image_handler.image_list) - 1
+        self.load_image()
+        logging.info(f"Moved to last image: {self.image_handler.image_list[self.image_handler.image_index]}")
+
     def undo_last_action(self, event):
-        self.image_handler.undo_last_action()
+        last_action = self.image_handler.undo_last_action()
+        if last_action:
+            action_type, category, filename = last_action
+            if action_type == 'move':
+                self.image_handler.image_index = self.image_handler.image_list.index(filename)
+            elif action_type == 'delete':
+                self.image_handler.image_index = self.image_handler.image_list.index(filename)
         self.load_image()
 
 def main():
