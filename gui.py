@@ -3,6 +3,7 @@ from PIL import Image, ImageTk
 import logging
 from image_handler import ImageHandler
 from logger import setup_logging
+from config import get_configuration, ensure_directories_exist
 
 class ImageSorterGUI:
     def __init__(self, master, config):
@@ -128,32 +129,18 @@ class ImageSorterGUI:
     def undo_last_action(self, event):
         last_action = self.image_handler.undo_last_action()
         if last_action:
-            action_type, category, filename = last_action
+            action_type = last_action[0]
             if action_type == 'move':
+                category, filename = last_action[1], last_action[2]
                 self.image_handler.image_index = self.image_handler.image_list.index(filename)
             elif action_type == 'delete':
+                filename = last_action[1]
                 self.image_handler.image_index = self.image_handler.image_list.index(filename)
         self.load_image()
 
 def main():
-    import argparse
-    import yaml
-
-    parser = argparse.ArgumentParser(description="Image Sorter Application")
-    parser.add_argument('--config', type=str, help="Path to the configuration file")
-    args = parser.parse_args()
-
-    if args.config:
-        with open(args.config, 'r') as file:
-            config = yaml.safe_load(file)
-    else:
-        config = {
-            'source_folder': '.',
-            'categories': ['Sorted'],
-            'base_dir': '.',
-            'delete_folder': './deleted'
-        }
-        config['dest_folders'] = {cat: os.path.join(config['base_dir'], cat) for cat in config['categories']}
+    config = get_configuration()
+    ensure_directories_exist(config['dest_folders'], config['delete_folder'])
 
     root = Tk()
     sorter_gui = ImageSorterGUI(root, config)

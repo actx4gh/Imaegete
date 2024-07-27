@@ -44,10 +44,16 @@ class ImageHandler:
             logging.error(f"Failed to move file from {src} to {dest}: {e}")
 
     def move_related_files(self, filename, dest_folder):
-        base, ext = os.path.splitext(filename)
-        related_files = [f for f in os.listdir(self.source_folder) if os.path.splitext(f)[0] == base]
+        self._move_files(filename, self.source_folder, dest_folder)
+
+    def move_related_files_back(self, filename, src_folder, dest_folder):
+        self._move_files(filename, dest_folder, src_folder)
+
+    def _move_files(self, filename, src_folder, dest_folder):
+        base, _ = os.path.splitext(filename)
+        related_files = [f for f in os.listdir(src_folder) if os.path.splitext(f)[0] == base]
         for f in related_files:
-            src_path = os.path.join(self.source_folder, f)
+            src_path = os.path.join(src_folder, f)
             dest_path = os.path.join(dest_folder, f)
             self.move_file(src_path, dest_path)
 
@@ -68,14 +74,6 @@ class ImageHandler:
         if self.image_index >= len(self.image_list):
             self.image_index = max(0, len(self.image_list) - 1)  # Adjust index if it exceeds the list length
         logging.info(f"Image deleted: {current_image}")
-
-    def move_related_files_back(self, filename, src_folder, dest_folder):
-        base, ext = os.path.splitext(filename)
-        related_files = [f for f in os.listdir(dest_folder) if os.path.splitext(f)[0] == base]
-        for f in related_files:
-            src_path = os.path.join(dest_folder, f)
-            dest_path = os.path.join(src_folder, f)
-            self.move_file(src_path, dest_path)
 
     def undo_last_action(self):
         if not self.undo_stack:

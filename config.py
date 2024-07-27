@@ -3,9 +3,18 @@ import subprocess
 import argparse
 import yaml
 
+def is_cygwin():
+    return 'CYGWIN' in os.getenv('OSTYPE', '')
+
 def cygwin_to_windows_path(cygwin_path):
     result = subprocess.run(['cygpath', '-w', cygwin_path], capture_output=True, text=True)
     return result.stdout.strip()
+
+def ensure_windows_path(path):
+    if is_cygwin():
+        return cygwin_to_windows_path(path)
+    else:
+        return os.path.abspath(path)
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Image Sorter Configuration")
@@ -30,13 +39,13 @@ def get_configuration():
         categories = args.categories
         base_dir = args.base_dir
 
-    base_dir = os.path.abspath(base_dir)
+    base_dir = ensure_windows_path(base_dir)
 
-    dest_folders = {cat: cygwin_to_windows_path(os.path.join(base_dir, cat)) for cat in categories}
-    delete_folder = cygwin_to_windows_path(os.path.join(base_dir, 'deleted'))
+    dest_folders = {cat: ensure_windows_path(os.path.join(base_dir, cat)) for cat in categories}
+    delete_folder = ensure_windows_path(os.path.join(base_dir, 'deleted'))
 
     return {
-        'source_folder': '.',
+        'source_folder': ensure_windows_path('.'),
         'categories': categories,
         'dest_folders': dest_folders,
         'delete_folder': delete_folder,
