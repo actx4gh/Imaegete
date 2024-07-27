@@ -1,4 +1,4 @@
-from tkinter import Tk, Canvas, BOTH, Label, TOP, Frame, X, CENTER
+from tkinter import Tk, Canvas, BOTH, Label, TOP, Frame, X, RIGHT, LEFT, Y
 from PIL import Image, ImageTk
 import logging
 from image_handler import ImageHandler
@@ -12,9 +12,9 @@ class ImageSorterGUI:
         setup_logging()
         self.master.title("Image Sorter")
         self.master.geometry("800x600")
-        self.master.resizable(True, True)  # Make the window resizable
+        self.master.resizable(True, True)
 
-        # Create a frame for the top bar and main content
+        # Create a frame for the top bar
         self.top_bar = Frame(master)
         self.top_bar.pack(side=TOP, fill=X)
 
@@ -22,30 +22,59 @@ class ImageSorterGUI:
         self.category_label = Label(self.top_bar, text=self.format_category_keys(config['categories']), font=("Helvetica", 8))
         self.category_label.pack(side=TOP, pady=1, padx=5, fill=BOTH)
 
-        # Create a frame to act as the splitter handle
+        # Create a frame to act as the splitter handle for the top bar
         self.splitter_handle = Frame(master, height=3, bg="grey", cursor="hand2")
         self.splitter_handle.pack(side=TOP, fill=X)
         self.splitter_handle.bind("<Button-1>", self.toggle_top_bar)
 
+        # Create a frame for the sidebar
+        self.sidebar = Frame(master, width=200)
+        self.sidebar.pack(side=RIGHT, fill=Y)
+
+        # Create a frame to act as the splitter handle for the sidebar
+        self.sidebar_splitter_handle = Frame(master, width=3, bg="grey", cursor="hand2")
+        self.sidebar_splitter_handle.pack(side=RIGHT, fill=Y)
+        self.sidebar_splitter_handle.bind("<Button-1>", self.toggle_sidebar)
+
+        # Create the main canvas
         self.canvas = Canvas(master, bg='white')
-        self.canvas.pack(fill=BOTH, expand=True)
+        self.canvas.pack(side=LEFT, fill=BOTH, expand=True)
         self.canvas.bind('<Configure>', self.resize_image)
 
         self.load_image()
         self.bind_keys(config['categories'])
 
-        self.master.bind('<Configure>', self.adjust_font_size)
+        self.master.bind('<Configure>', self.adjust_layout)
 
     def format_category_keys(self, categories):
         key_mapping = {str(i+1): cat for i, cat in enumerate(categories)}
         return " | ".join([f"{key}: {cat}" for key, cat in key_mapping.items()])
 
+    def adjust_layout(self, event=None):
+        self.adjust_font_size()
+        self.adjust_sidebar_width()
+
     def adjust_font_size(self, event=None):
         width = self.master.winfo_width()
         text_length = len(self.category_label.cget("text"))
-        # Calculate a new font size based on the width and the length of the text
-        new_size = max(1, min(int(width / (text_length / 1.5)), 12))  # Adjust to ensure the text size scales appropriately
+        new_size = max(1, min(int(width / (text_length / 1.5)), 12))
         self.category_label.config(font=("Helvetica", new_size))
+
+    def adjust_sidebar_width(self, event=None):
+        total_width = self.master.winfo_width()
+        min_total_width = 400
+        max_total_width = 800
+
+        if total_width < min_total_width:
+            sidebar_ratio = 1 / 10
+        elif total_width > max_total_width:
+            sidebar_ratio = 1 / 4
+        else:
+            # Linear interpolation for ratio between min and max widths
+            sidebar_ratio = 1 / 4 - (1 / 4 - 1 / 10) * (max_total_width - total_width) / (max_total_width - min_total_width)
+        
+        sidebar_width = min(200, total_width * sidebar_ratio)
+        self.sidebar.config(width=sidebar_width)
 
     def bind_keys(self, categories):
         key_mapping = {str(i+1): cat for i, cat in enumerate(categories)}
@@ -67,6 +96,14 @@ class ImageSorterGUI:
         else:
             self.top_bar.pack(side=TOP, fill=X, before=self.splitter_handle)
             self.splitter_handle.config(bg="grey")
+
+    def toggle_sidebar(self, event):
+        if self.sidebar.winfo_ismapped():
+            self.sidebar.pack_forget()
+            self.sidebar_splitter_handle.config(bg="lightgrey")
+        else:
+            self.sidebar.pack(side=RIGHT, fill=Y, before=self.sidebar_splitter_handle)
+            self.sidebar_splitter_handle.config(bg="grey")
 
     def load_image(self):
         self.current_image = self.image_handler.load_image()
