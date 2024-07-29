@@ -3,8 +3,11 @@ import subprocess
 import argparse
 import yaml
 
+
 def is_cygwin():
-    return 'CYGWIN' in os.getenv('OSTYPE', '')
+    ostype = os.getenv('OSTYPE', '').lower()
+    return 'cygwin' in ostype
+
 
 def cygwin_to_windows_path(cygwin_path):
     result = subprocess.run(['cygpath', '-w', cygwin_path], capture_output=True, text=True)
@@ -16,12 +19,13 @@ def ensure_windows_path(path):
     else:
         return os.path.abspath(path)
 
-def parse_args():
+def parse_args(args=None):
     parser = argparse.ArgumentParser(description="Image Sorter Configuration")
     parser.add_argument('--config', type=str, help="Path to the YAML configuration file")
     parser.add_argument('--categories', type=str, nargs='*', default=['Sorted'], help="List of categories")
     parser.add_argument('--base_dir', type=str, default='.', help="Base directory for category folders")
-    return parser.parse_args()
+    return parser.parse_args(args)
+
 
 def read_config_file(config_path):
     with open(config_path, 'r') as file:

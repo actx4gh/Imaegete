@@ -6,10 +6,12 @@ from logger import setup_logging
 from config import get_configuration, ensure_directories_exist
 
 class ImageSorterGUI:
-    def __init__(self, master, config):
+    def __init__(self, master, config, log_file_path='image_sorter.log'):
         self.master = master
         self.image_handler = ImageHandler(config['source_folder'], config['dest_folders'], config['delete_folder'])
-        setup_logging()
+        # Set up logging with provided log file path
+        self.logger = setup_logging(log_file_path)
+        self.logger.info(f"Logging set up with log file: {log_file_path}")
         self.master.title("Image Sorter")
         self.master.geometry("800x600")
         self.master.resizable(True, True)
@@ -45,6 +47,7 @@ class ImageSorterGUI:
         self.bind_keys(config['categories'])
 
         self.master.bind('<Configure>', self.adjust_layout)
+        self.logger.info("GUI Initialized")
 
     def format_category_keys(self, categories):
         key_mapping = {str(i+1): cat for i, cat in enumerate(categories)}
@@ -109,7 +112,7 @@ class ImageSorterGUI:
         self.current_image = self.image_handler.load_image()
         if self.current_image:
             self.display_image()
-            logging.info(f"Loaded image: {self.image_handler.image_list[self.image_handler.image_index]}")
+            self.logger.info(f"Loaded image: {self.image_handler.image_list[self.image_handler.image_index]}")
         else:
             self.canvas.create_text(
                 self.canvas.winfo_width() / 2,
@@ -117,7 +120,7 @@ class ImageSorterGUI:
                 text="All images sorted!",
                 font=("Helvetica", 24)
             )
-            logging.info("All images sorted!")
+            self.logger.info("All images sorted!")
 
     def display_image(self):
         canvas_width, canvas_height = self.canvas.winfo_width(), self.canvas.winfo_height()
@@ -141,27 +144,27 @@ class ImageSorterGUI:
         if self.image_handler.image_index < len(self.image_handler.image_list) - 1:
             self.image_handler.image_index += 1
             self.load_image()
-            logging.info(f"Moved to next image: {self.image_handler.image_list[self.image_handler.image_index]}")
+            self.logger.info(f"Moved to next image: {self.image_handler.image_list[self.image_handler.image_index]}")
         else:
-            logging.info("No more images to display.")
+            self.logger.info("No more images to display.")
 
     def previous_image(self, event):
         if self.image_handler.image_index > 0:
             self.image_handler.image_index -= 1
             self.load_image()
-            logging.info(f"Moved to previous image: {self.image_handler.image_list[self.image_handler.image_index]}")
+            self.logger.info(f"Moved to previous image: {self.image_handler.image_list[self.image_handler.image_index]}")
         else:
-            logging.info("No previous images to display.")
+            self.logger.info("No previous images to display.")
 
     def first_image(self, event):
         self.image_handler.image_index = 0
         self.load_image()
-        logging.info(f"Moved to first image: {self.image_handler.image_list[self.image_handler.image_index]}")
+        self.logger.info(f"Moved to first image: {self.image_handler.image_list[self.image_handler.image_index]}")
 
     def last_image(self, event):
         self.image_handler.image_index = len(self.image_handler.image_list) - 1
         self.load_image()
-        logging.info(f"Moved to last image: {self.image_handler.image_list[self.image_handler.image_index]}")
+        self.logger.info(f"Moved to last image: {self.image_handler.image_list[self.image_handler.image_index]}")
 
     def undo_last_action(self, event):
         last_action = self.image_handler.undo_last_action()
