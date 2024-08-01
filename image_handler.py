@@ -4,6 +4,7 @@ import logging
 from PIL import Image
 from natsort import os_sorted
 
+
 class ImageHandler:
     def __init__(self, source_folder, dest_folders, delete_folder):
         self.source_folder = source_folder
@@ -14,10 +15,12 @@ class ImageHandler:
         self.image_index = 0
         self.undo_stack = []
         self.image_cache = {}
+        logging.info(f"Initialized ImageHandler with source folder: {source_folder}")
 
     def get_image_list(self):
         image_files = [f for f in os.listdir(self.source_folder) if f.lower().endswith(self.supported_extensions)]
         image_files = os_sorted(image_files)  # Sort files using os_sorted for natural sort order
+        logging.info(f"Image list: {image_files}")
         return image_files
 
     def load_image(self, index=None):
@@ -28,9 +31,11 @@ class ImageHandler:
             logging.info(f"Loading image: {image_path}")
             try:
                 if image_path in self.image_cache:
+                    logging.info(f"Using cached image for {image_path}")
                     return self.image_cache[image_path]
                 image = Image.open(image_path)
                 self.image_cache[image_path] = image
+                logging.info(f"Loaded image: {image_path}")
                 return image
             except Exception as e:
                 logging.error(f"Failed to load image {image_path}: {e}")
@@ -100,6 +105,5 @@ class ImageHandler:
         self.image_list = self.get_image_list()
         if self.image_index >= len(self.image_list):
             self.image_index = max(0, len(self.image_list) - 1)
-        
-        return last_action
 
+        return last_action
