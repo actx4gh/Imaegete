@@ -4,23 +4,23 @@ import logging
 from PIL import Image
 from natsort import os_sorted
 
-
 class ImageHandler:
     def __init__(self, source_folder, dest_folders, delete_folder):
         self.source_folder = source_folder
         self.dest_folders = dest_folders
         self.delete_folder = delete_folder
         self.supported_extensions = ('.jpg', '.jpeg', '.png')
+        self.image_cache = {}
+        self.undo_stack = []
+        self.logger = logging.getLogger('image_sorter')
         self.image_list = self.get_image_list()
         self.image_index = 0
-        self.undo_stack = []
-        self.image_cache = {}
-        logging.info(f"Initialized ImageHandler with source folder: {source_folder}")
+        self.logger.info(f"Initialized ImageHandler with source folder: {source_folder}")
 
     def get_image_list(self):
         image_files = [f for f in os.listdir(self.source_folder) if f.lower().endswith(self.supported_extensions)]
         image_files = os_sorted(image_files)  # Sort files using os_sorted for natural sort order
-        logging.info(f"Image list: {image_files}")
+        self.logger.info(f"Image list: {image_files}")
         return image_files
 
     def load_image(self, index=None):
@@ -28,25 +28,26 @@ class ImageHandler:
             index = self.image_index
         if index < len(self.image_list):
             image_path = os.path.join(self.source_folder, self.image_list[index])
-            logging.info(f"Loading image: {image_path}")
+            self.logger.info(f"Loading image: {image_path}")
             try:
                 if image_path in self.image_cache:
-                    logging.info(f"Using cached image for {image_path}")
+                    self.logger.info(f"Using cached image for {image_path}")
                     return self.image_cache[image_path]
                 image = Image.open(image_path)
                 self.image_cache[image_path] = image
-                logging.info(f"Loaded image: {image_path}")
+                self.logger.info(f"Loaded image: {image_path}")
                 return image
             except Exception as e:
-                logging.error(f"Failed to load image {image_path}: {e}")
+                self.logger.error(f"Failed to load image {image_path}: {e}")
         return None
 
     def move_file(self, src, dest):
         try:
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
             shutil.move(src, dest)
-            logging.info(f"Moved file from {src} to {dest}")
+            self.logger.info(f"Moved file from {src} to {dest}")
         except Exception as e:
-            logging.error(f"Failed to move file from {src} to {dest}: {e}")
+            self.logger.error(f"Failed to move file from {src} to {dest}: {e}")
 
     def move_related_files(self, filename, dest_folder):
         self._move_files(filename, self.source_folder, dest_folder)
@@ -69,7 +70,7 @@ class ImageHandler:
         self.image_list.pop(self.image_index)
         if self.image_index >= len(self.image_list):
             self.image_index = max(0, len(self.image_list) - 1)  # Adjust index if it exceeds the list length
-        logging.info(f"Image moved to {category}: {current_image}")
+        self.logger.info(f"Image moved to {category}: {current_image}")
 
     def delete_image(self):
         current_image = self.image_list[self.image_index]
@@ -78,11 +79,11 @@ class ImageHandler:
         self.image_list.pop(self.image_index)
         if self.image_index >= len(self.image_list):
             self.image_index = max(0, len(self.image_list) - 1)  # Adjust index if it exceeds the list length
-        logging.info(f"Image deleted: {current_image}")
+        self.logger.info(f"Image deleted: {current_image}")
 
     def undo_last_action(self):
         if not self.undo_stack:
-            logging.info("No actions to undo")
+            self.logger.info("No actions to undo")
             return None
 
         last_action = self.undo_stack.pop()
@@ -93,13 +94,15 @@ class ImageHandler:
             filename = last_action[2]
             self.move_related_files_back(filename, self.source_folder, self.dest_folders[category])
             self.image_list.insert(self.image_index, filename)
-            logging.info(f"Undo move: {filename} from {category} back to source folder")
+            self.logger.info(f"Undo move: {filename} from {category} back to source folder")
+            self.check_and_remove_empty_dir(self.dest_folders[category])
 
         elif action_type == 'delete':
             filename = last_action[1]
             self.move_related_files_back(filename, self.source_folder, self.delete_folder)
             self.image_list.insert(self.image_index, filename)
-            logging.info(f"Undo delete: {filename} back to source folder")
+            self.logger.info(f"Undo delete: {filename} back to source folder")
+            self.check_and_remove_empty_dir(self.delete_folder)
 
         # Reload the image list to ensure consistency
         self.image_list = self.get_image_list()
@@ -107,3 +110,15 @@ class ImageHandler:
             self.image_index = max(0, len(self.image_list) - 1)
 
         return last_action
+
+    def check_and_remove_empty_dir(self, dir_path):
+        if os.path.isdir(dir_path) and not os.listdir(dir_path):
+            try:
+                os.rmdir(dir_path)
+                self.logger.info(f"Removed empty directory: {dir_path}")
+            except Exception as e:
+                self.logger.error(f"Failed to remove directory {dir_path}: {e}")
+
+    def refresh_image_list(self):
+        self.image_list = self.get_image_list()
+        self.logger.info(f"Image list refreshed: {self.image_list}")

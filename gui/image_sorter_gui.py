@@ -1,51 +1,21 @@
 from PyQt5.QtCore import Qt, pyqtSignal, QObject, QTimer
-from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QSplitter, QSizePolicy, QFrame, QWidget, QLabel, QSplitterHandle
-from PyQt5.QtGui import QFont, QPixmap, QColor, QPainter, QImage
-from logger import setup_logging
-from image_manager import ImageManager
-from key_binder import bind_keys
+from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QSizePolicy, QFrame, QWidget, QLabel, QApplication, QFileDialog, QMessageBox, QListWidgetItem, QWidgetAction
+from PyQt5.QtGui import QFont, QPixmap, QTransform, QPalette, QColor, QImage
+from image_processing.image_manager import ImageManager
+from key_binding.key_binder import bind_keys
+from gui.collapsible_splitter import CollapsibleSplitter
 import logging
 
 class ResizeSignal(QObject):
     resized = pyqtSignal()
 
-class CollapsibleSplitterHandle(QSplitterHandle):
-    def __init__(self, orientation, parent):
-        super().__init__(orientation, parent)
-        self.setCursor(Qt.PointingHandCursor)
-        self.setFixedHeight(5)
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        color = QColor(100, 100, 100)
-        painter.fillRect(self.rect(), color)
-
-    def mousePressEvent(self, event):
-        splitter = self.splitter()
-        if splitter.widget(0).isVisible():
-            splitter.widget(0).setVisible(False)
-            splitter.setSizes([0, 1])
-        else:
-            splitter.widget(0).setVisible(True)
-            splitter.setSizes([1, 1])
-        self.update()
-        super().mousePressEvent(event)
-
-    def hideEvent(self, event):
-        self.show()
-        super().hideEvent(event)
-
-class CollapsibleSplitter(QSplitter):
-    def createHandle(self):
-        return CollapsibleSplitterHandle(self.orientation(), self)
-
 class ImageSorterGUI(QMainWindow):
-    def __init__(self, config, log_file_path='image_sorter.log'):
+    def __init__(self, config):
         super().__init__()
-        logging.info("[ImageSorterGUI] Initializing ImageSorterGUI")
+        self.logger = logging.getLogger('image_sorter')
+        self.logger.info("[ImageSorterGUI] Initializing ImageSorterGUI")
         self.image_manager = None
-        self.logger = setup_logging(log_file_path)
-        self.logger.info(f"[ImageSorterGUI] Logging set up with log file: {log_file_path}")
+        self.image_cache = {}  # Cache for scaled images
         self.setWindowTitle("Image Sorter")
         self.setGeometry(100, 100, 800, 600)
         self.setMinimumSize(100, 100)
@@ -63,18 +33,19 @@ class ImageSorterGUI(QMainWindow):
         self.resize_timer.setSingleShot(True)
         self.resize_timer.timeout.connect(self.finalize_resize)
 
-        logging.info("[ImageSorterGUI] Calling initUI")
+        self.logger.info("[ImageSorterGUI] Calling initUI")
         self.initUI(config)
-        logging.info("[ImageSorterGUI] UI initialized")
-        self.image_manager = ImageManager(self, config, use_gpu=False)
+        self.logger.info("[ImageSorterGUI] UI initialized")
+        self.image_manager = ImageManager(self, config)
+        self.image_manager.load_image()  # Ensure the first image is loaded at startup
         self.show()
 
-        logging.info("[ImageSorterGUI] Binding keys")
+        self.logger.info("[ImageSorterGUI] Binding keys")
         bind_keys(self, config['categories'], self.image_manager)
-        logging.info("[ImageSorterGUI] Keys bound")
+        self.logger.info("[ImageSorterGUI] Keys bound")
 
     def initUI(self, config):
-        logging.info("[ImageSorterGUI] Initializing UI components")
+        self.logger.info("[ImageSorterGUI] Initializing UI components")
         self.top_bar = QFrame(self)
         self.top_bar.setFrameShape(QFrame.NoFrame)
         self.top_bar_layout = QVBoxLayout(self.top_bar)
@@ -101,7 +72,7 @@ class ImageSorterGUI(QMainWindow):
         self.top_splitter.setCollapsible(1, False)
 
         self.adjust_layout()
-        logging.info("[ImageSorterGUI] Finished initializing UI components")
+        self.logger.info("[ImageSorterGUI] Finished initializing UI components")
 
     def format_category_keys(self, categories):
         key_mapping = {str(i + 1): cat for i, cat in enumerate(categories)}
@@ -122,33 +93,54 @@ class ImageSorterGUI(QMainWindow):
         text_height = font_metrics.height()
         self.top_bar.setFixedHeight(text_height + 10)
 
-    def display_image(self, qimage):
-        if qimage:
-            logging.info("[ImageSorterGUI] Displaying image")
-            self.current_pixmap = QPixmap.fromImage(qimage)
+    def display_image(self, image_path):
+        if image_path:
+            self.logger.info(f"[ImageSorterGUI] Displaying image: {image_path}")
+            image = QImage(image_path)
+            self.current_pixmap = QPixmap.fromImage(image)
+            self.image_cache.clear()  # Clear cache to force update
             self.update_image_label()
         else:
-            logging.error("[ImageSorterGUI] Error: No image to display")
+            self.logger.error("[ImageSorterGUI] Error: No image to display")
+
+    def clear_image(self):
+        self.logger.info("[ImageSorterGUI] Clearing image")
+        self.current_pixmap = None
+        self.image_label.clear()
 
     def update_image_label(self):
         if self.current_pixmap:
-            scaled_pixmap = self.current_pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            cache_key = (self.image_label.width(), self.image_label.height(), self.current_pixmap.cacheKey())
+            if cache_key in self.image_cache:
+                scaled_pixmap = self.image_cache[cache_key]
+            else:
+                scaled_pixmap = self.current_pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                self.image_cache[cache_key] = scaled_pixmap
             self.image_label.setPixmap(scaled_pixmap)
+            self.logger.info("[ImageSorterGUI] Image label updated with cache key: {}".format(cache_key))
+        else:
+            self.clear_image()
+            self.logger.info("[ImageSorterGUI] Image label cleared")
 
     def resizeEvent(self, event):
         self.resize_signal.resized.emit()
-        self.update_image_label()
-        self.resize_timer.start(100)  # Adjust this value as needed
+        self.resize_timer.start(100)  # Delay the resize handling to reduce frequency
         super().resizeEvent(event)
 
     def finalize_resize(self):
         self.update_image_label()
 
     def on_resize_timeout(self):
-        self.image_manager.load_image()
         self.adjust_layout()
+        self.update_image_label()
 
     def closeEvent(self, event):
-        logging.info("[ImageSorterGUI] closeEvent triggered")
+        self.logger.info("[ImageSorterGUI] closeEvent triggered")
         self.image_manager.stop_threads()
         event.accept()
+
+    def cleanup(self):
+        self.logger.info("[ImageSorterGUI] cleanup called")
+        if self.image_manager is not None:
+            self.image_manager.stop_threads()
+        self.logger.info("[ImageSorterGUI] Threads stopped")

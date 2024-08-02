@@ -7,6 +7,19 @@ import logging
 from image_handler import ImageHandler
 from gui import ImageSorterGUI
 from PIL import Image
+from logger import setup_logging
+
+
+@pytest.fixture(scope='session', autouse=True)
+def configure_logging():
+    setup_logging('test_image_sorter.log')
+    logger = logging.getLogger('image_sorter')
+    logger.setLevel(logging.DEBUG)
+    yield
+    handlers = logger.handlers[:]
+    for handler in handlers:
+        handler.close()
+        logger.removeHandler(handler)
 
 @pytest.fixture
 def gui():
