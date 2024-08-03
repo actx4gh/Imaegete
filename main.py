@@ -1,6 +1,7 @@
+# main.py
 import sys
 from PyQt5.QtWidgets import QApplication
-from config_manager import get_configuration
+from config import get_configuration
 from logger import setup_logging
 from gui.image_sorter_gui import ImageSorterGUI
 import logging
@@ -25,4 +26,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

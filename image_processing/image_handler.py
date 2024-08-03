@@ -1,124 +1,56 @@
-import os
-import shutil
+# image_handler.py
 import logging
-from PIL import Image
+import os
 from natsort import os_sorted
+from .file_operations import move_related_files, move_related_files_back, check_and_remove_empty_dir
 
 class ImageHandler:
     def __init__(self, source_folder, dest_folders, delete_folder):
         self.source_folder = source_folder
         self.dest_folders = dest_folders
         self.delete_folder = delete_folder
-        self.supported_extensions = ('.jpg', '.jpeg', '.png')
-        self.image_cache = {}
-        self.undo_stack = []
+        self.image_list = []
+        self.deleted_images = []
         self.logger = logging.getLogger('image_sorter')
-        self.image_list = self.get_image_list()
-        self.image_index = 0
-        self.logger.info(f"Initialized ImageHandler with source folder: {source_folder}")
-
-    def get_image_list(self):
-        image_files = [f for f in os.listdir(self.source_folder) if f.lower().endswith(self.supported_extensions)]
-        image_files = os_sorted(image_files)  # Sort files using os_sorted for natural sort order
-        self.logger.info(f"Image list: {image_files}")
-        return image_files
-
-    def load_image(self, index=None):
-        if index is None:
-            index = self.image_index
-        if index < len(self.image_list):
-            image_path = os.path.join(self.source_folder, self.image_list[index])
-            self.logger.info(f"Loading image: {image_path}")
-            try:
-                if image_path in self.image_cache:
-                    self.logger.info(f"Using cached image for {image_path}")
-                    return self.image_cache[image_path]
-                image = Image.open(image_path)
-                self.image_cache[image_path] = image
-                self.logger.info(f"Loaded image: {image_path}")
-                return image
-            except Exception as e:
-                self.logger.error(f"Failed to load image {image_path}: {e}")
-        return None
-
-    def move_file(self, src, dest):
-        try:
-            os.makedirs(os.path.dirname(dest), exist_ok=True)
-            shutil.move(src, dest)
-            self.logger.info(f"Moved file from {src} to {dest}")
-        except Exception as e:
-            self.logger.error(f"Failed to move file from {src} to {dest}: {e}")
-
-    def move_related_files(self, filename, dest_folder):
-        self._move_files(filename, self.source_folder, dest_folder)
-
-    def move_related_files_back(self, filename, src_folder, dest_folder):
-        self._move_files(filename, dest_folder, src_folder)
-
-    def _move_files(self, filename, src_folder, dest_folder):
-        base, _ = os.path.splitext(filename)
-        related_files = [f for f in os.listdir(src_folder) if os.path.splitext(f)[0] == base]
-        for f in related_files:
-            src_path = os.path.join(src_folder, f)
-            dest_path = os.path.join(dest_folder, f)
-            self.move_file(src_path, dest_path)
-
-    def move_image(self, category):
-        current_image = self.image_list[self.image_index]
-        self.move_related_files(current_image, self.dest_folders[category])
-        self.undo_stack.append(('move', category, current_image))
-        self.image_list.pop(self.image_index)
-        if self.image_index >= len(self.image_list):
-            self.image_index = max(0, len(self.image_list) - 1)  # Adjust index if it exceeds the list length
-        self.logger.info(f"Image moved to {category}: {current_image}")
-
-    def delete_image(self):
-        current_image = self.image_list[self.image_index]
-        self.move_related_files(current_image, self.delete_folder)
-        self.undo_stack.append(('delete', current_image))
-        self.image_list.pop(self.image_index)
-        if self.image_index >= len(self.image_list):
-            self.image_index = max(0, len(self.image_list) - 1)  # Adjust index if it exceeds the list length
-        self.logger.info(f"Image deleted: {current_image}")
-
-    def undo_last_action(self):
-        if not self.undo_stack:
-            self.logger.info("No actions to undo")
-            return None
-
-        last_action = self.undo_stack.pop()
-        action_type = last_action[0]
-
-        if action_type == 'move':
-            category = last_action[1]
-            filename = last_action[2]
-            self.move_related_files_back(filename, self.source_folder, self.dest_folders[category])
-            self.image_list.insert(self.image_index, filename)
-            self.logger.info(f"Undo move: {filename} from {category} back to source folder")
-            self.check_and_remove_empty_dir(self.dest_folders[category])
-
-        elif action_type == 'delete':
-            filename = last_action[1]
-            self.move_related_files_back(filename, self.source_folder, self.delete_folder)
-            self.image_list.insert(self.image_index, filename)
-            self.logger.info(f"Undo delete: {filename} back to source folder")
-            self.check_and_remove_empty_dir(self.delete_folder)
-
-        # Reload the image list to ensure consistency
-        self.image_list = self.get_image_list()
-        if self.image_index >= len(self.image_list):
-            self.image_index = max(0, len(self.image_list) - 1)
-
-        return last_action
-
-    def check_and_remove_empty_dir(self, dir_path):
-        if os.path.isdir(dir_path) and not os.listdir(dir_path):
-            try:
-                os.rmdir(dir_path)
-                self.logger.info(f"Removed empty directory: {dir_path}")
-            except Exception as e:
-                self.logger.error(f"Failed to remove directory {dir_path}: {e}")
+        self.refresh_image_list()
 
     def refresh_image_list(self):
-        self.image_list = self.get_image_list()
-        self.logger.info(f"Image list refreshed: {self.image_list}")
+        self.image_list = [f for f in os.listdir(self.source_folder) if os.path.isfile(os.path.join(self.source_folder, f)) and self.is_image_file(f)]
+        self.image_list = os_sorted(self.image_list)  # Sort files using os_sorted for natural sort order
+        self.logger.info(f"Image list: {self.image_list}")
+
+    def is_image_file(self, filename):
+        valid_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.gif']
+        return any(filename.lower().endswith(ext) for ext in valid_extensions)
+
+    def move_image(self, image_name, category):
+        if category in self.dest_folders:
+            move_related_files(image_name, self.source_folder, self.dest_folders[category])
+            self.logger.info(f"Moved image: {image_name} to category {category}")
+            self.deleted_images.append(('move', image_name, category))
+        self.refresh_image_list()
+        check_and_remove_empty_dir(self.dest_folders[category])
+
+    def delete_image(self, image_name):
+        move_related_files(image_name, self.source_folder, self.delete_folder)
+        self.logger.info(f"Deleted image: {image_name}")
+        self.deleted_images.append(('delete', image_name))
+        self.refresh_image_list()
+        check_and_remove_empty_dir(self.delete_folder)
+
+    def undo_last_action(self):
+        if self.deleted_images:
+            last_action = self.deleted_images.pop()
+            if last_action[0] == 'delete':
+                image_name = last_action[1]
+                move_related_files_back(image_name, self.source_folder, self.delete_folder)
+                check_and_remove_empty_dir(self.delete_folder)
+                self.logger.info(f"Undo delete: {image_name} back to source folder")
+            elif last_action[0] == 'move':
+                image_name, category = last_action[1], last_action[2]
+                move_related_files_back(image_name, self.source_folder, self.dest_folders[category])
+                check_and_remove_empty_dir(self.dest_folders[category])
+                self.logger.info(f"Undo move: {image_name} from {category} back to source folder")
+            self.refresh_image_list()
+            return last_action
+        return None

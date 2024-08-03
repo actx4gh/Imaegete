@@ -1,10 +1,14 @@
+# image_sorter_gui.py
+import logging
+
 from PyQt5.QtCore import Qt, pyqtSignal, QObject, QTimer
-from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QSizePolicy, QFrame, QWidget, QLabel, QApplication, QFileDialog, QMessageBox, QListWidgetItem, QWidgetAction
-from PyQt5.QtGui import QFont, QPixmap, QTransform, QPalette, QColor, QImage
+from PyQt5.QtGui import QFont, QPixmap, QImage
+from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QSizePolicy, QFrame, QWidget, QLabel, QMessageBox
+
 from image_processing.image_manager import ImageManager
 from key_binding.key_binder import bind_keys
-from gui.collapsible_splitter import CollapsibleSplitter
-import logging
+from .collapsible_splitter import CollapsibleSplitter
+
 
 class ResizeSignal(QObject):
     resized = pyqtSignal()
@@ -15,7 +19,6 @@ class ImageSorterGUI(QMainWindow):
         self.logger = logging.getLogger('image_sorter')
         self.logger.info("[ImageSorterGUI] Initializing ImageSorterGUI")
         self.image_manager = None
-        self.image_cache = {}  # Cache for scaled images
         self.setWindowTitle("Image Sorter")
         self.setGeometry(100, 100, 800, 600)
         self.setMinimumSize(100, 100)
@@ -37,6 +40,7 @@ class ImageSorterGUI(QMainWindow):
         self.initUI(config)
         self.logger.info("[ImageSorterGUI] UI initialized")
         self.image_manager = ImageManager(self, config)
+        self.image_manager.image_loaded.connect(self.on_image_loaded)
         self.image_manager.load_image()  # Ensure the first image is loaded at startup
         self.show()
 
@@ -93,15 +97,15 @@ class ImageSorterGUI(QMainWindow):
         text_height = font_metrics.height()
         self.top_bar.setFixedHeight(text_height + 10)
 
-    def display_image(self, image_path):
-        if image_path:
+    def display_image(self, image_path, image):
+        if image:
             self.logger.info(f"[ImageSorterGUI] Displaying image: {image_path}")
-            image = QImage(image_path)
-            self.current_pixmap = QPixmap.fromImage(image)
-            self.image_cache.clear()  # Clear cache to force update
+            qimage = self.pil_to_qimage(image)
+            self.current_pixmap = QPixmap.fromImage(qimage)
             self.update_image_label()
         else:
             self.logger.error("[ImageSorterGUI] Error: No image to display")
+            QMessageBox.critical(self, "Error", "No image to display!")
 
     def clear_image(self):
         self.logger.info("[ImageSorterGUI] Clearing image")
@@ -110,17 +114,18 @@ class ImageSorterGUI(QMainWindow):
 
     def update_image_label(self):
         if self.current_pixmap:
-            cache_key = (self.image_label.width(), self.image_label.height(), self.current_pixmap.cacheKey())
-            if cache_key in self.image_cache:
-                scaled_pixmap = self.image_cache[cache_key]
-            else:
-                scaled_pixmap = self.current_pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                self.image_cache[cache_key] = scaled_pixmap
+            scaled_pixmap = self.current_pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
             self.image_label.setPixmap(scaled_pixmap)
-            self.logger.info("[ImageSorterGUI] Image label updated with cache key: {}".format(cache_key))
+            self.logger.info("[ImageSorterGUI] Image label updated")
         else:
             self.clear_image()
             self.logger.info("[ImageSorterGUI] Image label cleared")
+
+    def pil_to_qimage(self, pil_image):
+        pil_image = pil_image.convert("RGBA")
+        data = pil_image.tobytes("raw", "RGBA")
+        qimage = QImage(data, pil_image.width, pil_image.height, QImage.Format_RGBA8888)
+        return qimage
 
     def resizeEvent(self, event):
         self.resize_signal.resized.emit()
@@ -144,3 +149,6 @@ class ImageSorterGUI(QMainWindow):
         if self.image_manager is not None:
             self.image_manager.stop_threads()
         self.logger.info("[ImageSorterGUI] Threads stopped")
+
+    def on_image_loaded(self, image_path, image):
+        self.display_image(image_path, image)

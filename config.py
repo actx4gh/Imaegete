@@ -1,13 +1,12 @@
+# config.py
 import os
 import subprocess
 import argparse
 import yaml
 
-
 def is_cygwin():
     ostype = os.getenv('OSTYPE', '').lower()
     return 'cygwin' in ostype
-
 
 def cygwin_to_windows_path(cygwin_path):
     result = subprocess.run(['cygpath', '-w', cygwin_path], capture_output=True, text=True)
@@ -25,7 +24,6 @@ def parse_args(args=None):
     parser.add_argument('--categories', type=str, nargs='*', default=['Sorted'], help="List of categories")
     parser.add_argument('--base_dir', type=str, default='.', help="Base directory for category folders")
     return parser.parse_args(args)
-
 
 def read_config_file(config_path):
     with open(config_path, 'r') as file:
@@ -55,9 +53,3 @@ def get_configuration():
         'delete_folder': delete_folder,
         'base_dir': base_dir
     }
-
-def ensure_directories_exist(dest_folders, delete_folder):
-    for folder in dest_folders.values():
-        os.makedirs(folder, exist_ok=True)
-    os.makedirs(delete_folder, exist_ok=True)
-
