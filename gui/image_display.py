@@ -59,3 +59,13 @@ class ImageDisplay(QObject):
         data = pil_image.tobytes("raw", "RGBA")
         qimage = QImage(data, pil_image.width, pil_image.height, QImage.Format_RGBA8888)
         return qimage
+
+    def get_zoom_percentage(self):
+        if not self.current_pixmap:
+            return 100
+        pixmap_size = self.current_pixmap.size()
+        label_size = self.image_label.size()
+        width_ratio = label_size.width() / pixmap_size.width()
+        height_ratio = label_size.height() / pixmap_size.height()
+        zoom_percentage = min(width_ratio, height_ratio) * 100
+        return round(zoom_percentage)

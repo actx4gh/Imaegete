@@ -8,7 +8,7 @@ class ImageCache:
 
     def load_image(self, image_path):
         if image_path in self.cache:
-            logging.getLogger('image_sorter').info(f"Using cached image for {image_path}")
+            # logging.getLogger('image_sorter').info(f"Using cached image for {image_path}")
             return self.cache[image_path]
         image = Image.open(image_path)
         self.cache[image_path] = image

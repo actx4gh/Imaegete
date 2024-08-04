@@ -17,7 +17,7 @@ class ImageHandler:
     def refresh_image_list(self):
         self.image_list = [f for f in os.listdir(self.source_folder) if os.path.isfile(os.path.join(self.source_folder, f)) and self.is_image_file(f)]
         self.image_list = os_sorted(self.image_list)  # Sort files using os_sorted for natural sort order
-        self.logger.info(f"Image list: {self.image_list}")
+        self.logger.info(f"Image list count: {len(self.image_list)}")
 
     def is_image_file(self, filename):
         valid_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.gif']

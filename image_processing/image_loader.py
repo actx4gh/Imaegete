@@ -1,7 +1,9 @@
-# threaded_image_loader.py
-from PyQt5.QtCore import QThread, pyqtSignal
-from PIL import Image
+# image_loader.py
 import logging
+
+from PIL import Image
+from PyQt5.QtCore import QThread, pyqtSignal
+
 
 class ThreadedImageLoader(QThread):
     image_loaded = pyqtSignal(str, object)
