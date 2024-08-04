@@ -1,24 +1,24 @@
-# image_sorter_gui.py
 import logging
 
 from PyQt5.QtCore import Qt, pyqtSignal, QObject, QTimer
-from PyQt5.QtGui import QFont, QPixmap, QImage
-from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QSizePolicy, QFrame, QWidget, QLabel, QMessageBox
+from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QFrame, QWidget, QLabel
 
 from image_processing.image_manager import ImageManager
 from key_binding.key_binder import bind_keys
 from .collapsible_splitter import CollapsibleSplitter
+from .image_display import ImageDisplay
 
 
 class ResizeSignal(QObject):
     resized = pyqtSignal()
+
 
 class ImageSorterGUI(QMainWindow):
     def __init__(self, config):
         super().__init__()
         self.logger = logging.getLogger('image_sorter')
         self.logger.info("[ImageSorterGUI] Initializing ImageSorterGUI")
-        self.image_manager = None
         self.setWindowTitle("Image Sorter")
         self.setGeometry(100, 100, 800, 600)
         self.setMinimumSize(100, 100)
@@ -26,22 +26,25 @@ class ImageSorterGUI(QMainWindow):
         self.main_widget = QWidget()
         self.setCentralWidget(self.main_widget)
         self.main_layout = QVBoxLayout(self.main_widget)
-        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
+        self.main_layout.setSpacing(0)  # Remove spacing
 
         self.resize_signal = ResizeSignal()
         self.resize_signal.resized.connect(self.on_resize_timeout)
 
-        self.current_pixmap = None
         self.resize_timer = QTimer()
         self.resize_timer.setSingleShot(True)
-        self.resize_timer.timeout.connect(self.finalize_resize)
+        self.resize_timer.timeout.connect(self.log_resize_event)  # Connect timer to logging method
 
         self.logger.info("[ImageSorterGUI] Calling initUI")
         self.initUI(config)
         self.logger.info("[ImageSorterGUI] UI initialized")
-        self.image_manager = ImageManager(self, config)
-        self.image_manager.image_loaded.connect(self.on_image_loaded)
+
+        self.image_manager = ImageManager(config)
+        self.image_manager.image_loaded.connect(self.image_display.display_image)
+        self.image_manager.image_cleared.connect(self.image_display.clear_image)
         self.image_manager.load_image()  # Ensure the first image is loaded at startup
+
         self.show()
 
         self.logger.info("[ImageSorterGUI] Binding keys")
@@ -54,6 +57,7 @@ class ImageSorterGUI(QMainWindow):
         self.top_bar.setFrameShape(QFrame.NoFrame)
         self.top_bar_layout = QVBoxLayout(self.top_bar)
         self.top_bar_layout.setContentsMargins(0, 0, 0, 0)
+        self.top_bar_layout.setSpacing(0)
         self.top_bar_layout.setAlignment(Qt.AlignCenter)
         self.category_label = QLabel(self.format_category_keys(config['categories']), self)
         self.category_label.setFont(QFont("Helvetica", 8))
@@ -61,15 +65,11 @@ class ImageSorterGUI(QMainWindow):
 
         self.top_splitter = CollapsibleSplitter(Qt.Vertical)
         self.top_splitter.setHandleWidth(5)
+        self.top_splitter.setContentsMargins(0, 0, 0, 0)  # Remove margins
         self.top_splitter.addWidget(self.top_bar)
 
-        self.image_label = QLabel(self)
-        self.image_label.setAlignment(Qt.AlignCenter)
-        self.image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.image_label.setMinimumSize(1, 1)
-        self.image_label.setContentsMargins(0, 0, 0, 0)
-
-        self.top_splitter.addWidget(self.image_label)
+        self.image_display = ImageDisplay(self.logger)
+        self.top_splitter.addWidget(self.image_display.get_widget())
         self.main_layout.addWidget(self.top_splitter)
 
         self.top_splitter.setCollapsible(0, True)
@@ -97,47 +97,22 @@ class ImageSorterGUI(QMainWindow):
         text_height = font_metrics.height()
         self.top_bar.setFixedHeight(text_height + 10)
 
-    def display_image(self, image_path, image):
-        if image:
-            self.logger.info(f"[ImageSorterGUI] Displaying image: {image_path}")
-            qimage = self.pil_to_qimage(image)
-            self.current_pixmap = QPixmap.fromImage(qimage)
-            self.update_image_label()
-        else:
-            self.logger.error("[ImageSorterGUI] Error: No image to display")
-            QMessageBox.critical(self, "Error", "No image to display!")
-
-    def clear_image(self):
-        self.logger.info("[ImageSorterGUI] Clearing image")
-        self.current_pixmap = None
-        self.image_label.clear()
-
-    def update_image_label(self):
-        if self.current_pixmap:
-            scaled_pixmap = self.current_pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            self.image_label.setPixmap(scaled_pixmap)
-            self.logger.info("[ImageSorterGUI] Image label updated")
-        else:
-            self.clear_image()
-            self.logger.info("[ImageSorterGUI] Image label cleared")
-
-    def pil_to_qimage(self, pil_image):
-        pil_image = pil_image.convert("RGBA")
-        data = pil_image.tobytes("raw", "RGBA")
-        qimage = QImage(data, pil_image.width, pil_image.height, QImage.Format_RGBA8888)
-        return qimage
+    def log_resize_event(self):
+        self.logger.info(f"[ImageSorterGUI] Window resized to {self.width()}x{self.height()}")
 
     def resizeEvent(self, event):
         self.resize_signal.resized.emit()
-        self.resize_timer.start(100)  # Delay the resize handling to reduce frequency
+        if self.resize_timer.isActive():
+            self.resize_timer.stop()
+        self.resize_timer.start(300)  # Adjust the debounce period as needed
         super().resizeEvent(event)
 
     def finalize_resize(self):
-        self.update_image_label()
+        self.image_display.update_image_label()
 
     def on_resize_timeout(self):
         self.adjust_layout()
-        self.update_image_label()
+        self.image_display.update_image_label()
 
     def closeEvent(self, event):
         self.logger.info("[ImageSorterGUI] closeEvent triggered")
@@ -149,6 +124,3 @@ class ImageSorterGUI(QMainWindow):
         if self.image_manager is not None:
             self.image_manager.stop_threads()
         self.logger.info("[ImageSorterGUI] Threads stopped")
-
-    def on_image_loaded(self, image_path, image):
-        self.display_image(image_path, image)

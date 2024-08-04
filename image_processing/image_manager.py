@@ -1,17 +1,19 @@
-# image_manager.py
-from PyQt5.QtCore import pyqtSignal, QObject
 import logging
 import os
-from .image_handler import ImageHandler
+
+from PyQt5.QtCore import pyqtSignal, QObject
+
 from .image_cache import ImageCache
+from .image_handler import ImageHandler
 from .image_loader import ThreadedImageLoader
+
 
 class ImageManager(QObject):
     image_loaded = pyqtSignal(str, object)
+    image_cleared = pyqtSignal()
 
-    def __init__(self, gui, config):
+    def __init__(self, config):
         super().__init__()
-        self.gui = gui
         self.config = config
         self.logger = logging.getLogger('image_sorter')
         self.image_handler = ImageHandler(config['source_folder'], config['dest_folders'], config['delete_folder'])
@@ -21,11 +23,12 @@ class ImageManager(QObject):
 
     def load_image(self):
         if 0 <= self.current_index < len(self.image_handler.image_list):
-            image_path = os.path.join(self.image_handler.source_folder, self.image_handler.image_list[self.current_index])
-            self.logger.info(f"Loading image at index {self.current_index} of {len(self.image_handler.image_list)}: {image_path}")
+            image_path = os.path.join(self.image_handler.source_folder,
+                                      self.image_handler.image_list[self.current_index])
+            self.logger.info(
+                f"Loading image at index {self.current_index} of {len(self.image_handler.image_list)}: {image_path}")
             if image_path in self.image_cache.cache:
                 image = self.image_cache.cache[image_path]
-                self.gui.display_image(image_path, image)
                 self.image_loaded.emit(image_path, image)
             else:
                 if self.loader_thread is not None:
@@ -36,12 +39,11 @@ class ImageManager(QObject):
                 self.loader_thread.start()
         else:
             self.logger.info("No current image to load")
-            self.gui.clear_image()
+            self.image_cleared.emit()
 
     def on_image_loaded(self, image_path, image):
         if image is not None:
             self.image_cache.cache[image_path] = image
-            self.gui.display_image(image_path, image)
             self.image_loaded.emit(image_path, image)
         else:
             self.logger.error(f"Failed to load image: {image_path}")

@@ -3,7 +3,7 @@ import sys
 from PyQt5.QtWidgets import QApplication
 from config import get_configuration
 from logger import setup_logging
-from gui.image_sorter_gui import ImageSorterGUI
+from gui.main_window import ImageSorterGUI
 import logging
 
 def main():
