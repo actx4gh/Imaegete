@@ -1,10 +1,13 @@
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtWidgets import QLabel, QSizePolicy, QMessageBox, QVBoxLayout, QWidget
 
 
-class ImageDisplay:
+class ImageDisplay(QObject):
+    image_changed = pyqtSignal(str)  # Signal to emit the current file path
+
     def __init__(self, logger):
+        super().__init__()
         self.logger = logger
         self.widget = QWidget()
         self.layout = QVBoxLayout(self.widget)
@@ -33,6 +36,7 @@ class ImageDisplay:
             qimage = self.pil_to_qimage(image)
             self.current_pixmap = QPixmap.fromImage(qimage)
             self.update_image_label()
+            self.image_changed.emit(image_path)  # Emit signal with the current file path
         else:
             self.logger.error("[ImageDisplay] Error: No image to display")
             QMessageBox.critical(self.widget, "Error", "No image to display!")
@@ -41,11 +45,6 @@ class ImageDisplay:
         self.logger.info("[ImageDisplay] Clearing image")
         self.current_pixmap = None
         self.image_label.clear()
-
-    def schedule_update_image_label(self):
-        if self.update_timer.isActive():
-            self.update_timer.stop()
-        self.update_timer.start(300)  # Adjust the debounce period as needed
 
     def update_image_label(self):
         if self.current_pixmap:

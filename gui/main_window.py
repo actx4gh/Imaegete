@@ -2,7 +2,7 @@ import logging
 
 from PyQt5.QtCore import Qt, pyqtSignal, QObject, QTimer
 from PyQt5.QtGui import QFont
-from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QFrame, QWidget, QLabel
+from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QFrame, QWidget, QLabel, QStatusBar
 
 from image_processing.image_manager import ImageManager
 from key_binding.key_binder import bind_keys
@@ -63,17 +63,34 @@ class ImageSorterGUI(QMainWindow):
         self.category_label.setFont(QFont("Helvetica", 8))
         self.top_bar_layout.addWidget(self.category_label)
 
-        self.top_splitter = CollapsibleSplitter(Qt.Vertical)
-        self.top_splitter.setHandleWidth(5)
+        self.top_splitter = CollapsibleSplitter(Qt.Vertical, 3)
         self.top_splitter.setContentsMargins(0, 0, 0, 0)  # Remove margins
+
         self.top_splitter.addWidget(self.top_bar)
 
         self.image_display = ImageDisplay(self.logger)
+        self.image_display.image_changed.connect(self.update_status_bar)  # Connect signal to update status bar
         self.top_splitter.addWidget(self.image_display.get_widget())
         self.main_layout.addWidget(self.top_splitter)
 
+        # Create the bottom status bar using QStatusBar
+        self.status_bar = QStatusBar(self)
+        self.status_label = QLabel("Status: Ready", self)
+        self.status_bar.addWidget(self.status_label)
+
+        # Create the bottom splitter
+        self.bottom_splitter = CollapsibleSplitter(Qt.Vertical, 3)
+        self.bottom_splitter.setBottomSplitter(True)
+        self.bottom_splitter.setContentsMargins(0, 0, 0, 0)
+        self.bottom_splitter.addWidget(self.top_splitter)
+        self.bottom_splitter.addWidget(self.status_bar)
+
+        self.main_layout.addWidget(self.bottom_splitter)
+
         self.top_splitter.setCollapsible(0, True)
         self.top_splitter.setCollapsible(1, False)
+        self.bottom_splitter.setCollapsible(0, False)
+        self.bottom_splitter.setCollapsible(1, True)
 
         self.adjust_layout()
         self.logger.info("[ImageSorterGUI] Finished initializing UI components")
@@ -85,17 +102,27 @@ class ImageSorterGUI(QMainWindow):
     def adjust_layout(self):
         self.adjust_font_size()
         self.adjust_top_bar_height()
+        self.adjust_status_bar_height()
 
     def adjust_font_size(self):
         width = self.width()
         text_length = len(self.category_label.text())
         new_size = max(1, min(int(width / (text_length / 1.5)), 12))
         self.category_label.setFont(QFont("Helvetica", new_size))
+        self.status_label.setFont(QFont("Helvetica", new_size))  # Ensure the status bar font scales similarly
 
     def adjust_top_bar_height(self):
         font_metrics = self.category_label.fontMetrics()
         text_height = font_metrics.height()
         self.top_bar.setFixedHeight(text_height + 10)
+
+    def adjust_status_bar_height(self):
+        font_metrics = self.status_label.fontMetrics()
+        text_height = font_metrics.height()
+        self.status_bar.setFixedHeight(text_height + 10)
+
+    def update_status_bar(self, file_path):
+        self.status_label.setText(f"{file_path}")
 
     def log_resize_event(self):
         self.logger.info(f"[ImageSorterGUI] Window resized to {self.width()}x{self.height()}")
