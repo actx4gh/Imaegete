@@ -1,15 +1,14 @@
 # file_operations.py
 import os
 import shutil
-import logging
-
+import logger
 def move_file(src, dest):
     try:
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.move(src, dest)
-        logging.getLogger('image_sorter').info(f"Moved file from {src} to {dest}")
+        logger.info(f"Moved file from {src} to {dest}")
     except Exception as e:
-        logging.getLogger('image_sorter').error(f"Failed to move file from {src} to {dest}: {e}")
+        logger.getLogger('image_sorter').error(f"Failed to move file from {src} to {dest}: {e}")
 
 def move_related_files(filename, src_folder, dest_folder):
     base, _ = os.path.splitext(filename)
@@ -26,6 +25,6 @@ def check_and_remove_empty_dir(dir_path):
     if os.path.isdir(dir_path) and not os.listdir(dir_path):
         try:
             os.rmdir(dir_path)
-            logging.getLogger('image_sorter').info(f"Removed empty directory: {dir_path}")
+            logger.info(f"Removed empty directory: {dir_path}")
         except Exception as e:
-            logging.getLogger('image_sorter').error(f"Failed to remove directory {dir_path}: {e}")
+            logger.error(f"Failed to remove directory {dir_path}: {e}")

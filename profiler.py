@@ -2,8 +2,8 @@ import cProfile
 import pstats
 import io
 from main import main
-import logging
 import atexit
+import logger
 
 pr = cProfile.Profile()
 
@@ -20,11 +20,11 @@ def stop_profiling():
     ps.print_stats()
     with open("image_sorter_profile.txt", "w") as f:
         f.write(s.getvalue())
-    logging.getLogger('image_sorter').info("[main] Profiling data written")
+    logger.info("[main] Profiling data written")
 
 def on_exit():
     stop_profiling()
-    logging.getLogger('image_sorter').info("[main] Application exit triggered")
+    logger.info("[main] Application exit triggered")
 
 atexit.register(on_exit)
 

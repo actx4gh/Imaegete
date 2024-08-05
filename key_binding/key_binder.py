@@ -1,8 +1,9 @@
 from PyQt5.QtWidgets import QShortcut
 from PyQt5.QtGui import QKeySequence
+import config
 
-def bind_keys(gui, categories, image_manager):
-    key_mapping = {str(i + 1): cat for i, cat in enumerate(categories)}
+def bind_keys(gui, image_manager):
+    key_mapping = {str(i + 1): cat for i, cat in enumerate(config.categories)}
     for key, category in key_mapping.items():
         shortcut = QShortcut(QKeySequence(key), gui)
         shortcut.activated.connect(lambda c=category: image_manager.move_image(c))

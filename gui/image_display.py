@@ -1,3 +1,4 @@
+import logger
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtWidgets import QLabel, QSizePolicy, QMessageBox, QVBoxLayout, QWidget
@@ -6,9 +7,8 @@ from PyQt5.QtWidgets import QLabel, QSizePolicy, QMessageBox, QVBoxLayout, QWidg
 class ImageDisplay(QObject):
     image_changed = pyqtSignal(str)  # Signal to emit the current file path
 
-    def __init__(self, logger):
+    def __init__(self):
         super().__init__()
-        self.logger = logger
         self.widget = QWidget()
         self.layout = QVBoxLayout(self.widget)
 
@@ -23,7 +23,6 @@ class ImageDisplay(QObject):
 
         # Remove margins from the label
         self.image_label.setContentsMargins(0, 0, 0, 0)
-
         self.layout.addWidget(self.image_label)
         self.current_pixmap = None
 
@@ -32,17 +31,17 @@ class ImageDisplay(QObject):
 
     def display_image(self, image_path, image):
         if image:
-            self.logger.info(f"[ImageDisplay] Displaying image: {image_path}")
+            logger.info(f"[ImageDisplay] Displaying image: {image_path}")
             qimage = self.pil_to_qimage(image)
             self.current_pixmap = QPixmap.fromImage(qimage)
             self.update_image_label()
             self.image_changed.emit(image_path)  # Emit signal with the current file path
         else:
-            self.logger.error("[ImageDisplay] Error: No image to display")
+            logger.error("[ImageDisplay] Error: No image to display")
             QMessageBox.critical(self.widget, "Error", "No image to display!")
 
     def clear_image(self):
-        self.logger.info("[ImageDisplay] Clearing image")
+        logger.info("[ImageDisplay] Clearing image")
         self.current_pixmap = None
         self.image_label.clear()
 
@@ -51,6 +50,7 @@ class ImageDisplay(QObject):
             scaled_pixmap = self.current_pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio,
                                                        Qt.SmoothTransformation)
             self.image_label.setPixmap(scaled_pixmap)
+            logger.debug(f"[ImageDisplay] Updated image label size: {self.image_label.size()}")  # Debug print
         else:
             self.clear_image()
 

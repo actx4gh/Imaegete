@@ -1,18 +1,28 @@
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QSplitter, QSplitterHandle
 from PyQt5.QtGui import QColor, QPainter
+import logger
 
 class CollapsibleSplitterHandle(QSplitterHandle):
     def __init__(self, orientation, parent, handle_thickness, is_bottom_handle=False):
         super().__init__(orientation, parent)
         self.is_bottom_handle = is_bottom_handle
+        self.handle_thickness = handle_thickness
         self.setCursor(Qt.PointingHandCursor)
-        self.setFixedHeight(handle_thickness)
+        self.setContentsMargins(0, 0, 0, 0)  # Ensure no margins
 
     def paintEvent(self, event):
         painter = QPainter(self)
         color = QColor(100, 100, 100)
         painter.fillRect(self.rect(), color)
+        logger.debug(f"[CollapsibleSplitterHandle] Handle geometry: {self.geometry()}")
+
+    def sizeHint(self):
+        size = super().sizeHint()
+        size.setHeight(self.handle_thickness)
+        size.setWidth(self.handle_thickness)
+        logger.debug(f"[CollapsibleSplitterHandle] Size hint: {size}")
+        return size
 
     def mousePressEvent(self, event):
         splitter = self.splitter()
@@ -42,9 +52,15 @@ class CollapsibleSplitter(QSplitter):
         super().__init__(orientation, parent)
         self.handle_thickness = handle_thickness
         self.is_bottom_splitter = False
+        self.setContentsMargins(0, 0, 0, 0)  # Ensure no margins
+        self.setHandleWidth(handle_thickness)  # Explicitly set the handle width
 
     def setBottomSplitter(self, is_bottom):
         self.is_bottom_splitter = is_bottom
 
     def createHandle(self):
         return CollapsibleSplitterHandle(self.orientation(), self, self.handle_thickness, self.is_bottom_splitter)
+
+    def handleWidth(self):
+        logger.info(f"[CollapsibleSplitter] Handle width: {self.handle_thickness}")
+        return self.handle_thickness

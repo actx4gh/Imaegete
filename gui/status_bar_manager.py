@@ -1,6 +1,8 @@
-from PyQt5.QtWidgets import QLabel, QStatusBar
-from datetime import datetime
 import os
+from datetime import datetime
+
+from PyQt5.QtWidgets import QLabel, QStatusBar
+
 
 class StatusBarManager:
     def __init__(self, main_window, image_manager):
