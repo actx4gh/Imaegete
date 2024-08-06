@@ -1,6 +1,8 @@
-from PyQt5.QtWidgets import QShortcut
 from PyQt5.QtGui import QKeySequence
+from PyQt5.QtWidgets import QShortcut
+
 import config
+
 
 def bind_keys(gui, image_manager):
     key_mapping = {str(i + 1): cat for i, cat in enumerate(config.categories)}

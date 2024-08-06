@@ -1,12 +1,13 @@
 # image_cache.py
-import logger
-
 from PIL import Image
+
+import logger
 
 
 class ImageCache:
     def __init__(self):
         self.cache = {}
+
     def load_image(self, image_path):
         if image_path in self.cache:
             return self.cache[image_path]

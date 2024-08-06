@@ -1,4 +1,5 @@
 import logging
+
 import config
 
 # Configure the logger
@@ -20,6 +21,7 @@ if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
     logger.addHandler(console_handler)
 
 logger.info(f"Logging set up with log file: image_sorter.log and level: {logging.getLevelName(logger.level)}")
+
 
 # Expose the logger attributes as part of the module's namespace
 def __getattr__(name):

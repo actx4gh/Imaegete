@@ -1,8 +1,8 @@
 # image_loader.py
-import logger
-
 from PIL import Image
 from PyQt5.QtCore import QThread, pyqtSignal
+
+import logger
 
 
 class ThreadedImageLoader(QThread):

@@ -1,7 +1,8 @@
-import logger
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtWidgets import QLabel, QSizePolicy, QMessageBox, QVBoxLayout, QWidget
+
+import logger
 
 
 class ImageDisplay(QObject):

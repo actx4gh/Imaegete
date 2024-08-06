@@ -1,12 +1,14 @@
+import logging
 import os
-import pytest
+import tempfile
 from tkinter import Tk
 from unittest.mock import patch
-import tempfile
-import logging
-from image_handler import ImageHandler
-from gui import ImageSorterGUI
+
+import pytest
 from PIL import Image
+from image_handler import ImageHandler
+
+from gui import ImageSorterGUI
 from logger import setup_logging
 
 
@@ -20,6 +22,7 @@ def configure_logging():
     for handler in handlers:
         handler.close()
         logger.removeHandler(handler)
+
 
 @pytest.fixture
 def gui():
@@ -47,6 +50,7 @@ def gui():
             handler.close()
             logger.removeHandler(handler)
 
+
 @pytest.fixture
 def image_handler():
     """Fixture to set up an ImageHandler with temporary directories."""
@@ -54,10 +58,13 @@ def image_handler():
         handler = ImageHandler(source_folder, {'cat1': dest_folder}, delete_folder)
         yield handler
 
+
 @pytest.fixture
 def test_jpg():
     """Fixture to create a simple JPEG file."""
+
     def _create_test_jpg(path):
         image = Image.new('RGB', (100, 100), color='red')
         image.save(path, 'JPEG')
+
     return _create_test_jpg

@@ -1,8 +1,8 @@
-import logger
 import os
 
 from PyQt5.QtCore import pyqtSignal, QObject
 
+import logger
 from .image_cache import ImageCache
 from .image_handler import ImageHandler
 from .image_loader import ThreadedImageLoader

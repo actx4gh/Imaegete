@@ -8,7 +8,6 @@ import logger
 from .event_handling import setup_event_handling, handle_resize_event
 from .image_controller import ImageController
 from .status_bar_manager import StatusBarManager
-from .collapsible_splitter import CollapsibleSplitter
 from .ui_initializer import UIInitializer
 
 
@@ -70,7 +69,7 @@ class ImageSorterGUI(QMainWindow):
         self.log_widget_geometries()  # Log widget geometries after layout adjustments
 
     def adjust_font_size(self):
-        max_font_size = 12
+        max_font_size = 14
         min_font_size = 5
         width = self.width()
 
@@ -100,7 +99,6 @@ class ImageSorterGUI(QMainWindow):
         status_font = QFont("Helvetica")
         status_font.setPixelSize(new_size)
         self.status_bar_manager.status_label.setFont(status_font)
-
 
     def adjust_top_bar_height(self):
         font_metrics = self.category_label.fontMetrics()

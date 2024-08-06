@@ -2,11 +2,11 @@ import sys
 
 from PyQt5.QtWidgets import QApplication
 
-from gui.main_window import ImageSorterGUI
 import logger
+from gui.main_window import ImageSorterGUI
+
 
 def main():
-
     app = QApplication(sys.argv)
     sorter_gui = ImageSorterGUI()
     sorter_gui.show()

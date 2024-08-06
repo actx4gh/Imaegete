@@ -1,7 +1,9 @@
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QSplitter, QSplitterHandle
 from PyQt5.QtGui import QColor, QPainter
+from PyQt5.QtWidgets import QSplitter, QSplitterHandle
+
 import logger
+
 
 class CollapsibleSplitterHandle(QSplitterHandle):
     def __init__(self, orientation, parent, handle_thickness, is_bottom_handle=False):
@@ -46,6 +48,7 @@ class CollapsibleSplitterHandle(QSplitterHandle):
     def hideEvent(self, event):
         self.show()
         super().hideEvent(event)
+
 
 class CollapsibleSplitter(QSplitter):
     def __init__(self, orientation, handle_thickness, parent=None):

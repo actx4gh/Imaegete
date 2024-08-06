@@ -1,10 +1,10 @@
 # image_handler.py
-import logger
-import config
 import os
 
 from natsort import os_sorted
 
+import config
+import logger
 from .file_operations import move_related_files, move_related_files_back, check_and_remove_empty_dir
 
 

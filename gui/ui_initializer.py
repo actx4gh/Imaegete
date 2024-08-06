@@ -1,10 +1,12 @@
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QVBoxLayout, QFrame, QLabel
+
+import config
+import logger
 from .collapsible_splitter import CollapsibleSplitter
 from .image_display import ImageDisplay
-import logger
-import config
+
 
 class UIInitializer:
     def __init__(self, main_window):

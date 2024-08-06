@@ -1,7 +1,9 @@
+import argparse
 import os
 import subprocess
-import argparse
+
 import yaml
+
 
 class Config:
     def __init__(self):
@@ -26,7 +28,8 @@ class Config:
         parser.add_argument('--config', type=str, help="Path to the YAML configuration file")
         parser.add_argument('--categories', type=str, nargs='*', default=['Sorted'], help="List of categories")
         parser.add_argument('--base_dir', type=str, default='.', help="Base directory for category folders")
-        parser.add_argument('--log_level', type=str, choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], default='INFO', help="Logging level")
+        parser.add_argument('--log_level', type=str, choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+                            default='INFO', help="Logging level")
         return parser.parse_args(args)
 
     def _read_config_file(self, config_path):
@@ -54,7 +57,8 @@ class Config:
         config['base_dir'] = self._ensure_windows_path(config['base_dir'])
         config['source_folder'] = self._ensure_windows_path(config['source_folder'])
 
-        config['dest_folders'] = {cat: self._ensure_windows_path(os.path.join(config['base_dir'], cat)) for cat in config['categories']}
+        config['dest_folders'] = {cat: self._ensure_windows_path(os.path.join(config['base_dir'], cat)) for cat in
+                                  config['categories']}
         config['delete_folder'] = self._ensure_windows_path(os.path.join(config['base_dir'], 'deleted'))
 
         return config
@@ -63,6 +67,7 @@ class Config:
         if name in self._config:
             return self._config[name]
         raise AttributeError(f"'Config' object has no attribute '{name}'")
+
 
 # Singleton instance of the configuration
 config_instance = Config()

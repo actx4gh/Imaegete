@@ -1,15 +1,18 @@
-import cProfile
-import pstats
-import io
-from main import main
 import atexit
+import cProfile
+import io
+import pstats
+
 import logger
+from main import main
 
 pr = cProfile.Profile()
+
 
 def start_profiling():
     global pr
     pr.enable()
+
 
 def stop_profiling():
     global pr
@@ -22,13 +25,14 @@ def stop_profiling():
         f.write(s.getvalue())
     logger.info("[main] Profiling data written")
 
+
 def on_exit():
     stop_profiling()
     logger.info("[main] Application exit triggered")
+
 
 atexit.register(on_exit)
 
 if __name__ == "__main__":
     start_profiling()
     main()
-
