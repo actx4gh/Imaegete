@@ -4,9 +4,9 @@ from PyQt5.QtCore import QObject, pyqtSignal, Qt
 from PyQt5.QtGui import QFont, QFontMetrics
 from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QAction, QMenu
 
+import logger
 from .event_handling import setup_event_handling, handle_resize_event
 from .image_controller import ImageController
-import logger
 from .status_bar_manager import StatusBarManager
 from .ui_initializer import UIInitializer
 
@@ -69,6 +69,8 @@ class ImageSorterGUI(QMainWindow):
         self.log_widget_geometries()  # Log widget geometries after layout adjustments
 
     def adjust_font_size(self):
+        max_font_size = 12
+        min_font_size = 5
         width = self.width()
 
         # Calculate the text widths for both the top bar and status bar
@@ -83,15 +85,20 @@ class ImageSorterGUI(QMainWindow):
 
         # Adjust font size based on the larger text width and the current window width
         text_length = max(len(self.category_label.text()), len(self.status_bar_manager.status_label.text()))
-        new_size = max(1, min(int(width / (text_length / 1.5)), 12))
+        new_size = max(min_font_size, min(int(width / (text_length / 1.5)), max_font_size))
 
         if width < max_text_width:
             scale_factor = width / max_text_width
-            new_size = max(1, int(scale_factor * new_size))
+            new_size = max(min_font_size, int(scale_factor * new_size))
 
-        # Apply the new font size
-        self.category_label.setFont(QFont("Helvetica", new_size))
-        self.status_bar_manager.status_label.setFont(QFont("Helvetica", new_size))
+        # Apply the new font size using pixel size
+        category_font = QFont("Helvetica")
+        category_font.setPixelSize(new_size)
+        self.category_label.setFont(category_font)
+
+        status_font = QFont("Helvetica")
+        status_font.setPixelSize(new_size)
+        self.status_bar_manager.status_label.setFont(status_font)
 
     def adjust_top_bar_height(self):
         font_metrics = self.category_label.fontMetrics()

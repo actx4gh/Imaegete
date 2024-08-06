@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
-
 from PyQt5.QtWidgets import QLabel, QStatusBar
+from PyQt5.QtCore import Qt
 
 
 class StatusBarManager:
@@ -9,8 +9,13 @@ class StatusBarManager:
         self.main_window = main_window
         self.image_manager = image_manager
         self.status_bar = QStatusBar(main_window)
+
         self.status_label = QLabel("Status: Ready", main_window)
-        self.status_bar.addWidget(self.status_label)
+        self.status_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)  # Ensure text is left-aligned
+
+        self.status_bar.addWidget(self.status_label, 1)
+        self.status_bar.setSizeGripEnabled(False)
+        self.main_window.setStatusBar(self.status_bar)
 
     def update_status_bar(self, file_path=None):
         if not file_path:
