@@ -8,6 +8,7 @@ import logger
 from .event_handling import setup_event_handling, handle_resize_event
 from .image_controller import ImageController
 from .status_bar_manager import StatusBarManager
+from .collapsible_splitter import CollapsibleSplitter
 from .ui_initializer import UIInitializer
 
 
@@ -100,16 +101,20 @@ class ImageSorterGUI(QMainWindow):
         status_font.setPixelSize(new_size)
         self.status_bar_manager.status_label.setFont(status_font)
 
+
     def adjust_top_bar_height(self):
         font_metrics = self.category_label.fontMetrics()
         text_height = font_metrics.height()
-        self.top_bar.setFixedHeight(text_height + 10)
+        padding = max(2, int(text_height * 0.2))  # Dynamic padding based on the font height
+        self.top_bar.setFixedHeight(text_height + padding)  # Adjust the height based on the font height
         logger.debug(f"[ImageSorterGUI] Top bar height: {self.top_bar.height()}")
 
     def adjust_status_bar_height(self):
         font_metrics = self.status_bar_manager.status_label.fontMetrics()
         text_height = font_metrics.height()
-        self.status_bar_manager.status_bar.setFixedHeight(text_height + 10)
+        padding = max(2, int(text_height * 0.2))  # Dynamic padding based on the font height
+        self.status_bar_manager.status_bar.setFixedHeight(
+            text_height + padding)  # Adjust the height based on the font height
         logger.debug(
             f"[ImageSorterGUI] Status bar height: {self.status_bar_manager.status_bar.height()}")
 
