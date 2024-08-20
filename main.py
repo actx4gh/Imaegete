@@ -1,6 +1,6 @@
 import sys
 
-from PyQt5.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication
 
 import logger
 from gui.main_window import ImageSorterGUI
@@ -19,7 +19,7 @@ def main():
     app.aboutToQuit.connect(on_exit)
 
     logger.info("[main] Application starting")
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":
