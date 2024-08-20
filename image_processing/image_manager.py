@@ -1,6 +1,6 @@
 import os
 
-from PyQt5.QtCore import pyqtSignal, QObject
+from PyQt6.QtCore import pyqtSignal, QObject
 
 import logger
 from .image_cache import ImageCache
@@ -21,10 +21,8 @@ class ImageManager(QObject):
 
     def load_image(self):
         if 0 <= self.current_index < len(self.image_handler.image_list):
-            image_path = os.path.join(self.image_handler.source_folder,
-                                      self.image_handler.image_list[self.current_index])
-            logger.info(
-                f"Loading image at index {self.current_index} of {len(self.image_handler.image_list)}: {image_path}")
+            image_path = os.path.join(self.image_handler.source_folder, self.image_handler.image_list[self.current_index])
+            logger.info(f"Loading image at index {self.current_index} of {len(self.image_handler.image_list)}: {image_path}")
             if image_path in self.image_cache.cache:
                 image = self.image_cache.cache[image_path]
                 self.image_loaded.emit(image_path, image)

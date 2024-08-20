@@ -1,6 +1,5 @@
-# image_loader.py
 from PIL import Image
-from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import QThread, pyqtSignal
 
 import logger
 
