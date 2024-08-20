@@ -1,5 +1,4 @@
-from PyQt5.QtGui import QKeySequence
-from PyQt5.QtWidgets import QShortcut
+from PyQt6.QtGui import QKeySequence, QShortcut
 
 import config
 
@@ -19,5 +18,5 @@ def bind_keys(gui, image_manager):
     first_shortcut.activated.connect(image_manager.first_image)
     last_shortcut = QShortcut(QKeySequence('End'), gui)
     last_shortcut.activated.connect(image_manager.last_image)
-    undo_shortcut = QShortcut(QKeySequence('u'), gui)
+    undo_shortcut = QShortcut(QKeySequence('U'), gui)
     undo_shortcut.activated.connect(image_manager.undo_last_action)
