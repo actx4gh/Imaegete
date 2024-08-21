@@ -8,9 +8,9 @@ import config
 import logger
 from glavnaqt.core.config import UIConfiguration
 from glavnaqt.ui.main_window import MainWindow
-from .new_image_controller import ImageController  # Preserved
-from .new_image_display import ImageDisplay  # Preserved
-from .new_status_bar_manager import ImageSorterStatusBarManager
+from .image_controller import ImageController  # Preserved
+from .image_display import ImageDisplay  # Preserved
+from .status_bar_manager import ImageSorterStatusBarManager
 
 
 class ImageSorterGUI(MainWindow):
