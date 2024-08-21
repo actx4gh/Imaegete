@@ -15,22 +15,29 @@ class ImageManager(QObject):
     def __init__(self):
         super().__init__()
         self.image_handler = ImageHandler()
-        self.image_cache = ImageCache()
+        self.image_cache = ImageCache(max_size=20)
         self.current_index = 0
         self.loader_thread = None
 
     def load_image(self):
         if 0 <= self.current_index < len(self.image_handler.image_list):
-            image_path = os.path.join(self.image_handler.source_folder, self.image_handler.image_list[self.current_index])
-            logger.info(f"Loading image at index {self.current_index} of {len(self.image_handler.image_list)}: {image_path}")
+            image_path = os.path.join(self.image_handler.source_folder,
+                                      self.image_handler.image_list[self.current_index])
+            logger.info(f"Request to load image at index {self.current_index}: {image_path}")
+
+            # Use the cache if available
             if image_path in self.image_cache.cache:
+                logger.info(f"Using cached image for {image_path}")
                 image = self.image_cache.cache[image_path]
                 self.image_loaded.emit(image_path, image)
             else:
+                # If not in cache, load asynchronously
                 if self.loader_thread is not None:
                     self.loader_thread.quit()
                     self.loader_thread.wait()
-                self.loader_thread = ThreadedImageLoader(image_path)
+
+                logger.info(f"Loading image asynchronously: {image_path}")
+                self.loader_thread = ThreadedImageLoader(image_path, self.image_cache)
                 self.loader_thread.image_loaded.connect(self.on_image_loaded)
                 self.loader_thread.start()
         else:
@@ -39,6 +46,7 @@ class ImageManager(QObject):
 
     def on_image_loaded(self, image_path, image):
         if image is not None:
+            logger.info(f"Caching loaded image: {image_path}")
             self.image_cache.cache[image_path] = image
             self.image_loaded.emit(image_path, image)
         else:
