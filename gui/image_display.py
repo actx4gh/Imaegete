@@ -1,6 +1,6 @@
-from PyQt5.QtCore import Qt, pyqtSignal, QObject
-from PyQt5.QtGui import QPixmap, QImage
-from PyQt5.QtWidgets import QLabel, QSizePolicy, QMessageBox, QVBoxLayout, QWidget
+from PyQt6.QtCore import Qt, pyqtSignal, QObject
+from PyQt6.QtGui import QPixmap, QImage
+from PyQt6.QtWidgets import QLabel, QSizePolicy, QMessageBox, QVBoxLayout, QWidget
 
 import logger
 
@@ -18,8 +18,8 @@ class ImageDisplay(QObject):
         self.layout.setSpacing(0)
 
         self.image_label = QLabel(self.widget)
-        self.image_label.setAlignment(Qt.AlignCenter)
-        self.image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.image_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.image_label.setMinimumSize(1, 1)
 
         # Remove margins from the label
@@ -48,8 +48,8 @@ class ImageDisplay(QObject):
 
     def update_image_label(self):
         if self.current_pixmap:
-            scaled_pixmap = self.current_pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio,
-                                                       Qt.SmoothTransformation)
+            scaled_pixmap = self.current_pixmap.scaled(self.image_label.size(), Qt.AspectRatioMode.KeepAspectRatio,
+                                                       Qt.TransformationMode.SmoothTransformation)
             self.image_label.setPixmap(scaled_pixmap)
             logger.debug(f"[ImageDisplay] Updated image label size: {self.image_label.size()}")  # Debug print
         else:
@@ -58,7 +58,7 @@ class ImageDisplay(QObject):
     def pil_to_qimage(self, pil_image):
         pil_image = pil_image.convert("RGBA")
         data = pil_image.tobytes("raw", "RGBA")
-        qimage = QImage(data, pil_image.width, pil_image.height, QImage.Format_RGBA8888)
+        qimage = QImage(data, pil_image.width, pil_image.height, QImage.Format.Format_RGBA8888)
         return qimage
 
     def get_zoom_percentage(self):

@@ -13,8 +13,6 @@ def main():
 
     def on_exit():
         logger.info("[main] Application exit triggered")
-        sorter_gui.cleanup()  # Ensure GUI cleanup
-        logger.info("[main] GUI cleanup done")
 
     app.aboutToQuit.connect(on_exit)
 

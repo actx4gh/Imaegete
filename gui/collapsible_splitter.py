@@ -1,16 +1,15 @@
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QColor, QPainter
-from PyQt5.QtWidgets import QSplitter, QSplitterHandle
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor, QPainter
+from PyQt6.QtWidgets import QSplitter, QSplitterHandle
 
 import logger
-
 
 class CollapsibleSplitterHandle(QSplitterHandle):
     def __init__(self, orientation, parent, handle_thickness, is_bottom_handle=False):
         super().__init__(orientation, parent)
         self.is_bottom_handle = is_bottom_handle
         self.handle_thickness = handle_thickness
-        self.setCursor(Qt.PointingHandCursor)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setContentsMargins(0, 0, 0, 0)  # Ensure no margins
 
     def paintEvent(self, event):
@@ -48,7 +47,6 @@ class CollapsibleSplitterHandle(QSplitterHandle):
     def hideEvent(self, event):
         self.show()
         super().hideEvent(event)
-
 
 class CollapsibleSplitter(QSplitter):
     def __init__(self, orientation, handle_thickness, parent=None):

@@ -1,8 +1,8 @@
 import os
 
-from PyQt5.QtCore import QObject, pyqtSignal, Qt
-from PyQt5.QtGui import QFont, QFontMetrics
-from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QAction, QMenu
+from PyQt6.QtCore import QObject, pyqtSignal, Qt
+from PyQt6.QtGui import QFont, QFontMetrics, QAction
+from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QMenu
 
 import logger
 from .event_handling import setup_event_handling, handle_resize_event
@@ -75,10 +75,10 @@ class ImageSorterGUI(QMainWindow):
 
         # Calculate the text widths for both the top bar and status bar
         top_bar_font_metrics = QFontMetrics(self.category_label.font())
-        top_bar_text_width = top_bar_font_metrics.width(self.category_label.text())
+        top_bar_text_width = top_bar_font_metrics.horizontalAdvance(self.category_label.text())
 
         status_bar_font_metrics = QFontMetrics(self.status_bar_manager.status_label.font())
-        status_bar_text_width = status_bar_font_metrics.width(self.status_bar_manager.status_label.text())
+        status_bar_text_width = status_bar_font_metrics.horizontalAdvance(self.status_bar_manager.status_label.text())
 
         # Determine the larger of the two widths
         max_text_width = max(top_bar_text_width, status_bar_text_width)
@@ -128,11 +128,11 @@ class ImageSorterGUI(QMainWindow):
     # Interactive status bar methods
     def setup_interactive_status_bar(self):
         self.status_bar_manager.status_label.mousePressEvent = self.status_bar_clicked
-        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self.show_context_menu)
 
     def status_bar_clicked(self, event):
-        if event.button() == Qt.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton:
             segment = self.identify_segment(event.pos())
             if segment == "filename":
                 self.open_file_location()
@@ -149,7 +149,7 @@ class ImageSorterGUI(QMainWindow):
             context_menu.addAction(QAction("Adjust Zoom", self, triggered=self.adjust_zoom_level))
         elif self.identify_segment(pos) == "date":
             context_menu.addAction(QAction("File Properties", self, triggered=self.open_file_properties))
-        context_menu.exec_(self.mapToGlobal(pos))
+        context_menu.exec(self.mapToGlobal(pos))
 
     def identify_segment(self, pos):
         return "filename" if pos.x() < 100 else "zoom" if pos.x() < 200 else "date"
