@@ -1,29 +1,26 @@
+# image_sorter/status_bar_manager.py
+
 import os
 from datetime import datetime
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QLabel, QStatusBar
+from glavnaqt.ui.status_bar_manager import StatusBarManager as BaseStatusBarManager
 
 
-class StatusBarManager:
+class ImageSorterStatusBarManager(BaseStatusBarManager):
     def __init__(self, main_window, image_manager):
-        self.main_window = main_window
+        super().__init__(main_window)  # Initialize the base StatusBarManager
         self.image_manager = image_manager
-        self.status_bar = QStatusBar(main_window)
 
-        self.status_label = QLabel("Status: Ready", main_window)
-        self.status_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)  # Ensure text is left-aligned
-
-        self.status_bar.addWidget(self.status_label, 1)
-        self.status_bar.setSizeGripEnabled(False)
-        self.main_window.setStatusBar(self.status_bar)
+    def connect_signals(self, image_controller):
+        image_controller.image_loaded_signal.connect(self.update_status_bar)
+        image_controller.image_cleared_signal.connect(lambda: self.update_status_bar("No image loaded"))
 
     def update_status_bar(self, file_path=None):
+        """Updates the status bar with custom image information."""
         if not file_path:
             file_path = self.image_manager.get_current_image_path()
             if not file_path:
-                self.status_label.setText("No image loaded")
-                self.status_label.setToolTip("No image loaded")
+                super().update_status_bar("No image loaded")
                 return
 
         filename = self.get_filename(file_path)
@@ -34,12 +31,15 @@ class StatusBarManager:
         image_index = self.image_manager.get_current_image_index()
         total_images = len(self.image_manager.image_handler.image_list)
 
-        status_text = f"📁 {image_index + 1}/{total_images} • 🔍 {zoom_percentage}% • 📏 {dimensions} • 💾 {file_size} • 📅 {modification_date}"
-        self.status_label.setText(status_text)
+        status_text = (f"📁 {image_index + 1}/{total_images} • 🔍 {zoom_percentage}% • "
+                       f"📏 {dimensions} • 💾 {file_size} • 📅 {modification_date}")
+        super().update_status_bar(status_text)
 
-        self.status_label.setToolTip(f"Filename: {filename}\nZoom: {zoom_percentage}%\nDimensions: {dimensions}\n"
-                                     f"File Size: {file_size}\nModification Date: {modification_date}\n"
-                                     f"Image: {image_index + 1}/{total_images}")
+        self.status_label.setToolTip(
+            f"Filename: {filename}\nZoom: {zoom_percentage}%\nDimensions: {dimensions}\n"
+            f"File Size: {file_size}\nModification Date: {modification_date}\n"
+            f"Image: {image_index + 1}/{total_images}"
+        )
 
     def get_filename(self, file_path):
         return os.path.basename(file_path)
