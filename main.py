@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtWidgets import QWidget, QSplitter, QLabel
 
 import logger
-from gui.new_main_window import ImageSorterGUI
+from gui.main_window import ImageSorterGUI
 
 
 def log_widget_hierarchy(widget, level=0, visited=None):

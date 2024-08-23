@@ -5,8 +5,8 @@ from PyQt6.QtGui import QPixmap
 
 import logger
 from .image_handler import ImageHandler
-from .new_image_cache import ImageCache
-from .new_image_loader import ThreadedImageLoader
+from .image_cache import ImageCache
+from .image_loader import ThreadedImageLoader
 
 
 class ImageManager(QObject):

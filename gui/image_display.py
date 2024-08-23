@@ -1,7 +1,8 @@
 from PyQt6.QtCore import Qt, pyqtSignal, QObject
-from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QLabel, QSizePolicy, QMessageBox, QVBoxLayout, QWidget
+
 import logger
+
 
 class ImageDisplay(QObject):
     image_changed = pyqtSignal(str)  # Signal to emit the current file path

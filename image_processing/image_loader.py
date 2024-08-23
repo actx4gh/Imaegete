@@ -1,8 +1,8 @@
 from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtGui import QPixmap
-from .new_image_cache import ImageCache
 
 import logger
+
 
 class ThreadedImageLoader(QThread):
     image_loaded = pyqtSignal(str, object)

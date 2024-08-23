@@ -5,7 +5,7 @@ import pstats
 from functools import wraps
 
 import logger
-from new_main import main
+from main import main
 
 def profile_function(func):
     """Decorator to profile a function."""
