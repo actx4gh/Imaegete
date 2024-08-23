@@ -8,16 +8,17 @@ import config
 import logger
 from glavnaqt.core.config import UIConfiguration
 from glavnaqt.ui.main_window import MainWindow
-from .image_controller import ImageController  # Preserved
-from .image_display import ImageDisplay  # Preserved
-from .status_bar_manager import ImageSorterStatusBarManager
+from .new_image_controller import ImageController  # Preserved
+from .new_image_display import ImageDisplay  # Preserved
+from .new_status_bar_manager import ImageSorterStatusBarManager
 
 
 class ImageSorterGUI(MainWindow):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, app_name='ImageSorter', *args, **kwargs):
         # Initialize ImageDisplay first
         self.image_display = ImageDisplay()
+        self.app_name = app_name
 
         # Define the UI configuration
         ui_config = UIConfiguration(
@@ -45,6 +46,8 @@ class ImageSorterGUI(MainWindow):
         # Call the parent constructor first
         super().__init__(ui_config, *args, **kwargs)
 
+        self.setWindowTitle(f"{self.app_name} - Image Sorter")
+
         # Initialize the ImageController with a reference to this window
         self.image_controller = ImageController(self)
 
@@ -68,8 +71,18 @@ class ImageSorterGUI(MainWindow):
         super()._initialize_ui(collapsible_sections)
 
     def on_resize(self):
-        # Handle the resize event specific to ImageSorter
-        self.update_zoom_percentage()
+        current_image_path = self.image_controller.image_manager.get_current_image_path()
+
+        if current_image_path:
+            metadata = self.image_controller.image_manager.image_cache.get_metadata(current_image_path)
+
+            if metadata:
+                logger.info(f"Using cached metadata for {current_image_path}")
+            else:
+                logger.info(f"NOT Using cached metadata for {current_image_path}")
+
+            self.update_zoom_percentage()
+
         self.image_display.update_image_label()  # Ensure the image label is updated on resize
         self.log_resize_event()
         self.status_bar_manager.update_status_bar()

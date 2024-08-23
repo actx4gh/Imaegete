@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtWidgets import QWidget, QSplitter, QLabel
 
 import logger
-from gui.main_window import ImageSorterGUI
+from gui.new_main_window import ImageSorterGUI
 
 
 def log_widget_hierarchy(widget, level=0, visited=None):
@@ -110,7 +110,7 @@ def alignment_to_string(alignment):
 def main():
     app = QApplication(sys.argv)
     sorter_gui = ImageSorterGUI()
-    log_widget_hierarchy(sorter_gui)
+    #log_widget_hierarchy(sorter_gui)
     sorter_gui.show()
 
     def on_exit():

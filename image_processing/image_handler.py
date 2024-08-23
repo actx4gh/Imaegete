@@ -1,5 +1,6 @@
 # image_handler.py
 import os
+from typing import List
 
 from natsort import os_sorted
 
@@ -19,8 +20,14 @@ class ImageHandler:
         self.refresh_image_list()
 
     def refresh_image_list(self):
-        self.image_list = [f for f in os.listdir(self.source_folder) if
-                           os.path.isfile(os.path.join(self.source_folder, f)) and self.is_image_file(f)]
+        self.image_list: List[str] = []
+        for root, _, files in os.walk(self.source_folder):
+            for file in files:
+                if self.is_image_file(file):
+                    # Ensure all parts are strings
+                    file_path = os.path.join(root, file)
+                    relative_path = os.path.relpath(file_path, self.source_folder)
+                    self.image_list.append(relative_path)
         self.image_list = os_sorted(self.image_list)  # Sort files using os_sorted for natural sort order
         logger.info(f"Image list count: {len(self.image_list)}")
 

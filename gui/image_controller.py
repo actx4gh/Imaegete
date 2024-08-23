@@ -1,6 +1,6 @@
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from image_processing.image_manager import ImageManager
+from image_processing.new_image_manager import ImageManager
 from key_binding.key_binder import bind_keys
 
 

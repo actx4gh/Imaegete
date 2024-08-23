@@ -1,14 +1,17 @@
 import logging
+import os
 
 import config
-
-# Configure the logger
+log_dir = config.log_dir
+log_file_path = os.path.join(log_dir, 'image_sorter.log')
 logger = logging.getLogger('image_sorter')
 log_level = getattr(logging, config.log_level.upper(), logging.INFO)
 logger.setLevel(log_level)
 
 if not any(isinstance(h, logging.FileHandler) for h in logger.handlers):
-    handler = logging.FileHandler('image_sorter.log', encoding='utf-8')
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    handler = logging.FileHandler(log_file_path, encoding='utf-8')
     handler.setLevel(log_level)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)

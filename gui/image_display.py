@@ -1,9 +1,7 @@
 from PyQt6.QtCore import Qt, pyqtSignal, QObject
-from PyQt6.QtGui import QPixmap, QImage
+from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QLabel, QSizePolicy, QMessageBox, QVBoxLayout, QWidget
-
 import logger
-
 
 class ImageDisplay(QObject):
     image_changed = pyqtSignal(str)  # Signal to emit the current file path
@@ -30,11 +28,10 @@ class ImageDisplay(QObject):
     def get_widget(self):
         return self.widget
 
-    def display_image(self, image_path, image):
-        if image:
+    def display_image(self, image_path, pixmap):
+        if pixmap:
             logger.info(f"[ImageDisplay] Displaying image: {image_path}")
-            qimage = self.pil_to_qimage(image)
-            self.current_pixmap = QPixmap.fromImage(qimage)
+            self.current_pixmap = pixmap
             self.update_image_label()
             self.image_changed.emit(image_path)  # Emit signal with the current file path
         else:
@@ -51,15 +48,9 @@ class ImageDisplay(QObject):
             scaled_pixmap = self.current_pixmap.scaled(self.image_label.size(), Qt.AspectRatioMode.KeepAspectRatio,
                                                        Qt.TransformationMode.SmoothTransformation)
             self.image_label.setPixmap(scaled_pixmap)
-            logger.debug(f"[ImageDisplay] Updated image label size: {self.image_label.size()}")  # Debug print
+            logger.debug(f"[ImageDisplay] Updated image label size: {self.image_label.size()}")
         else:
             self.clear_image()
-
-    def pil_to_qimage(self, pil_image):
-        pil_image = pil_image.convert("RGBA")
-        data = pil_image.tobytes("raw", "RGBA")
-        qimage = QImage(data, pil_image.width, pil_image.height, QImage.Format.Format_RGBA8888)
-        return qimage
 
     def get_zoom_percentage(self):
         if not self.current_pixmap:
