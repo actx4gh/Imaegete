@@ -117,7 +117,7 @@ class ImageCache:
             'last_modified': stat_info.st_mtime,  # Unix timestamp
             'file_size': stat_info.st_size,
         }
-
+        logger.debug(f'Extracted metadata {metadata} from {image_path}')
         # Platform-specific optimization
         if platform.system() == 'Linux':
             metadata['inode'] = stat_info.st_ino  # Add inode for Linux

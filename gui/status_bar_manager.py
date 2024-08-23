@@ -41,11 +41,14 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
                        f"📏 {dimensions} • 💾 {file_size} • 📅 {modification_date}")
         super().update_status_bar(status_text)
 
-        self.status_label.setToolTip(
+        tooltip_text = (
             f"Filename: {filename}\nZoom: {zoom_percentage}%\nDimensions: {dimensions}\n"
             f"File Size: {file_size}\nModification Date: {modification_date}\n"
             f"Image: {image_index + 1}/{total_images}"
         )
+        logger.debug(f"Setting tooltip with text: {tooltip_text}")
+        self.status_label.setToolTip(tooltip_text)
+
 
     def get_filename(self, file_path):
         return os.path.basename(file_path)
@@ -67,8 +70,8 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
         return "Unknown size"
 
     def get_modification_date(self, metadata):
-        if 'modification_date' in metadata:
-            mod_date = datetime.fromtimestamp(metadata['modification_date']).strftime('%Y-%m-%d %H:%M')
+        if 'last_modified' in metadata:
+            mod_date = datetime.fromtimestamp(metadata['last_modified']).strftime('%Y-%m-%d %H:%M')
             logger.info(f"Modification date: {mod_date}")
             return mod_date
         logger.warning("Unknown modification date")

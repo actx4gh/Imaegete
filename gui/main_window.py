@@ -57,12 +57,15 @@ class ImageSorterGUI(MainWindow):
         self.event_bus.subscribe('resize', lambda event: self.on_resize())
 
         self.show()
+        self.image_controller.image_manager.load_image()
 
     @property
     def status_bar_manager(self):
         if self._status_bar_manager is None:
             # Initialize status bar manager now that everything else is set up
             self._status_bar_manager = ImageSorterStatusBarManager(self, self.image_controller.image_manager)
+            self.setup_interactive_status_bar()
+
         return self._status_bar_manager
 
     def _initialize_ui(self, collapsible_sections):
@@ -98,10 +101,6 @@ class ImageSorterGUI(MainWindow):
         key_mapping = {str(i + 1): cat for i, cat in enumerate(categories)}
         return " | ".join([f"{key}: {cat}" for key, cat in key_mapping.items()])
 
-    def on_image_loaded(self, file_path, pixmap):
-        self.image_controller.on_image_loaded(file_path, pixmap)
-
-    # Interactive status bar methods
     def setup_interactive_status_bar(self):
         self.status_bar_manager.status_label.mousePressEvent = self.status_bar_clicked
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
