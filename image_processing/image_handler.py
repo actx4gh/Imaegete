@@ -19,8 +19,11 @@ class ImageHandler:
 
     def refresh_image_list(self):
         """Refresh the list of images from all start directories."""
-        self.image_list = []
+        logger.debug("Starting refresh_image_list")
+
+        temp_image_list = []  # Temporary list to check for duplicates
         for start_dir in self.start_dirs:
+            logger.debug(f"Processing start directory: {start_dir}")
             for root, dirs, files in os.walk(start_dir):
                 root_abs = os.path.abspath(root)
 
@@ -32,10 +35,11 @@ class ImageHandler:
                 for file in files:
                     if self.is_image_file(file):
                         file_path = os.path.join(root_abs, file)
-                        self.image_list.append(file_path)  # Store full path
+                        temp_image_list.append(file_path)  # Add to temporary list
 
-        self.image_list = os_sorted(self.image_list)
-        logger.info(f"Image list count: {len(self.image_list)}")
+        # Remove duplicates by converting to set and back to list
+        self.image_list = os_sorted(list(set(temp_image_list)))
+        logger.debug(f"Completed refresh_image_list with {len(self.image_list)} images.")
 
     def is_image_file(self, filename):
         """Check if the file is a valid image format."""

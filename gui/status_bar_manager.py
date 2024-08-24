@@ -9,21 +9,24 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
     def __init__(self, main_window, image_manager):
         super().__init__(main_window)  # Initialize the base StatusBarManager
         self.image_manager = image_manager
-
     def connect_signals(self, image_controller):
         image_controller.image_loaded_signal.connect(self.update_status_bar)
         image_controller.image_cleared_signal.connect(lambda: self.update_status_bar("No image loaded"))
+        self.image_manager.image_list_changed.connect(self.update_status_bar)
 
     def update_status_bar(self, file_path=None):
         """Updates the status bar with custom image information."""
+        logger.debug(f"update_status_bar called with file_path: {file_path}")
         if not file_path:
             file_path = self.image_manager.get_current_image_path()
+            logger.debug(f"Retrieved file_path from image_manager: {file_path}")
             if not file_path:
                 super().update_status_bar("No image loaded")
                 return
 
         # Use the in-memory metadata if available
         metadata = self.image_manager.current_metadata
+        logger.debug(f"Retrieved metadata: {metadata}")
         if not metadata:
             logger.warning(f"Metadata not found for {file_path}. Status bar information may be incomplete.")
             super().update_status_bar("No metadata available")
@@ -39,6 +42,8 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
 
         status_text = (f"📁 {image_index + 1}/{total_images} • 🔍 {zoom_percentage}% • "
                        f"📏 {dimensions} • 💾 {file_size} • 📅 {modification_date}")
+
+        logger.debug(f"Setting status_text with text: {status_text}")
         super().update_status_bar(status_text)
 
         tooltip_text = (

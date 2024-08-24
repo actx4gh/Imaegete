@@ -1,6 +1,6 @@
 import os
 
-from PyQt6.QtCore import pyqtSignal, QObject
+from PyQt6.QtCore import pyqtSignal, QObject, QTimer
 from PyQt6.QtGui import QPixmap
 
 import logger
@@ -13,18 +13,38 @@ class ImageManager(QObject):
     image_loaded = pyqtSignal(str, object)
     image_cleared = pyqtSignal()
     cache_image_signal = pyqtSignal(str, QPixmap, dict)
+    image_list_updated = pyqtSignal()
+    image_list_changed = pyqtSignal()
 
     def __init__(self, app_name='ImageSorter'):
         super().__init__()
         self.app_name = app_name
         self.image_handler = ImageHandler()
-        self.image_cache = ImageCache(app_name=self.app_name, max_size=20)
+        self.image_cache = ImageCache(
+            app_name=self.app_name,
+            refresh_image_list_callback=self.image_handler.refresh_image_list,
+            ensure_valid_index_callback=self.ensure_valid_index,
+            image_list_changed_callback=self.image_list_changed,
+            max_size=20
+        )
         self.current_index = 0
         self.loader_thread = None
         self.current_image_path = None  # Track the current image path
         self.current_metadata = None  # Store the current metadata in memory
         self.current_pixmap = None  # Store the current pixmap in memory
         self.cache_image_signal.connect(self.cache_image_in_main_thread)
+        self.image_list_updated.connect(self.on_image_list_updated)
+        logger.debug("Connected image_list_changed to update_status_bar")
+
+    def on_image_list_updated(self):
+        """Handle actions when the image list is updated."""
+        self.ensure_valid_index()  # Ensure the current index is valid
+        self.load_image()  # Reload the current image
+
+    def refresh_image_list(self):
+        self.image_handler.refresh_image_list()
+        self.image_list_updated.emit()  # Emit signal after refreshing
+
 
     def cache_image_in_main_thread(self, image_path, pixmap, metadata):
         """This method runs in the main thread to safely insert into QPixmapCache."""
@@ -53,41 +73,33 @@ class ImageManager(QObject):
         if 0 <= self.current_index < len(self.image_handler.image_list):
             image_path = self.get_absolute_image_path(self.current_index)
             if self.current_image_path == image_path and self.current_pixmap is not None:
-                logger.info(f"Using in-memory data for image at index {self.current_index}: {image_path}")
                 self.image_loaded.emit(image_path, self.current_pixmap)
                 return
 
-            logger.info(f"Request to load image at index {self.current_index}: {image_path}")
             self.current_pixmap = self.image_cache.get_pixmap(image_path)
             if self.current_pixmap:
-                logger.info(f"Using cached image for {image_path}")
-                cached_metadata = self.image_cache.get_metadata(image_path)
-                if cached_metadata:
-                    self.current_image_path = image_path
-                    self.current_metadata = cached_metadata
-                    self.image_loaded.emit(image_path, self.current_pixmap)
-                    return
-                else:
-                    logger.warning(f"Metadata missing for cached image {image_path}")
+                self.current_image_path = image_path
+                f"self.current_image_path set to {image_path}"
+                self.current_metadata = self.image_cache.get_metadata(image_path)
+                self.image_loaded.emit(image_path, self.current_pixmap)
             else:
-                self.current_pixmap = None  # Reset current pixmap if not found in cache
-
-            # Pass the pixmap (which might be None) to the async loader
-            self.load_image_async(image_path, self.current_pixmap)
+                # Load image asynchronously
+                self.load_image_async(image_path)
         else:
             self.image_cleared.emit()
 
     def get_absolute_image_path(self, index):
-        relative_path = self.image_handler.image_list[index]
-        for start_dir in self.image_handler.start_dirs:
-            image_path = os.path.join(start_dir, relative_path)
-            if os.path.exists(image_path):
-                return image_path
-        logger.error(f"Image path not found for index {index}: {relative_path}")
+        if index < 0 or index >= len(self.image_handler.image_list):
+            return None
+
+        image_path = self.image_handler.image_list[index]
+        if os.path.exists(image_path):
+            return image_path
+        logger.error(f"Image path not found for index {index}: {image_path}")
         return None
 
-    def load_image_async(self, image_path, pixmap=None):
-        # If pixmap is provided, use it directly; otherwise, proceed with async loading
+    def load_image_async(self, image_path, pixmap=None, prefetch=False):
+        """Load an image asynchronously, with an option for pre-fetching."""
         if pixmap is not None:
             logger.info(f"Using provided pixmap for {image_path}")
             self.on_image_loaded(image_path, pixmap)
@@ -97,22 +109,41 @@ class ImageManager(QObject):
             self.loader_thread.quit()
             self.loader_thread.wait()
 
-        logger.info(f"Loading image asynchronously: {image_path}")
+        logger.info(f"Loading image asynchronously: {image_path} (Prefetch: {prefetch})")
         self.loader_thread = ThreadedImageLoader(image_path)
-        self.loader_thread.image_loaded.connect(self.on_image_loaded)
+        if prefetch:
+            self.loader_thread.image_loaded.connect(lambda path, img: self.on_image_prefetched(path, img))
+        else:
+            self.loader_thread.image_loaded.connect(self.on_image_loaded)
         self.loader_thread.start()
 
     def next_image(self):
-        # Check if the current image is the last one
         if self.current_index < len(self.image_handler.image_list) - 1:
             self.current_index += 1
-            logger.info(f"Moving to next image: index {self.current_index}")
         else:
-            # Wrap around to the first image
-            self.current_index = 0
-            logger.info("Wrapped around to the first image")
-
+            self.current_index = 0  # Wrap around to the first image
         self.load_image()
+        self.pre_fetch_images(self.current_index + 1, self.current_index + 3)
+
+    def on_image_prefetched(self, image_path, image):
+        """Handle images loaded as a result of pre-fetching."""
+        logger.debug(f"Image prefetched: {image_path}")
+        if image is None:
+            logger.error(f"Prefetched image is None for path: {image_path}")
+            return
+
+        # Add to cache but do not emit signals or update display
+        cached_metadata = self.image_cache.get_metadata(image_path)
+        if not self.image_cache.get_pixmap(image_path):
+            self.cache_image_signal.emit(image_path, image, cached_metadata)
+
+    def pre_fetch_images(self, start_index, end_index):
+        """Pre-fetch images asynchronously to reduce loading time."""
+        for i in range(start_index, min(end_index, len(self.image_handler.image_list))):
+            image_path = self.get_absolute_image_path(i)
+            if not self.image_cache.get_pixmap(image_path):
+                logger.debug(f"Prefetching {image_path}")
+                self.load_image_async(image_path, prefetch=True)
 
     def previous_image(self):
         # Check if the current image is the first one

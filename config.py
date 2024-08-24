@@ -2,7 +2,6 @@ import argparse
 import os
 import platform
 import subprocess
-import logging
 
 import yaml
 
@@ -11,6 +10,7 @@ APP_NAME = 'ImageSorter'
 
 class Config:
     def __init__(self):
+        self.platform_name = platform.system()  # Added platform_name attribute
         self._default_config_dir = self._get_default_config_dir()
         self._config = self._initialize_configuration()
 
@@ -43,7 +43,7 @@ class Config:
         return parser.parse_args(args)
 
     def _get_default_config_dir(self):
-        system = platform.system()
+        system = self.platform_name  # Use the platform_name attribute
 
         if system == 'Darwin':  # macOS
             config_dir = os.path.expanduser(f"~/Library/Application Support/{APP_NAME}")
@@ -132,3 +132,4 @@ log_dir = config_instance.log_dir
 cache_dir = config_instance.cache_dir
 config_dir = config_instance.config_dir
 start_dirs = config_instance.start_dirs
+platform_name = config_instance.platform_name  # Expose platform_name at module level
