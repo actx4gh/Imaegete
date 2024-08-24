@@ -177,7 +177,7 @@ class ImageManager(QObject):
 
     def get_current_image_path(self):
         if 0 <= self.current_index < len(self.image_handler.image_list):
-            return os.path.join(self.image_handler.source_folder, self.image_handler.image_list[self.current_index])
+            return self.image_handler.image_list[self.current_index]
         return None
 
     def get_current_image_index(self):

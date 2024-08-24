@@ -24,10 +24,6 @@ def move_related_files(filename, src_folder, dest_folder):
         dest_path = os.path.join(dest_folder, f)
         move_file(src_path, dest_path)
 
-
-def move_related_files_back(filename, src_folder, dest_folder):
-    move_related_files(filename, dest_folder, src_folder)
-
 def check_and_remove_empty_dir(dir_path):
     if os.path.isdir(dir_path) and not os.listdir(dir_path):
         try:
