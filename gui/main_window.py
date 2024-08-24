@@ -24,7 +24,7 @@ class ImageSorterGUI(MainWindow):
         ui_config = UIConfiguration(
             font_face="Helvetica",
             font_size=13,
-            splitter_handle_width=4,
+            splitter_handle_width=3,
             window_size=(800, 600),
             window_position=(150, 150),
             enable_status_bar_manager=True,

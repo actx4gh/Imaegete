@@ -15,7 +15,9 @@ def move_file(src, dest):
 
 
 def move_related_files(filename, src_folder, dest_folder):
-    base, _ = os.path.splitext(filename)
+    # Extract only the filename part
+    base, _ = os.path.splitext(os.path.basename(filename))
+    # Get all files in the src_folder and filter them by the base name
     related_files = [f for f in os.listdir(src_folder) if os.path.splitext(f)[0] == base]
     for f in related_files:
         src_path = os.path.join(src_folder, f)
@@ -25,7 +27,6 @@ def move_related_files(filename, src_folder, dest_folder):
 
 def move_related_files_back(filename, src_folder, dest_folder):
     move_related_files(filename, dest_folder, src_folder)
-
 
 def check_and_remove_empty_dir(dir_path):
     if os.path.isdir(dir_path) and not os.listdir(dir_path):

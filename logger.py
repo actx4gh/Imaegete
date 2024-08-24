@@ -25,6 +25,11 @@ if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
 
 logger.info(f"Logging set up with log file: image_sorter.log and level: {logging.getLevelName(logger.level)}")
 
+logger.info(f"sort_dir: {config.sort_dir}")
+logger.info(f"start_folders: {config.start_dirs}")
+logger.info(f"delete_folders: {config.delete_folders}")
+logger.info(f"dest_folders: {config.dest_folders}")
+
 
 # Expose the logger attributes as part of the module's namespace
 def __getattr__(name):

@@ -4,8 +4,8 @@ from PyQt6.QtCore import pyqtSignal, QObject
 from PyQt6.QtGui import QPixmap
 
 import logger
-from .image_handler import ImageHandler
 from .image_cache import ImageCache
+from .image_handler import ImageHandler
 from .image_loader import ThreadedImageLoader
 
 
@@ -51,8 +51,7 @@ class ImageManager(QObject):
 
     def load_image(self):
         if 0 <= self.current_index < len(self.image_handler.image_list):
-            image_path = os.path.join(self.image_handler.source_folder,
-                                      self.image_handler.image_list[self.current_index])
+            image_path = self.get_absolute_image_path(self.current_index)
             if self.current_image_path == image_path and self.current_pixmap is not None:
                 logger.info(f"Using in-memory data for image at index {self.current_index}: {image_path}")
                 self.image_loaded.emit(image_path, self.current_pixmap)
@@ -78,6 +77,15 @@ class ImageManager(QObject):
         else:
             self.image_cleared.emit()
 
+    def get_absolute_image_path(self, index):
+        relative_path = self.image_handler.image_list[index]
+        for start_dir in self.image_handler.start_dirs:
+            image_path = os.path.join(start_dir, relative_path)
+            if os.path.exists(image_path):
+                return image_path
+        logger.error(f"Image path not found for index {index}: {relative_path}")
+        return None
+
     def load_image_async(self, image_path, pixmap=None):
         # If pixmap is provided, use it directly; otherwise, proceed with async loading
         if pixmap is not None:
@@ -95,27 +103,35 @@ class ImageManager(QObject):
         self.loader_thread.start()
 
     def next_image(self):
+        # Check if the current image is the last one
         if self.current_index < len(self.image_handler.image_list) - 1:
             self.current_index += 1
             logger.info(f"Moving to next image: index {self.current_index}")
-            self.load_image()
         else:
-            logger.info("No next image available")
+            # Wrap around to the first image
+            self.current_index = 0
+            logger.info("Wrapped around to the first image")
+
+        self.load_image()
 
     def previous_image(self):
+        # Check if the current image is the first one
         if self.current_index > 0:
             self.current_index -= 1
             logger.info(f"Moving to previous image: index {self.current_index}")
-            self.load_image()
         else:
-            logger.info("No previous image available")
+            # Wrap around to the last image
+            self.current_index = len(self.image_handler.image_list) - 1
+            logger.info("Wrapped around to the last image")
+
+        self.load_image()
 
     def move_image(self, category):
         if 0 <= self.current_index < len(self.image_handler.image_list):
             current_image = self.image_handler.image_list[self.current_index]
             logger.info(f"Moving image: {current_image} to category {category}")
             self.image_handler.move_image(current_image, category)
-            self.refresh_image_list()
+            self.image_handler.refresh_image_list()
             self.ensure_valid_index_after_delete()
             self.load_image()
 
@@ -124,7 +140,7 @@ class ImageManager(QObject):
             current_image = self.image_handler.image_list[self.current_index]
             logger.info(f"Deleting image at index {self.current_index}: {current_image}")
             self.image_handler.delete_image(current_image)
-            self.refresh_image_list()
+            self.image_handler.refresh_image_list()
             self.ensure_valid_index_after_delete()
             self.load_image()
 
@@ -132,7 +148,7 @@ class ImageManager(QObject):
         last_action = self.image_handler.undo_last_action()
         if last_action:
             logger.info(f"Undo last action: {last_action}")
-            self.refresh_image_list()
+            self.image_handler.refresh_image_list()
             if last_action[0] == 'delete':
                 self.current_index = self.image_handler.image_list.index(last_action[1])
             elif last_action[0] == 'move':
@@ -158,10 +174,6 @@ class ImageManager(QObject):
         if self.current_index >= len(self.image_handler.image_list):
             self.current_index = len(self.image_handler.image_list) - 1
         logger.info(f"Ensuring valid index after delete: {self.current_index}")
-
-    def refresh_image_list(self):
-        self.image_handler.refresh_image_list()
-        logger.info(f"Image list refreshed: {self.image_handler.image_list}")
 
     def get_current_image_path(self):
         if 0 <= self.current_index < len(self.image_handler.image_list):
