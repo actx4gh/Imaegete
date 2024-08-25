@@ -136,18 +136,33 @@ class ImageCache:
         self.add_to_cache(image_path, pixmap, metadata)
         return pixmap
 
-    def extract_metadata(self, image_path, pixmap):
+    def extract_metadata(self, image_path, pixmap=None):
+        """
+        Extract metadata from the image file and store it in the cache.
+
+        Args:
+            image_path (str): The path to the image file.
+            pixmap (QPixmap, optional): The pixmap object if already loaded.
+
+        Returns:
+            dict: Metadata dictionary for the image.
+        """
         stat_info = os.stat(image_path)
         metadata = {
-            'size': pixmap.size(),
-            'format': pixmap.cacheKey(),
+            'size': pixmap.size() if pixmap else None,
+            'format': pixmap.cacheKey() if pixmap else None,
             'last_modified': stat_info.st_mtime,  # Unix timestamp
             'file_size': stat_info.st_size,
         }
         logger.debug(f'Extracted metadata {metadata} from {image_path}')
+
         # Platform-specific optimization
         if platform.system() == 'Linux':
             metadata['inode'] = stat_info.st_ino  # Add inode for Linux
+
+        # Cache the metadata
+        self.metadata_cache[image_path] = metadata
+        self.save_cache_to_disk(image_path, metadata)
 
         return metadata
 

@@ -1,3 +1,5 @@
+# image_manager.py
+
 import os
 
 from PyQt6.QtCore import pyqtSignal, QObject
@@ -30,9 +32,9 @@ class ImageManager(QObject):
         )
         self.current_index = 0
         self.loader_thread = None
-        self.current_image_path = None  # Track the current image path
-        self.current_metadata = None  # Store the current metadata in memory
-        self.current_pixmap = None  # Store the current pixmap in memory
+        self.current_image_path = None
+        self.current_metadata = None
+        self.current_pixmap = None
         self.cache_image_signal.connect(self.cache_image_in_main_thread)
         self.image_list_updated.connect(self.on_image_list_updated)
         logger.debug("Connected image_list_changed to update_status_bar")
@@ -64,21 +66,20 @@ class ImageManager(QObject):
             logger.error(f"Image is None for path: {image_path}")
             return
 
-        # Force loading and caching of metadata if not already present
-        cached_metadata = self.image_cache.get_metadata(image_path)
-        if not cached_metadata:
+        # Use ImageCache to manage metadata
+        self.current_metadata = self.image_cache.get_metadata(image_path)
+        if not self.current_metadata:
             logger.debug(f"Metadata not found for {image_path}, loading now.")
-            cached_metadata = self.image_cache.extract_metadata(image_path, image)
-            self.cache_image_signal.emit(image_path, image, cached_metadata)
+            # Use the image cache to extract and cache metadata
+            self.current_metadata = self.image_cache.extract_metadata(image_path, image)
+            self.cache_image_signal.emit(image_path, image, self.current_metadata)
 
-        # Ensure pixmap is cached
-        if not self.image_cache.get_pixmap(image_path):
+        self.current_pixmap = self.image_cache.get_pixmap(image_path)
+        if not self.current_pixmap:
             logger.debug(f"Pixmap not found in QPixmapCache for {image_path}, caching now.")
-            self.cache_image_signal.emit(image_path, image, cached_metadata)
+            self.cache_image_signal.emit(image_path, image, self.current_metadata)
 
         self.current_image_path = image_path
-        self.current_metadata = cached_metadata
-        self.current_pixmap = image
 
         # Emit image loaded signal after ensuring metadata and pixmap are cached
         self.image_loaded.emit(image_path, image)
@@ -90,14 +91,14 @@ class ImageManager(QObject):
                 self.image_loaded.emit(image_path, self.current_pixmap)
                 return
 
-            self.current_pixmap = self.image_cache.get_pixmap(image_path)
+            # Use ImageCache to retrieve pixmap
+            self.current_pixmap = self.image_cache.load_image(image_path)
             if self.current_pixmap:
                 self.current_image_path = image_path
-                f"self.current_image_path set to {image_path}"
                 self.current_metadata = self.image_cache.get_metadata(image_path)
                 self.image_loaded.emit(image_path, self.current_pixmap)
             else:
-                # Load image asynchronously
+                # Load image asynchronously if not in cache
                 self.load_image_async(image_path)
         else:
             self.image_cleared.emit()
@@ -175,8 +176,7 @@ class ImageManager(QObject):
             cached_metadata = self.image_cache.get_metadata(image_path)
             if not cached_metadata:
                 logger.debug(f"Prefetching metadata for {image_path}")
-                metadata = self.image_cache.extract_metadata(image_path, QPixmap(image_path))
-                self.cache_image_signal.emit(image_path, QPixmap(), metadata)
+                self.image_cache.extract_metadata(image_path, QPixmap(image_path))
 
     def previous_image(self):
         # Refresh the image list and update the current index based on the latest list
