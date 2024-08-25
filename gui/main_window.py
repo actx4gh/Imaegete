@@ -8,17 +8,15 @@ import config
 import logger
 from glavnaqt.core.config import UIConfiguration
 from glavnaqt.ui.main_window import MainWindow
-from .image_controller import ImageController  # Preserved
-from .image_display import ImageDisplay  # Preserved
 from .status_bar_manager import ImageSorterStatusBarManager
 
 
 class ImageSorterGUI(MainWindow):
-
-    def __init__(self, app_name='ImageSorter', *args, **kwargs):
-        # Initialize ImageDisplay first
-        self.image_display = ImageDisplay()
+    def __init__(self, image_display, image_manager, image_controller, app_name='ImageSorter', *args, **kwargs):
+        self.image_display = image_display
         self.app_name = app_name
+        self.image_manager = image_manager
+        self.image_controller = image_controller
 
         # Define the UI configuration
         ui_config = UIConfiguration(
@@ -43,13 +41,9 @@ class ImageSorterGUI(MainWindow):
             }
         )
 
-        # Call the parent constructor first
         super().__init__(ui_config, *args, **kwargs)
 
         self.setWindowTitle(f"{self.app_name} - {config.WINDOW_TITLE_SUFFIX}")
-
-        # Initialize the ImageController with a reference to this window
-        self.image_controller = ImageController(self)
 
         # Now that everything is initialized, connect the signals
         self.status_bar_manager.connect_signals(self.image_controller)

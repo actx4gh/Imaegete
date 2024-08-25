@@ -18,12 +18,13 @@ elif config.platform_name == 'Windows' or config.platform_name == 'Darwin':
 
 
 class ImageCache:
-    def __init__(self, app_name='ImageSorter', refresh_image_list_callback=None, ensure_valid_index_callback=None,
-                 image_list_changed_callback=None,
-                 max_size=100):
+    def __init__(self, app_name='ImageSorter', max_size=100):
         self.app_name = app_name
-        self.metadata_cache = OrderedDict()
         self.max_size = max_size
+        self.ensure_valid_index_callback = None
+        self.refresh_image_list_callback = None
+        self.image_list_changed_callback = None
+        self.metadata_cache = OrderedDict()
         self.cache_dir = config.cache_dir
 
         if not os.path.exists(self.cache_dir):
@@ -34,10 +35,6 @@ class ImageCache:
 
         QPixmapCache.setCacheLimit(config.CACHE_LIMIT_KB)
         logger.info(f"QPixmapCache limit set to: {config.CACHE_LIMIT_KB} KB")
-
-        self.refresh_image_list_callback = refresh_image_list_callback
-        self.ensure_valid_index_callback = ensure_valid_index_callback
-        self.image_list_changed_callback = image_list_changed_callback  # Added callback for status bar updates
 
         # Initialize watchdog or inotify
         if config.platform_name in ('Windows', 'Darwin'):
@@ -187,12 +184,23 @@ class ImageCache:
 
     def _init_watchdog(self):
         """Set up watchdog for Windows and macOS."""
+
+        # Ensure all callbacks are set before proceeding
+        if not all([
+            self.refresh_image_list_callback,
+            self.ensure_valid_index_callback,
+            self.image_list_changed_callback
+        ]):
+            logger.error("Cannot initialize watchdog: Callbacks are not properly configured.")
+            return
+
         event_handler = ImageCacheEventHandler(
             self,
             self.refresh_image_list_callback,
             self.ensure_valid_index_callback,
-            self.image_list_changed_callback  # Pass the missing callback here
+            self.image_list_changed_callback
         )
+
         observer = Observer()
 
         # Monitor all start_dirs
@@ -201,6 +209,7 @@ class ImageCache:
 
         observer.start()
         logger.info(f"Watchdog started, monitoring directories: {config.start_dirs}")
+
 
     def update_cache_if_modified(self, image_path):
         """Check if a file has changed and update cache accordingly."""
@@ -213,6 +222,15 @@ class ImageCache:
             else:
                 if stat_info.st_mtime > current_metadata.get('last_modified', 0):
                     self.refresh_cache(image_path)
+
+    def set_refresh_image_list_callback(self, callback):
+        self.refresh_image_list_callback = callback
+
+    def set_ensure_valid_index_callback(self, callback):
+        self.ensure_valid_index_callback = callback
+
+    def set_image_list_changed_callback(self, callback):
+        self.image_list_changed_callback = callback
 
 
 class ImageCacheEventHandler(FileSystemEventHandler):
@@ -252,3 +270,5 @@ class ImageCacheEventHandler(FileSystemEventHandler):
             self.refresh_image_list_callback()
             QTimer.singleShot(0, self.image_list_changed_callback)  # Emit on the main thread
             self.refresh_scheduled = False
+
+

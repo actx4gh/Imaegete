@@ -4,8 +4,14 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtWidgets import QWidget, QSplitter, QLabel
 
+import config
 import logger
+from gui.image_controller import ImageController
+from gui.image_display import ImageDisplay
 from gui.main_window import ImageSorterGUI
+from image_processing.image_cache import ImageCache
+from image_processing.image_handler import ImageHandler
+from image_processing.image_manager import ImageManager
 
 
 def log_widget_hierarchy(widget, level=0, visited=None):
@@ -109,10 +115,26 @@ def alignment_to_string(alignment):
 
 def main():
     app = QApplication(sys.argv)
-    sorter_gui = ImageSorterGUI()
-    #log_widget_hierarchy(sorter_gui)
-    sorter_gui.show()
 
+    # Create dependencies
+    image_display = ImageDisplay()
+    image_handler = ImageHandler()
+    image_cache = ImageCache(
+        app_name='ImageSorter',
+        max_size=config.IMAGE_CACHE_MAX_SIZE
+    )
+    image_manager = ImageManager(image_handler=image_handler, image_cache=image_cache)
+    image_controller = ImageController(image_manager)  # No main window passed initially
+
+    # Create the main window with all dependencies injected
+    sorter_gui = ImageSorterGUI(
+        image_display=image_display,
+        image_manager=image_manager,
+        image_controller=image_controller
+    )
+    image_controller.set_main_window(sorter_gui)  # Properly set the main window
+
+    # Connect the application quit event
     def on_exit():
         logger.info("[main] Application exit triggered")
 

@@ -19,17 +19,14 @@ class ImageManager(QObject):
     image_list_updated = pyqtSignal()
     image_list_changed = pyqtSignal()
 
-    def __init__(self, app_name='ImageSorter'):
+    def __init__(self, image_handler, image_cache, app_name='ImageSorter', ):
         super().__init__()
         self.app_name = app_name
-        self.image_handler = ImageHandler()
-        self.image_cache = ImageCache(
-            app_name=self.app_name,
-            refresh_image_list_callback=self.image_handler.refresh_image_list,
-            ensure_valid_index_callback=self.ensure_valid_index,
-            image_list_changed_callback=self.image_list_changed,
-            max_size=IMAGE_CACHE_MAX_SIZE
-        )
+        self.image_handler = image_handler
+        self.image_cache = image_cache
+        self.image_cache.set_refresh_image_list_callback(self.image_handler.refresh_image_list)
+        self.image_cache.set_ensure_valid_index_callback(self.ensure_valid_index)
+        self.image_cache.set_image_list_changed_callback(self.image_list_changed)
         self.current_index = 0
         self.loader_thread = None  # Remove direct image loading
         self.current_image_path = None
