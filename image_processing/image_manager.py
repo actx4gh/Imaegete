@@ -31,7 +31,7 @@ class ImageManager(QObject):
             max_size=IMAGE_CACHE_MAX_SIZE
         )
         self.current_index = 0
-        self.loader_thread = None
+        self.loader_thread = None  # Remove direct image loading
         self.current_image_path = None
         self.current_metadata = None
         self.current_pixmap = None
@@ -84,6 +84,16 @@ class ImageManager(QObject):
         # Emit image loaded signal after ensuring metadata and pixmap are cached
         self.image_loaded.emit(image_path, image)
 
+    def get_absolute_image_path(self, index):
+        if index < 0 or index >= len(self.image_handler.image_list):
+            return None
+
+        image_path = self.image_handler.image_list[index]
+        if os.path.exists(image_path):
+            return image_path
+        logger.error(f"Image path not found for index {index}: {image_path}")
+        return None
+
     def load_image(self):
         if 0 <= self.current_index < len(self.image_handler.image_list):
             image_path = self.get_absolute_image_path(self.current_index)
@@ -102,16 +112,6 @@ class ImageManager(QObject):
                 self.load_image_async(image_path)
         else:
             self.image_cleared.emit()
-
-    def get_absolute_image_path(self, index):
-        if index < 0 or index >= len(self.image_handler.image_list):
-            return None
-
-        image_path = self.image_handler.image_list[index]
-        if os.path.exists(image_path):
-            return image_path
-        logger.error(f"Image path not found for index {index}: {image_path}")
-        return None
 
     def load_image_async(self, image_path, pixmap=None, prefetch=False):
         """Load an image asynchronously, with an option for pre-fetching."""
