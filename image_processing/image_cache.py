@@ -80,23 +80,30 @@ class ImageCache:
         if pixmap and not pixmap.isNull():
             QPixmapCache.insert(image_path, pixmap)  # Insert pixmap into cache
 
-        # Update LRU for metadata
         if metadata:
-            if image_path in self.metadata_cache:
-                # Move the existing item to the end (most recently used)
-                self.metadata_cache.move_to_end(image_path)
+            # Ensure metadata is written to disk synchronously
             self.metadata_cache[image_path] = metadata
-            if len(self.metadata_cache) > self.max_size:
-                # Remove the least recently used item
-                self.metadata_cache.popitem(last=False)
             self.save_cache_to_disk(image_path, metadata)
+
+            # Update LRU cache
+            self.metadata_cache.move_to_end(image_path)
+            if len(self.metadata_cache) > self.max_size:
+                self.metadata_cache.popitem(last=False)
+
 
     def get_pixmap(self, image_path):
         """Get the pixmap from QPixmapCache using consistent key."""
         pixmap = QPixmapCache.find(image_path)
         if pixmap:
-            # Move to end to mark as recently used
-            self.metadata_cache.move_to_end(image_path)
+            # Only move to end if the key exists
+            if image_path in self.metadata_cache:
+                self.metadata_cache.move_to_end(image_path)
+            else:
+                # Load metadata if not present
+                metadata = self.load_cache_from_disk(image_path)
+                if metadata:
+                    self.metadata_cache[image_path] = metadata
+                    self.metadata_cache.move_to_end(image_path)
             return pixmap
         return None
 
@@ -192,7 +199,6 @@ class ImageCache:
             else:
                 if stat_info.st_mtime > current_metadata.get('last_modified', 0):
                     self.refresh_cache(image_path)
-
 
 
 class ImageCacheEventHandler(FileSystemEventHandler):

@@ -12,7 +12,7 @@ def move_file(src, dest):
         logger.info(f"Moved file from {src} to {dest}")
     except Exception as e:
         logger.getLogger('image_sorter').error(f"Failed to move file from {src} to {dest}: {e}")
-
+9
 
 def move_related_files(filename, src_folder, dest_folder):
     # Extract only the filename part
