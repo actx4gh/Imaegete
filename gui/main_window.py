@@ -46,7 +46,7 @@ class ImageSorterGUI(MainWindow):
         # Call the parent constructor first
         super().__init__(ui_config, *args, **kwargs)
 
-        self.setWindowTitle(f"{self.app_name} - Image Sorter")
+        self.setWindowTitle(f"{self.app_name} - {config.WINDOW_TITLE_SUFFIX}")
 
         # Initialize the ImageController with a reference to this window
         self.image_controller = ImageController(self)

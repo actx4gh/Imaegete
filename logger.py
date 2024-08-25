@@ -2,9 +2,10 @@ import logging
 import os
 
 import config
+
 log_dir = config.log_dir
-log_file_path = os.path.join(log_dir, 'image_sorter.log')
-logger = logging.getLogger('image_sorter')
+log_file_path = os.path.join(log_dir, config.LOG_FILE_NAME)
+logger = logging.getLogger(config.LOGGER_NAME)
 log_level = getattr(logging, config.log_level.upper(), logging.INFO)
 logger.setLevel(log_level)
 

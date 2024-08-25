@@ -1,3 +1,4 @@
+import config
 from glavnaqt.core.event_handling import handle_resize_event as glavnaqt_handle_resize_event
 from glavnaqt.core.event_handling import setup_event_handling as glavnaqt_setup_event_handling
 
@@ -16,7 +17,7 @@ def handle_resize_event(main_window, event, update_status_bar):
     # Use cached thumbnail metadata to reduce load
     if main_window.resize_timer.isActive():
         main_window.resize_timer.stop()
-    main_window.resize_timer.start(300)
+    main_window.resize_timer.start(config.RESIZE_TIMER_INTERVAL)
     main_window.log_resize_event()
 
     # Efficiently update UI using cache

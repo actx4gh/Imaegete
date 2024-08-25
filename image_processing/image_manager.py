@@ -4,6 +4,7 @@ from PyQt6.QtCore import pyqtSignal, QObject
 from PyQt6.QtGui import QPixmap
 
 import logger
+from config import IMAGE_CACHE_MAX_SIZE
 from .image_cache import ImageCache
 from .image_handler import ImageHandler
 from .image_loader import ThreadedImageLoader
@@ -25,7 +26,7 @@ class ImageManager(QObject):
             refresh_image_list_callback=self.image_handler.refresh_image_list,
             ensure_valid_index_callback=self.ensure_valid_index,
             image_list_changed_callback=self.image_list_changed,
-            max_size=20
+            max_size=IMAGE_CACHE_MAX_SIZE
         )
         self.current_index = 0
         self.loader_thread = None

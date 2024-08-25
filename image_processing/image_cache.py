@@ -4,10 +4,11 @@ import platform
 from collections import OrderedDict
 
 from PyQt6.QtCore import QTimer
-from PyQt6.QtGui import QPixmap, QPixmapCache
+from PyQt6.QtGui import QPixmapCache
 
 import config
 import logger
+from .image_utils import load_image_with_qpixmap
 
 if config.platform_name == 'Linux':
     import inotify.adapters
@@ -31,9 +32,8 @@ class ImageCache:
         else:
             logger.debug(f'Found existing cache dir {self.cache_dir}')
 
-        new_cache_limit = 204800  # Example: set to 200 MB (204800 KB)
-        QPixmapCache.setCacheLimit(new_cache_limit)
-        logger.info(f"QPixmapCache limit set to: {new_cache_limit} KB")
+        QPixmapCache.setCacheLimit(config.CACHE_LIMIT_KB)
+        logger.info(f"QPixmapCache limit set to: {config.CACHE_LIMIT_KB} KB")
 
         self.refresh_image_list_callback = refresh_image_list_callback
         self.ensure_valid_index_callback = ensure_valid_index_callback
@@ -90,7 +90,6 @@ class ImageCache:
             if len(self.metadata_cache) > self.max_size:
                 self.metadata_cache.popitem(last=False)
 
-
     def get_pixmap(self, image_path):
         """Get the pixmap from QPixmapCache using consistent key."""
         pixmap = QPixmapCache.find(image_path)
@@ -128,8 +127,8 @@ class ImageCache:
             return pixmap
 
         # If not in cache, load the image and metadata
-        pixmap = QPixmap(image_path)
-        if pixmap.isNull():
+        pixmap = load_image_with_qpixmap(image_path)
+        if pixmap is None:
             logger.error(f"Failed to load image: {image_path}")
             return None
 
