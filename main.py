@@ -151,10 +151,9 @@ def main():
     logger.debug("Main window set in ImageController.")
 
     # Now load the initial image
-    image_controller.image_manager.load_image()
 
     logger.debug("Configuring StatusBarManager with the main GUI window.")
-    sorter_gui.status_bar_manager.configure(sorter_gui)
+    sorter_gui.status_bar_manager.set_main_window(sorter_gui)
     sorter_gui.setup_interactive_status_bar()
 
     # Force initial UI updates after everything is set up

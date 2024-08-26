@@ -12,10 +12,10 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
         self.image_manager = image_manager
         self.main_window = None
 
-    def configure(self, main_window):
+    def set_main_window(self, main_window):
         logger.debug("Configuring StatusBarManager with main window.")
         self.main_window = main_window
-        super().configure(main_window)
+        super().set_main_window(main_window)
 
     def connect_signals(self, image_controller):
         logger.debug("Connecting signals for StatusBarManager.")

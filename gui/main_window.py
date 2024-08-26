@@ -49,7 +49,7 @@ class ImageSorterGUI(MainWindow):
         self.setWindowTitle(f"{self.app_name} - {config.WINDOW_TITLE_SUFFIX}")
 
         # Configure status bar manager after main window setup
-        self.status_bar_manager.configure(self)
+        self.status_bar_manager.set_main_window(self)
         logger.debug("Status bar manager configured.")
 
         # Connect signals after everything is initialized

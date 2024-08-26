@@ -50,9 +50,10 @@ class ImageManager(QObject):
         self.ensure_valid_index()  # Ensure the current index is valid
         self.load_image()  # Reload the current image
 
-    def refresh_image_list(self):
+    def refresh_image_list(self, emit=True):
         self.image_handler.refresh_image_list()
-        self.image_list_updated.emit()  # Emit signal after refreshing
+        if emit:
+            self.image_list_updated.emit()  # Emit signal after refreshing
 
     def cache_image_in_main_thread(self, image_path, pixmap, metadata):
         """This method runs in the main thread to safely insert into QPixmapCache."""
@@ -133,7 +134,7 @@ class ImageManager(QObject):
 
     def next_image(self):
         # Refresh the image list and update the current index based on the latest list
-        self.refresh_image_list()
+        self.refresh_image_list(emit=False)
         if self.current_image_path in self.image_handler.image_list:
             self.current_index = self.image_handler.image_list.index(self.current_image_path)
         else:
@@ -179,7 +180,7 @@ class ImageManager(QObject):
 
     def previous_image(self):
         # Refresh the image list and update the current index based on the latest list
-        self.refresh_image_list()
+        self.refresh_image_list(emit=False)
         if self.current_image_path in self.image_handler.image_list:
             self.current_index = self.image_handler.image_list.index(self.current_image_path)
         else:
@@ -235,10 +236,12 @@ class ImageManager(QObject):
             self.load_image()
 
     def first_image(self):
+        self.refresh_image_list(emit=False)
         self.current_index = 0
         self.load_image()
 
     def last_image(self):
+        self.refresh_image_list(emit=False)
         self.current_index = len(self.image_handler.image_list) - 1
         self.load_image()
 
