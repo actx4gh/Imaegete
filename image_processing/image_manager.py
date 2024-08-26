@@ -37,13 +37,17 @@ class ImageManager(QObject):
         logger.debug("ImageManager initialized.")
 
     def on_image_list_updated(self):
-        """Handle actions when the image list is updated."""
+        """Handle actions when the image list is updated, especially after sorting or deleting."""
         if self.current_image_path and self.current_image_path in self.image_handler.image_list:
             # Update current index based on the current image path
             self.current_index = self.image_handler.image_list.index(self.current_image_path)
         else:
-            # If the current image path is not found, set index to 0
-            self.current_index = 0
+            # If the current image path is not found, check if there's a next image
+            if self.current_index < len(self.image_handler.image_list):
+                self.current_index = min(self.current_index, len(self.image_handler.image_list) - 1)
+            else:
+                # If the index is out of bounds or list is empty, reset to the last valid index or 0
+                self.current_index = max(len(self.image_handler.image_list) - 1, 0)
 
         self.ensure_valid_index()  # Ensure the current index is valid
         self.load_image()  # Reload the current image
@@ -108,7 +112,6 @@ class ImageManager(QObject):
             logger.debug(f"Metadata not found for {image_path}, loading now.")
             self.current_metadata = self.image_cache.extract_metadata(image_path, image)
             cache = True
-
 
         self.current_pixmap = self.image_cache.get_pixmap(image_path)
         if not self.current_pixmap and self.current_pixmap != image:
@@ -225,8 +228,9 @@ class ImageManager(QObject):
             if self.current_image_path in self.image_handler.image_list:
                 self.current_index = self.image_handler.image_list.index(self.current_image_path)
             else:
-                # If the current image path is not found, set index to 0
-                self.current_index = 0
+                # Adjust index to point to the next or previous image if available
+                if self.current_index >= len(self.image_handler.image_list):
+                    self.current_index = len(self.image_handler.image_list) - 1
 
             self.ensure_valid_index()  # Ensure the current index is valid
             self.load_image()
