@@ -229,8 +229,11 @@ class ImageManager(QObject):
                 self.current_index = self.image_handler.image_list.index(self.current_image_path)
             else:
                 # Adjust index to point to the next or previous image if available
-                if self.current_index >= len(self.image_handler.image_list):
-                    self.current_index = len(self.image_handler.image_list) - 1
+                if self.current_index < len(self.image_handler.image_list):
+                    self.current_index = min(self.current_index, len(self.image_handler.image_list) - 1)
+                else:
+                    # If no images left or index out of bounds, reset to last valid index
+                    self.current_index = max(len(self.image_handler.image_list) - 1, 0)
 
             self.ensure_valid_index()  # Ensure the current index is valid
             self.load_image()
