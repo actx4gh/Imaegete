@@ -6,16 +6,24 @@ from glavnaqt.ui.status_bar_manager import StatusBarManager as BaseStatusBarMana
 
 
 class ImageSorterStatusBarManager(BaseStatusBarManager):
-    def __init__(self, main_window, image_manager):
-        super().__init__(main_window)  # Initialize the base StatusBarManager
+    def __init__(self, image_manager):
+        super().__init__()  # Initialize the base StatusBarManager
         self.image_manager = image_manager
+        self.main_window = None
+
+    def configure(self, main_window):
+        self.main_window = main_window
+        super().configure(main_window)
+
     def connect_signals(self, image_controller):
         image_controller.image_loaded_signal.connect(self.update_status_bar)
         image_controller.image_cleared_signal.connect(lambda: self.update_status_bar("No image loaded"))
         self.image_manager.image_list_changed.connect(self.update_status_bar)
 
     def update_status_bar(self, file_path=None):
-        """Updates the status bar with custom image information."""
+        if not self.main_window or not self.status_label:
+            logger.error("Main window or status label is not initialized.")
+            return
         logger.debug(f"update_status_bar called with file_path: {file_path}")
         if not file_path:
             file_path = self.image_manager.get_current_image_path()

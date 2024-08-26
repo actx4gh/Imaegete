@@ -8,11 +8,11 @@ import config
 import logger
 from glavnaqt.core.config import UIConfiguration
 from glavnaqt.ui.main_window import MainWindow
-from .status_bar_manager import ImageSorterStatusBarManager
 
 
 class ImageSorterGUI(MainWindow):
-    def __init__(self, image_display, image_manager, image_controller, app_name='ImageSorter', *args, **kwargs):
+    def __init__(self, image_display, image_manager, image_controller, status_bar_manager, app_name='ImageSorter',
+                 *args, **kwargs):
         self.image_display = image_display
         self.app_name = app_name
         self.image_manager = image_manager
@@ -43,11 +43,15 @@ class ImageSorterGUI(MainWindow):
 
         super().__init__(ui_config, *args, **kwargs)
 
+        self.status_bar_manager = status_bar_manager
         self.setWindowTitle(f"{self.app_name} - {config.WINDOW_TITLE_SUFFIX}")
 
-        # Now that everything is initialized, connect the signals
+        # Configure status bar manager after main window setup
+        self.status_bar_manager.configure(self)
+
+        # Connect signals after everything is initialized
         self.status_bar_manager.connect_signals(self.image_controller)
-        self.image_display.image_changed.connect(self._status_bar_manager.update_status_bar)
+        self.image_display.image_changed.connect(self.status_bar_manager.update_status_bar)
         self.event_bus.subscribe('resize', lambda event: self.on_resize())
 
         self.show()
@@ -55,12 +59,18 @@ class ImageSorterGUI(MainWindow):
 
     @property
     def status_bar_manager(self):
-        if self._status_bar_manager is None:
-            # Initialize status bar manager now that everything else is set up
-            self._status_bar_manager = ImageSorterStatusBarManager(self, self.image_controller.image_manager)
-            self.setup_interactive_status_bar()
-
         return self._status_bar_manager
+
+    @status_bar_manager.setter
+    def status_bar_manager(self, value):
+        self._status_bar_manager = value
+
+    def setup_interactive_status_bar(self):
+        """Setup status bar interaction after it is fully configured."""
+        if self.status_bar_manager.status_label:
+            self.status_bar_manager.status_label.mousePressEvent = self.status_bar_clicked
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.show_context_menu)
 
     def _initialize_ui(self, collapsible_sections):
         """Ensure status_bar_manager is initialized before parent UI setup."""
@@ -94,11 +104,6 @@ class ImageSorterGUI(MainWindow):
     def format_category_keys(self, categories):
         key_mapping = {str(i + 1): cat for i, cat in enumerate(categories)}
         return " | ".join([f"{key}: {cat}" for key, cat in key_mapping.items()])
-
-    def setup_interactive_status_bar(self):
-        self.status_bar_manager.status_label.mousePressEvent = self.status_bar_clicked
-        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.show_context_menu)
 
     def status_bar_clicked(self, event):
         if event.button() == Qt.MouseButton.LeftButton:

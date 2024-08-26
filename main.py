@@ -9,6 +9,7 @@ import logger
 from gui.image_controller import ImageController
 from gui.image_display import ImageDisplay
 from gui.main_window import ImageSorterGUI
+from gui.status_bar_manager import ImageSorterStatusBarManager
 from image_processing.image_cache import ImageCache
 from image_processing.image_handler import ImageHandler
 from image_processing.image_manager import ImageManager
@@ -124,15 +125,26 @@ def main():
         max_size=config.IMAGE_CACHE_MAX_SIZE
     )
     image_manager = ImageManager(image_handler=image_handler, image_cache=image_cache)
-    image_controller = ImageController(image_manager)  # No main window passed initially
+    image_controller = ImageController(image_manager)
+
+    # Initialize status bar manager without main_window
+    status_bar_manager = ImageSorterStatusBarManager(image_manager)
 
     # Create the main window with all dependencies injected
     sorter_gui = ImageSorterGUI(
         image_display=image_display,
         image_manager=image_manager,
-        image_controller=image_controller
+        image_controller=image_controller,
+        status_bar_manager=status_bar_manager
     )
-    image_controller.set_main_window(sorter_gui)  # Properly set the main window
+
+    # Ensure all components are properly configured
+    sorter_gui.status_bar_manager.configure(sorter_gui)
+    sorter_gui.setup_interactive_status_bar()
+
+    # Force initial UI updates after everything is set up
+    sorter_gui.show()
+    sorter_gui.resize(sorter_gui.size())  # Trigger resize event to ensure layout is updated
 
     # Connect the application quit event
     def on_exit():
