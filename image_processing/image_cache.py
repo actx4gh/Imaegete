@@ -36,6 +36,8 @@ class ImageCache:
         QPixmapCache.setCacheLimit(config.CACHE_LIMIT_KB)
         logger.info(f"QPixmapCache limit set to: {config.CACHE_LIMIT_KB} KB")
 
+
+    def initialize_watchdog(self):
         # Initialize watchdog or inotify
         if config.platform_name in ('Windows', 'Darwin'):
             self._init_watchdog()

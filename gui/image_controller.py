@@ -14,7 +14,8 @@ class ImageController(QObject):
         self.image_manager = image_manager
         logger.debug("Connecting image_manager signals to ImageController.")
         self.image_manager.image_loaded.connect(self.on_image_loaded)
-        self.image_manager.image_cleared.connect(self.image_cleared_signal.emit)
+        self.image_manager.image_cleared.connect(
+            lambda: self.main_window.image_display.clear_image() if self.main_window else None)
         logger.debug("Signals connected: image_loaded and image_cleared.")
 
     def set_main_window(self, main_window):
@@ -28,7 +29,5 @@ class ImageController(QObject):
         logger.debug(f"on_image_loaded triggered with file_path: {file_path}.")
         if self.main_window:
             self.main_window.image_display.display_image(file_path, pixmap)
-            logger.debug(f"Emitting image_loaded_signal for {file_path}.")
-            self.image_loaded_signal.emit(file_path)
         else:
             logger.error("Main window is not set in ImageController.")

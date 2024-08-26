@@ -5,7 +5,6 @@ import logger
 
 
 class ImageDisplay(QObject):
-    image_changed = pyqtSignal(str)  # Signal to emit the current file path
 
     def __init__(self):
         super().__init__()
@@ -35,7 +34,6 @@ class ImageDisplay(QObject):
             logger.info(f"[ImageDisplay] Displaying image: {image_path}")
             self.current_pixmap = pixmap
             self.update_image_label()
-            self.image_changed.emit(image_path)  # Emit signal with the current file path
             logger.debug(f"Image displayed: {image_path}")
         else:
             logger.error("[ImageDisplay] Error: No image to display")

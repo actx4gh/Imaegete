@@ -6,9 +6,6 @@ from PyQt6.QtCore import pyqtSignal, QObject
 from PyQt6.QtGui import QPixmap
 
 import logger
-from config import IMAGE_CACHE_MAX_SIZE
-from .image_cache import ImageCache
-from .image_handler import ImageHandler
 from .image_loader import ThreadedImageLoader
 
 
@@ -24,6 +21,7 @@ class ImageManager(QObject):
         super().__init__()
         self.app_name = app_name
         self.image_handler = image_handler
+        self.signals_connected = False
         self.image_cache = image_cache
         self.image_cache.set_refresh_image_list_callback(self.image_handler.refresh_image_list)
         self.image_cache.set_ensure_valid_index_callback(self.ensure_valid_index)
@@ -35,8 +33,8 @@ class ImageManager(QObject):
         self.current_pixmap = None
         self.cache_image_signal.connect(self.cache_image_in_main_thread)
         self.image_list_updated.connect(self.on_image_list_updated)
+        self.image_cache.initialize_watchdog()
         logger.debug("ImageManager initialized.")
-
 
     def on_image_list_updated(self):
         """Handle actions when the image list is updated."""
@@ -50,6 +48,45 @@ class ImageManager(QObject):
         self.ensure_valid_index()  # Ensure the current index is valid
         self.load_image()  # Reload the current image
 
+    def connect_signals(self):
+        if not self.signals_connected:
+            self.image_loaded.connect(self.main_window.status_bar_manager.update_status_bar)
+            self.image_cleared.connect(lambda: self.main_window.status_bar_manager.update_status_bar("No image loaded"))
+            self.signals_connected = True
+
+    def load_image(self):
+        # Delay signal emissions until after initial load
+        if not self.signals_connected:
+            # Load the initial image without emitting signals
+            if self.current_index < len(self.image_handler.image_list):
+                image_path = self.get_absolute_image_path(self.current_index)
+                self.current_pixmap = self.image_cache.load_image(image_path)
+                if self.current_pixmap:
+                    self.current_image_path = image_path
+                    self.current_metadata = self.image_cache.get_metadata(image_path)
+                    self.connect_signals()
+                else:
+                    self.image_cleared.emit()
+            else:
+                self.image_cleared.emit()
+        else:
+            # Normal loading process once signals are connected
+            if self.current_index < len(self.image_handler.image_list):
+                image_path = self.get_absolute_image_path(self.current_index)
+                if self.current_image_path == image_path and self.current_pixmap is not None:
+                    self.image_loaded.emit(image_path, self.current_pixmap)
+                    return
+
+                self.current_pixmap = self.image_cache.load_image(image_path)
+                if self.current_pixmap:
+                    self.current_image_path = image_path
+                    self.current_metadata = self.image_cache.get_metadata(image_path)
+                    self.image_loaded.emit(image_path, self.current_pixmap)
+                else:
+                    self.load_image_async(image_path)
+            else:
+                self.image_cleared.emit()
+
     def refresh_image_list(self, emit=True):
         self.image_handler.refresh_image_list()
         if emit:
@@ -61,28 +98,26 @@ class ImageManager(QObject):
 
     def on_image_loaded(self, image_path, image):
         logger.debug(f"on_image_loaded called with image_path: {image_path}")
-
+        cache = False
         if image is None:
             logger.error(f"Image is None for path: {image_path}")
             return
 
-        # Use ImageCache to manage metadata
         self.current_metadata = self.image_cache.get_metadata(image_path)
         if not self.current_metadata:
             logger.debug(f"Metadata not found for {image_path}, loading now.")
-            # Use the image cache to extract and cache metadata
             self.current_metadata = self.image_cache.extract_metadata(image_path, image)
-            self.cache_image_signal.emit(image_path, image, self.current_metadata)
+            cache = True
+
 
         self.current_pixmap = self.image_cache.get_pixmap(image_path)
-        if not self.current_pixmap:
+        if not self.current_pixmap and self.current_pixmap != image:
             logger.debug(f"Pixmap not found in QPixmapCache for {image_path}, caching now.")
+            cache = True
+
+        if cache:
             self.cache_image_signal.emit(image_path, image, self.current_metadata)
-
         self.current_image_path = image_path
-
-        # Emit image loaded signal after ensuring metadata and pixmap are cached
-        self.image_loaded.emit(image_path, image)
 
     def get_absolute_image_path(self, index):
         if index < 0 or index >= len(self.image_handler.image_list):
@@ -93,25 +128,6 @@ class ImageManager(QObject):
             return image_path
         logger.error(f"Image path not found for index {index}: {image_path}")
         return None
-
-    def load_image(self):
-        if 0 <= self.current_index < len(self.image_handler.image_list):
-            image_path = self.get_absolute_image_path(self.current_index)
-            if self.current_image_path == image_path and self.current_pixmap is not None:
-                self.image_loaded.emit(image_path, self.current_pixmap)
-                return
-
-            # Use ImageCache to retrieve pixmap
-            self.current_pixmap = self.image_cache.load_image(image_path)
-            if self.current_pixmap:
-                self.current_image_path = image_path
-                self.current_metadata = self.image_cache.get_metadata(image_path)
-                self.image_loaded.emit(image_path, self.current_pixmap)
-            else:
-                # Load image asynchronously if not in cache
-                self.load_image_async(image_path)
-        else:
-            self.image_cleared.emit()
 
     def load_image_async(self, image_path, pixmap=None, prefetch=False):
         """Load an image asynchronously, with an option for pre-fetching."""

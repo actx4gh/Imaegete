@@ -1,4 +1,5 @@
 import config
+import logger
 from glavnaqt.core.event_handling import handle_resize_event as glavnaqt_handle_resize_event
 from glavnaqt.core.event_handling import setup_event_handling as glavnaqt_setup_event_handling
 

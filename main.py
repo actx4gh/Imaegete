@@ -153,8 +153,6 @@ def main():
     # Now load the initial image
 
     logger.debug("Configuring StatusBarManager with the main GUI window.")
-    sorter_gui.status_bar_manager.set_main_window(sorter_gui)
-    sorter_gui.setup_interactive_status_bar()
 
     # Force initial UI updates after everything is set up
     sorter_gui.show()
@@ -164,6 +162,7 @@ def main():
     # Connect the application quit event
     def on_exit():
         logger.info("[main] Application exit triggered")
+
 
     app.aboutToQuit.connect(on_exit)
 

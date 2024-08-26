@@ -48,21 +48,37 @@ class ImageSorterGUI(MainWindow):
         self.status_bar_manager = status_bar_manager
         self.setWindowTitle(f"{self.app_name} - {config.WINDOW_TITLE_SUFFIX}")
 
-        # Configure status bar manager after main window setup
-        self.status_bar_manager.set_main_window(self)
-        logger.debug("Status bar manager configured.")
+        # Defer signal connections until after initial image load
+        self.image_manager.main_window = self
+        self.image_manager.load_image()  # Load initial image without emitting signals
 
-        # Connect signals after everything is initialized
-        self.status_bar_manager.connect_signals(self.image_controller)
-        logger.debug("Signals connected for status bar manager.")
-        self.image_display.image_changed.connect(self.status_bar_manager.update_status_bar)
+        # Connect signals only after loading the initial image
+        self.status_bar_manager.set_main_window(self)
+        logger.debug("Status bar manager configured and signals connected.")
+
         self.event_bus.subscribe('resize', lambda event: self.on_resize())
         logger.debug("Signals connected for image display.")
 
+        self.image_manager.image_cleared.connect(self.update_ui_on_image_cleared)
+        self.setup_interactive_status_bar()
+
         self.show()
         logger.debug("Main window shown.")
-        self.image_controller.image_manager.load_image()
         logger.debug("Initial image load triggered.")
+
+    def update_ui_on_image_loaded(self, file_path, pixmap):
+        if self.image_display:
+            self.image_display.display_image(file_path, pixmap)
+
+    def on_resize(self):
+        self.image_display.update_image_label()  # Ensure the image label is updated on resize
+        self.log_resize_event()
+
+    def update_ui_on_image_cleared(self):
+        if self.image_display:
+            self.image_display.clear_image()
+        if self.status_bar_manager:
+            self.status_bar_manager.update_status_bar("No image loaded")
 
     @property
     def status_bar_manager(self):
@@ -83,27 +99,6 @@ class ImageSorterGUI(MainWindow):
         """Ensure status_bar_manager is initialized before parent UI setup."""
         # Call the parent method
         super()._initialize_ui(collapsible_sections)
-
-    def on_resize(self):
-        current_image_path = self.image_controller.image_manager.get_current_image_path()
-
-        if current_image_path:
-            metadata = self.image_controller.image_manager.image_cache.get_metadata(current_image_path)
-
-            if metadata:
-                logger.info(f"Using cached metadata for {current_image_path}")
-            else:
-                logger.info(f"NOT Using cached metadata for {current_image_path}")
-
-            self.update_zoom_percentage()
-
-        self.image_display.update_image_label()  # Ensure the image label is updated on resize
-        self.log_resize_event()
-        self.status_bar_manager.update_status_bar()
-
-    def update_zoom_percentage(self):
-        current_image_path = self.image_controller.image_manager.get_current_image_path()
-        self.status_bar_manager.update_status_bar(current_image_path)
 
     def log_resize_event(self):
         logger.info(f"[ImageSorterGUI] Window resized to {self.width()}x{self.height()}")

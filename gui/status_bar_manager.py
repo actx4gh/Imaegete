@@ -17,31 +17,19 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
         self.main_window = main_window
         super().set_main_window(main_window)
 
-    def connect_signals(self, image_controller):
-        logger.debug("Connecting signals for StatusBarManager.")
-        image_controller.image_loaded_signal.connect(self.update_status_bar)
-        logger.debug("Connected image_loaded_signal to update_status_bar.")
-        image_controller.image_cleared_signal.connect(lambda: self.update_status_bar("No image loaded"))
-        logger.debug("Connected image_cleared_signal to update_status_bar with 'No image loaded'.")
-        self.image_manager.image_list_changed.connect(self.update_status_bar)
-        logger.debug("Connected image_list_changed to update_status_bar.")
-
     def update_status_bar(self, file_path=None):
         logger.debug(f"update_status_bar called with file_path: {file_path}")
         if not self.main_window or not self.status_label:
             logger.error("Main window or status label is not initialized.")
             return
-        logger.debug(f"update_status_bar called with file_path: {file_path}")
+
         if not file_path:
             file_path = self.image_manager.get_current_image_path()
-            logger.debug(f"Retrieved file_path from image_manager: {file_path}")
             if not file_path:
                 super().update_status_bar("No image loaded")
                 return
 
-        # Use the in-memory metadata if available
-        metadata = self.image_manager.current_metadata
-        logger.debug(f"Retrieved metadata: {metadata}")
+        metadata = self.image_manager.current_metadata or self.image_manager.image_cache.get_metadata(file_path)
         if not metadata:
             logger.warning(f"Metadata not found for {file_path}. Status bar information may be incomplete.")
             super().update_status_bar("No metadata available")
@@ -63,7 +51,9 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
             return
 
         logger.debug(f"Setting status_text with text: {status_text}")
-        super().update_status_bar(status_text)
+        self.status_label.setText(status_text)
+        #super().update_status_bar(status_text)
+        #super().update_status_bar(status_text)
 
         tooltip_text = (
             f"Filename: {filename}\nZoom: {zoom_percentage}%\nDimensions: {dimensions}\n"
