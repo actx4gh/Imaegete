@@ -30,28 +30,32 @@ class ImageDisplay(QObject):
         return self.widget
 
     def display_image(self, image_path, pixmap):
+        logger.debug(f"Attempting to display image: {image_path}")
         if pixmap:
             logger.info(f"[ImageDisplay] Displaying image: {image_path}")
             self.current_pixmap = pixmap
             self.update_image_label()
             self.image_changed.emit(image_path)  # Emit signal with the current file path
+            logger.debug(f"Image displayed: {image_path}")
         else:
             logger.error("[ImageDisplay] Error: No image to display")
             QMessageBox.critical(self.widget, "Error", "No image to display!")
 
-    def clear_image(self):
-        logger.info("[ImageDisplay] Clearing image")
-        self.current_pixmap = None
-        self.image_label.clear()
-
     def update_image_label(self):
+        logger.debug("Updating image label.")
         if self.current_pixmap:
             scaled_pixmap = self.current_pixmap.scaled(self.image_label.size(), Qt.AspectRatioMode.KeepAspectRatio,
                                                        Qt.TransformationMode.SmoothTransformation)
             self.image_label.setPixmap(scaled_pixmap)
             logger.debug(f"[ImageDisplay] Updated image label size: {self.image_label.size()}")
         else:
+            logger.debug("No pixmap found, clearing image.")
             self.clear_image()
+
+    def clear_image(self):
+        logger.info("[ImageDisplay] Clearing image")
+        self.current_pixmap = None
+        self.image_label.clear()
 
     def get_zoom_percentage(self):
         if not self.current_pixmap:

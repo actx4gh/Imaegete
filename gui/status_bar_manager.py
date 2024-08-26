@@ -7,20 +7,27 @@ from glavnaqt.ui.status_bar_manager import StatusBarManager as BaseStatusBarMana
 
 class ImageSorterStatusBarManager(BaseStatusBarManager):
     def __init__(self, image_manager):
+        logger.debug("Initializing ImageSorterStatusBarManager.")
         super().__init__()  # Initialize the base StatusBarManager
         self.image_manager = image_manager
         self.main_window = None
 
     def configure(self, main_window):
+        logger.debug("Configuring StatusBarManager with main window.")
         self.main_window = main_window
         super().configure(main_window)
 
     def connect_signals(self, image_controller):
+        logger.debug("Connecting signals for StatusBarManager.")
         image_controller.image_loaded_signal.connect(self.update_status_bar)
+        logger.debug("Connected image_loaded_signal to update_status_bar.")
         image_controller.image_cleared_signal.connect(lambda: self.update_status_bar("No image loaded"))
+        logger.debug("Connected image_cleared_signal to update_status_bar with 'No image loaded'.")
         self.image_manager.image_list_changed.connect(self.update_status_bar)
+        logger.debug("Connected image_list_changed to update_status_bar.")
 
     def update_status_bar(self, file_path=None):
+        logger.debug(f"update_status_bar called with file_path: {file_path}")
         if not self.main_window or not self.status_label:
             logger.error("Main window or status label is not initialized.")
             return
@@ -51,6 +58,10 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
         status_text = (f"📁 {image_index + 1}/{total_images} • 🔍 {zoom_percentage}% • "
                        f"📏 {dimensions} • 💾 {file_size} • 📅 {modification_date}")
 
+        if self.status_label.text() == status_text:
+            logger.debug("Status bar text is already up-to-date, skipping update.")
+            return
+
         logger.debug(f"Setting status_text with text: {status_text}")
         super().update_status_bar(status_text)
 
@@ -61,7 +72,6 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
         )
         logger.debug(f"Setting tooltip with text: {tooltip_text}")
         self.status_label.setToolTip(tooltip_text)
-
 
     def get_filename(self, file_path):
         return os.path.basename(file_path)

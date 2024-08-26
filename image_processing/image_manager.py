@@ -20,6 +20,7 @@ class ImageManager(QObject):
     image_list_changed = pyqtSignal()
 
     def __init__(self, image_handler, image_cache, app_name='ImageSorter', ):
+        logger.debug("Initializing ImageManager.")
         super().__init__()
         self.app_name = app_name
         self.image_handler = image_handler
@@ -28,13 +29,14 @@ class ImageManager(QObject):
         self.image_cache.set_ensure_valid_index_callback(self.ensure_valid_index)
         self.image_cache.set_image_list_changed_callback(self.image_list_changed)
         self.current_index = 0
-        self.loader_thread = None  # Remove direct image loading
+        self.loader_thread = None
         self.current_image_path = None
         self.current_metadata = None
         self.current_pixmap = None
         self.cache_image_signal.connect(self.cache_image_in_main_thread)
         self.image_list_updated.connect(self.on_image_list_updated)
-        logger.debug("Connected image_list_changed to update_status_bar")
+        logger.debug("ImageManager initialized.")
+
 
     def on_image_list_updated(self):
         """Handle actions when the image list is updated."""

@@ -13,6 +13,7 @@ from glavnaqt.ui.main_window import MainWindow
 class ImageSorterGUI(MainWindow):
     def __init__(self, image_display, image_manager, image_controller, status_bar_manager, app_name='ImageSorter',
                  *args, **kwargs):
+        logger.debug("Initializing ImageSorterGUI.")
         self.image_display = image_display
         self.app_name = app_name
         self.image_manager = image_manager
@@ -42,20 +43,26 @@ class ImageSorterGUI(MainWindow):
         )
 
         super().__init__(ui_config, *args, **kwargs)
+        logger.debug("UI configuration set up.")
 
         self.status_bar_manager = status_bar_manager
         self.setWindowTitle(f"{self.app_name} - {config.WINDOW_TITLE_SUFFIX}")
 
         # Configure status bar manager after main window setup
         self.status_bar_manager.configure(self)
+        logger.debug("Status bar manager configured.")
 
         # Connect signals after everything is initialized
         self.status_bar_manager.connect_signals(self.image_controller)
+        logger.debug("Signals connected for status bar manager.")
         self.image_display.image_changed.connect(self.status_bar_manager.update_status_bar)
         self.event_bus.subscribe('resize', lambda event: self.on_resize())
+        logger.debug("Signals connected for image display.")
 
         self.show()
+        logger.debug("Main window shown.")
         self.image_controller.image_manager.load_image()
+        logger.debug("Initial image load triggered.")
 
     @property
     def status_bar_manager(self):

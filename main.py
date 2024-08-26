@@ -115,22 +115,30 @@ def alignment_to_string(alignment):
 
 
 def main():
+    logger.debug("Starting application.")
     app = QApplication(sys.argv)
 
     # Create dependencies
+    logger.debug("Creating ImageDisplay instance.")
     image_display = ImageDisplay()
+    logger.debug("Creating ImageHandler instance.")
     image_handler = ImageHandler()
+    logger.debug("Creating ImageCache instance.")
     image_cache = ImageCache(
         app_name='ImageSorter',
         max_size=config.IMAGE_CACHE_MAX_SIZE
     )
+    logger.debug("Creating ImageManager instance.")
     image_manager = ImageManager(image_handler=image_handler, image_cache=image_cache)
+    logger.debug("Creating ImageController instance.")
     image_controller = ImageController(image_manager)
 
     # Initialize status bar manager without main_window
+    logger.debug("Creating StatusBarManager instance.")
     status_bar_manager = ImageSorterStatusBarManager(image_manager)
 
     # Create the main window with all dependencies injected
+    logger.debug("Creating main GUI window (ImageSorterGUI).")
     sorter_gui = ImageSorterGUI(
         image_display=image_display,
         image_manager=image_manager,
@@ -138,13 +146,21 @@ def main():
         status_bar_manager=status_bar_manager
     )
 
-    # Ensure all components are properly configured
+    logger.debug("Setting main window in ImageController.")
+    image_controller.set_main_window(sorter_gui)
+    logger.debug("Main window set in ImageController.")
+
+    # Now load the initial image
+    image_controller.image_manager.load_image()
+
+    logger.debug("Configuring StatusBarManager with the main GUI window.")
     sorter_gui.status_bar_manager.configure(sorter_gui)
     sorter_gui.setup_interactive_status_bar()
 
     # Force initial UI updates after everything is set up
     sorter_gui.show()
     sorter_gui.resize(sorter_gui.size())  # Trigger resize event to ensure layout is updated
+    logger.debug("Main GUI window shown and resized.")
 
     # Connect the application quit event
     def on_exit():
