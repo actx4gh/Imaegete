@@ -1,4 +1,5 @@
 import os
+import traceback
 
 from natsort import os_sorted
 
@@ -15,11 +16,23 @@ class ImageHandler:
 
         self.image_list = []
         self.deleted_images = []
-        self.refresh_image_list()
+        self.refresh_image_list()  # Initial full scan
+
+    def add_image_to_list(self, image_path):
+        """Add a new image to the image list."""
+        if self.is_image_file(image_path) and image_path not in self.image_list:
+            self.image_list.append(image_path)
+            self.image_list.sort()  # Ensure the list remains sorted
+
+    def remove_image_from_list(self, image_path):
+        """Remove an image from the image list."""
+        if image_path in self.image_list:
+            self.image_list.remove(image_path)
 
     def refresh_image_list(self):
-        """Refresh the list of images from all start directories."""
+        """Initial full scan to build the list of images from all start directories."""
         logger.debug("Starting refresh_image_list")
+        logger.debug('refresh_image_list called. Call stack:\n{}'.format(traceback.format_stack()))
 
         temp_image_list = []  # Temporary list to check for duplicates
         for start_dir in self.start_dirs:
@@ -48,7 +61,6 @@ class ImageHandler:
 
     def move_image(self, image_path, category):
         """Move image to the specified category folder."""
-        # Use image_path directly as it's now the full path
         start_dir = self.find_start_directory(image_path)
         if not start_dir:
             logger.error(f"Start directory for image {image_path} not found.")
@@ -65,12 +77,12 @@ class ImageHandler:
         logger.info(f"Moved image: {image_path} to category {category}")
         self.deleted_images.append(('move', image_path, category))
 
-        self.refresh_image_list()
+        # Directly remove the image from the list
+        self.image_list.remove(image_path)
         check_and_remove_empty_dir(dest_folder)
 
     def delete_image(self, image_path):
         """Move image to the delete folder."""
-        # Use image_path directly as it's now the full path
         start_dir = self.find_start_directory(image_path)
         if not start_dir:
             logger.error(f"Start directory for image {image_path} not found.")
@@ -87,7 +99,8 @@ class ImageHandler:
         logger.info(f"Deleted image: {image_path}")
         self.deleted_images.append(('delete', image_path))
 
-        self.refresh_image_list()
+        # Directly remove the image from the list
+        self.image_list.remove(image_path)
         check_and_remove_empty_dir(delete_folder)
 
     def undo_last_action(self):
@@ -104,20 +117,107 @@ class ImageHandler:
             if last_action[0] == 'delete':
                 delete_folder = self.delete_folders.get(start_dir)
                 if delete_folder:
-                    move_related_files(image_path, delete_folder, start_dir)
+                    # Restore to the original path using the full original path
+                    original_path = image_path.replace(delete_folder, start_dir)
+                    move_related_files(image_path, delete_folder, os.path.dirname(original_path))
                     check_and_remove_empty_dir(delete_folder)
-                    logger.info(f"Undo delete: {image_path} back to source folder {start_dir}")
+                    logger.info(f"Undo delete: {image_path} back to original location {original_path}")
+
+                    # Directly add the image back to the image list
+                    if original_path not in self.image_list:
+                        self.add_image_to_list(original_path)  # Add image back to list without refresh
             elif last_action[0] == 'move':
                 category = last_action[2]
                 dest_folder = self.dest_folders[start_dir].get(category)
                 if dest_folder:
-                    move_related_files(image_path, dest_folder, start_dir)
+                    # Restore to the original path using the full original path
+                    original_path = image_path.replace(dest_folder, start_dir)
+                    move_related_files(image_path, dest_folder, os.path.dirname(original_path))
                     check_and_remove_empty_dir(dest_folder)
-                    logger.info(f"Undo move: {image_path} from {category} back to source folder {start_dir}")
+                    logger.info(f"Undo move: {image_path} from {category} back to original location {original_path}")
 
-            self.refresh_image_list()
+                    # Directly add the image back to the image list
+                    if original_path not in self.image_list:
+                        self.add_image_to_list(original_path)  # Add image back to list without refresh
+
+            # No need to call refresh_image_list here
             return last_action
         return None
+
+    #    def move_image(self, image_path, category):
+    #        """Move image to the specified category folder."""
+    #        start_dir = self.find_start_directory(image_path)
+    #        if not start_dir:
+    #            logger.error(f"Start directory for image {image_path} not found.")
+    #            return
+    #
+    #        logger.debug(f"Moving image: {image_path}")
+    #
+    #        dest_folder = self.dest_folders[start_dir].get(category)
+    #        if not dest_folder:
+    #            logger.error(f"Destination folder not found for category {category} in directory {start_dir}")
+    #            return
+    #
+    #        move_related_files(image_path, os.path.dirname(image_path), dest_folder)
+    #        logger.info(f"Moved image: {image_path} to category {category}")
+    #        self.deleted_images.append(('move', image_path, category))
+    #
+    #        # Update image list directly instead of refreshing
+    #        self.image_list.remove(image_path)
+    #        check_and_remove_empty_dir(dest_folder)
+    #
+    #    def delete_image(self, image_path):
+    #        """Move image to the delete folder."""
+    #        start_dir = self.find_start_directory(image_path)
+    #        if not start_dir:
+    #            logger.error(f"Start directory for image {image_path} not found.")
+    #            return
+    #
+    #        logger.debug(f"Deleting image: {image_path}")
+    #
+    #        delete_folder = self.delete_folders.get(start_dir)
+    #        if not delete_folder:
+    #            logger.error(f"No delete folder found for directory {start_dir}")
+    #            return
+    #
+    #        move_related_files(image_path, os.path.dirname(image_path), delete_folder)
+    #        logger.info(f"Deleted image: {image_path}")
+    #        self.deleted_images.append(('delete', image_path))
+    #
+    #        # Update image list directly instead of refreshing
+    #        self.image_list.remove(image_path)
+    #        check_and_remove_empty_dir(delete_folder)
+    #
+    #    def undo_last_action(self):
+    #        """Undo the last move or delete action."""
+    #        if self.deleted_images:
+    #            last_action = self.deleted_images.pop()
+    #            image_path = last_action[1]
+    #
+    #            start_dir = self.find_start_directory(image_path)
+    #            if not start_dir:
+    #                logger.error(f"Start directory for image {image_path} not found.")
+    #                return None
+    #
+    #            if last_action[0] == 'delete':
+    #                delete_folder = self.delete_folders.get(start_dir)
+    #                if delete_folder:
+    #                    move_related_files(image_path, delete_folder, start_dir)
+    #                    check_and_remove_empty_dir(delete_folder)
+    #                    logger.info(f"Undo delete: {image_path} back to source folder {start_dir}")
+    #                    self.add_image_to_list(image_path)  # Add image back to list
+    #            elif last_action[0] == 'move':
+    #                category = last_action[2]
+    #                dest_folder = self.dest_folders[start_dir].get(category)
+    #                if dest_folder:
+    #                    move_related_files(image_path, dest_folder, start_dir)
+    #                    check_and_remove_empty_dir(dest_folder)
+    #                    logger.info(f"Undo move: {image_path} from {category} back to source folder {start_dir}")
+    #                    self.add_image_to_list(image_path)  # Add image back to list
+    #
+    #            # No call to refresh_image_list
+    #            return last_action
+    #        return None
 
     def find_start_directory(self, image_path):
         """Find the start directory corresponding to the image path."""

@@ -3,7 +3,6 @@ import pickle
 import platform
 from collections import OrderedDict
 
-from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QPixmapCache
 
 import config
@@ -18,9 +17,9 @@ elif config.platform_name == 'Windows' or config.platform_name == 'Darwin':
 
 
 class ImageCache:
-    def __init__(self, app_name='ImageSorter', max_size=100):
+    def __init__(self, app_name='ImageSorter', max_size=500):
         self.app_name = app_name
-        self.max_size = max_size
+        self.max_size = max_size  # Increased size for better performance with large datasets
         self.ensure_valid_index_callback = None
         self.refresh_image_list_callback = None
         self.image_list_changed_callback = None
@@ -33,9 +32,39 @@ class ImageCache:
         else:
             logger.debug(f'Found existing cache dir {self.cache_dir}')
 
-        QPixmapCache.setCacheLimit(config.CACHE_LIMIT_KB)
-        logger.info(f"QPixmapCache limit set to: {config.CACHE_LIMIT_KB} KB")
+        QPixmapCache.setCacheLimit(config.CACHE_LIMIT_KB * 5)  # Increase QPixmapCache size
+        logger.info(f"QPixmapCache limit set to: {config.CACHE_LIMIT_KB * 5} KB")
 
+    def get_pixmap(self, image_path):
+        """Get the pixmap from QPixmapCache using consistent key."""
+        pixmap = QPixmapCache.find(image_path)
+        if pixmap:
+            # Only move to end if the key exists
+            if image_path in self.metadata_cache:
+                self.metadata_cache.move_to_end(image_path)
+            else:
+                # Load metadata if not present
+                metadata = self.load_cache_from_disk(image_path)
+                if metadata:
+                    self.metadata_cache[image_path] = metadata
+                    self.metadata_cache.move_to_end(image_path)
+            return pixmap
+        return None
+
+    def update_cache_if_modified(self, image_path):
+        """Check if a file has changed and update cache accordingly."""
+        if image_path in self.metadata_cache:
+            current_metadata = self.metadata_cache[image_path]
+            stat_info = os.stat(image_path)
+            if config.platform_name == 'Linux':
+                if stat_info.st_ino != current_metadata.get('inode'):
+                    self.refresh_cache(image_path)
+            else:
+                if stat_info.st_mtime > current_metadata.get('last_modified', 0):
+                    self.refresh_cache(image_path)
+        else:
+            # Add new images directly without refreshing the entire list
+            self.refresh_cache(image_path)
 
     def initialize_watchdog(self):
         # Initialize watchdog or inotify
@@ -74,36 +103,22 @@ class ImageCache:
             logger.warning(f"No cache file found for {image_path} at {cache_path}")
         return None
 
-    def add_to_cache(self, image_path, pixmap=None, metadata=None):
-        """Add pixmap and metadata to the cache."""
-        if pixmap and not pixmap.isNull():
-            QPixmapCache.insert(image_path, pixmap)  # Insert pixmap into cache
+    def refresh_cache(self, image_path):
+        """Refresh or remove the cache for a specific image."""
+        logger.info(f"Refreshing cache for {image_path}")
 
-        if metadata:
-            # Ensure metadata is written to disk synchronously
-            self.metadata_cache[image_path] = metadata
-            self.save_cache_to_disk(image_path, metadata)
+        # Remove old cache entries
+        if image_path in self.metadata_cache:
+            del self.metadata_cache[image_path]
+        QPixmapCache.remove(image_path)
 
-            # Update LRU cache
-            self.metadata_cache.move_to_end(image_path)
-            if len(self.metadata_cache) > self.max_size:
-                self.metadata_cache.popitem(last=False)
-
-    def get_pixmap(self, image_path):
-        """Get the pixmap from QPixmapCache using consistent key."""
-        pixmap = QPixmapCache.find(image_path)
-        if pixmap:
-            # Only move to end if the key exists
-            if image_path in self.metadata_cache:
-                self.metadata_cache.move_to_end(image_path)
-            else:
-                # Load metadata if not present
-                metadata = self.load_cache_from_disk(image_path)
-                if metadata:
-                    self.metadata_cache[image_path] = metadata
-                    self.metadata_cache.move_to_end(image_path)
-            return pixmap
-        return None
+        # Reload the image and metadata if it still exists
+        if os.path.exists(image_path):
+            self.load_image(image_path)
+        else:
+            # If the image is deleted, emit signal to update the list
+            if self.image_list_changed_callback:
+                self.image_list_changed_callback.emit(image_path, True)
 
     def get_metadata(self, image_path):
         """Retrieve metadata for an image from the cache or load from disk."""
@@ -118,6 +133,36 @@ class ImageCache:
             self.metadata_cache[image_path] = metadata
             self.metadata_cache.move_to_end(image_path)
         return metadata or {}
+
+    def load_image(self, image_path):
+        """Load an image from the cache or file system."""
+        pixmap = self.get_pixmap(image_path)
+        if pixmap:
+            return pixmap
+
+        # If not in cache, load the image and metadata
+        pixmap = load_image_with_qpixmap(image_path)
+        if pixmap is None:
+            logger.error(f"Failed to load image: {image_path}")
+            return None
+
+        metadata = self.extract_metadata(image_path, pixmap)
+        self.add_to_cache(image_path, pixmap, metadata)
+        return pixmap
+
+
+    def add_to_cache(self, image_path, pixmap=None, metadata=None):
+        """Add pixmap and metadata to the cache."""
+        if pixmap and not pixmap.isNull():
+            QPixmapCache.insert(image_path, pixmap)  # Insert pixmap into cache
+
+        if metadata:
+            self.metadata_cache[image_path] = metadata
+            self.save_cache_to_disk(image_path, metadata)
+            self.metadata_cache.move_to_end(image_path)
+            if len(self.metadata_cache) > self.max_size:
+                # Implement LRU eviction policy
+                self.metadata_cache.popitem(last=False)
 
     def load_image(self, image_path):
         """Load an image from the cache or file system."""
@@ -212,19 +257,6 @@ class ImageCache:
         observer.start()
         logger.info(f"Watchdog started, monitoring directories: {config.start_dirs}")
 
-
-    def update_cache_if_modified(self, image_path):
-        """Check if a file has changed and update cache accordingly."""
-        if image_path in self.metadata_cache:
-            current_metadata = self.metadata_cache[image_path]
-            stat_info = os.stat(image_path)
-            if config.platform_name == 'Linux':
-                if stat_info.st_ino != current_metadata.get('inode'):
-                    self.refresh_cache(image_path)
-            else:
-                if stat_info.st_mtime > current_metadata.get('last_modified', 0):
-                    self.refresh_cache(image_path)
-
     def set_refresh_image_list_callback(self, callback):
         self.refresh_image_list_callback = callback
 
@@ -246,31 +278,19 @@ class ImageCacheEventHandler(FileSystemEventHandler):
         self.ensure_valid_index_callback = ensure_valid_index_callback
         self.image_list_changed_callback = image_list_changed_callback
 
-        self.refresh_scheduled = False  # Flag to check if refresh is already scheduled
-
     def on_modified(self, event):
         logger.debug(f"on_modified event {event.src_path}")
         if not event.is_directory:
-            self.image_cache.update_cache_if_modified(event.src_path)
-            self.schedule_refresh()
+            self.image_cache.update_cache_if_modified(event.src_path)  # Correct usage
 
     def on_created(self, event):
         logger.debug(f"on_created event {event.src_path}")
         if not event.is_directory:
-            self.schedule_refresh()
+            self.image_cache.refresh_cache(event.src_path)
+            self.image_cache.image_list_changed_callback.emit(event.src_path, False)
 
     def on_deleted(self, event):
         logger.debug(f"on_deleted event {event.src_path}")
         if not event.is_directory:
-            self.schedule_refresh()
-
-    def schedule_refresh(self):
-        """Schedule a refresh if not already scheduled."""
-        if not self.refresh_scheduled:
-            logger.debug("Scheduling refresh_image_list")
-            self.refresh_scheduled = True
-            self.refresh_image_list_callback()
-            QTimer.singleShot(0, self.image_list_changed_callback)  # Emit on the main thread
-            self.refresh_scheduled = False
-
-
+            self.image_cache.refresh_cache(event.src_path)
+            self.image_cache.image_list_changed_callback.emit(event.src_path, True)
