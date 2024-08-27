@@ -41,12 +41,12 @@ class ImageManager(QObject):
     def random_image(self):
         """Display a random image without repeating until all images have been shown."""
         if not self.shuffled_indices:
-            # If all images have been shown, re-shuffle
+            # Reshuffle only if we've exhausted all images
             self.shuffled_indices = list(range(len(self.image_handler.image_list)))
             random.shuffle(self.shuffled_indices)
             logger.info("All images have been shown. Reshuffling the list.")
 
-        # Get the next random index
+        # Pop the next random index from the list
         next_index = self.shuffled_indices.pop(0)
         self.current_index = next_index  # Update current index to the new random index
 
@@ -169,6 +169,7 @@ class ImageManager(QObject):
         if self.loader_thread is not None:
             self.loader_thread.quit()
             self.loader_thread.wait()
+            self.loader_thread = None
 
         logger.info(f"Loading image asynchronously: {image_path} (Prefetch: {prefetch})")
         self.loader_thread = ThreadedImageLoader(image_path)
@@ -213,8 +214,11 @@ class ImageManager(QObject):
 
     def pre_fetch_images(self, start_index, end_index):
         """Pre-fetch images asynchronously to reduce loading time."""
-        # Prefetch forward images
+        max_prefetch = 5  # Limit the number of images to prefetch at a time
         for i in range(start_index, min(end_index, len(self.image_handler.image_list))):
+            if i - start_index >= max_prefetch:
+                break
+
             image_path = self.get_absolute_image_path(i)
             if image_path is None:
                 logger.error(f"Skipping prefetch for invalid image path at index {i}")

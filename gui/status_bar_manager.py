@@ -52,8 +52,6 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
 
         logger.debug(f"Setting status_text with text: {status_text}")
         self.status_label.setText(status_text)
-        #super().update_status_bar(status_text)
-        #super().update_status_bar(status_text)
 
         tooltip_text = (
             f"Filename: {filename}\nZoom: {zoom_percentage}%\nDimensions: {dimensions}\n"

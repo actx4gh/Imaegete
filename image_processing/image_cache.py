@@ -79,17 +79,25 @@ class ImageCache:
         return os.path.join(self.cache_dir, f"{filename}.cache")
 
     def save_cache_to_disk(self, image_path, metadata):
-        """Save metadata to disk."""
-        if not os.path.exists(self.cache_dir):
-            os.makedirs(self.cache_dir)
-            logger.debug(f'Created cache directory: {self.cache_dir}')
-        cache_path = self.get_cache_path(image_path)
-        with open(cache_path, 'wb') as f:
-            pickle.dump(metadata, f)
-        logger.info(f"Metadata saved to disk for {image_path} at {cache_path}")
+        """Save metadata to disk with error handling."""
+        try:
+            if not os.path.exists(self.cache_dir):
+                os.makedirs(self.cache_dir)
+                logger.debug(f'Created cache directory: {self.cache_dir}')
+
+            cache_path = self.get_cache_path(image_path)
+            with open(cache_path, 'wb') as f:
+                pickle.dump(metadata, f)
+            logger.info(f"Metadata saved to disk for {image_path} at {cache_path}")
+        except PermissionError as e:
+            logger.error(f"Permission denied while saving cache for {image_path}: {e}")
+        except IOError as e:
+            logger.error(f"I/O error while saving cache for {image_path}: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error while saving cache for {image_path}: {e}")
 
     def load_cache_from_disk(self, image_path):
-        """Load metadata from disk."""
+        """Load metadata from disk with error handling."""
         cache_path = self.get_cache_path(image_path)
         if os.path.exists(cache_path):
             try:
@@ -97,8 +105,14 @@ class ImageCache:
                     metadata = pickle.load(f)
                 logger.info(f"Metadata loaded from disk for {image_path} from {cache_path}")
                 return metadata
-            except EOFError:
-                logger.error(f"Failed to load metadata for {image_path}: EOFError")
+            except (EOFError, pickle.PickleError) as e:
+                logger.error(f"Failed to load metadata for {image_path}: {e}")
+            except PermissionError as e:
+                logger.error(f"Permission denied while loading cache for {image_path}: {e}")
+            except IOError as e:
+                logger.error(f"I/O error while loading cache for {image_path}: {e}")
+            except Exception as e:
+                logger.error(f"Unexpected error while loading cache for {image_path}: {e}")
         else:
             logger.warning(f"No cache file found for {image_path} at {cache_path}")
         return None
@@ -134,23 +148,6 @@ class ImageCache:
             self.metadata_cache.move_to_end(image_path)
         return metadata or {}
 
-    def load_image(self, image_path):
-        """Load an image from the cache or file system."""
-        pixmap = self.get_pixmap(image_path)
-        if pixmap:
-            return pixmap
-
-        # If not in cache, load the image and metadata
-        pixmap = load_image_with_qpixmap(image_path)
-        if pixmap is None:
-            logger.error(f"Failed to load image: {image_path}")
-            return None
-
-        metadata = self.extract_metadata(image_path, pixmap)
-        self.add_to_cache(image_path, pixmap, metadata)
-        return pixmap
-
-
     def add_to_cache(self, image_path, pixmap=None, metadata=None):
         """Add pixmap and metadata to the cache."""
         if pixmap and not pixmap.isNull():
@@ -181,30 +178,30 @@ class ImageCache:
         return pixmap
 
     def extract_metadata(self, image_path, pixmap=None):
-        """
-        Extract metadata from the image file and store it in the cache.
+        """Extract metadata from the image file with error handling."""
+        try:
+            stat_info = os.stat(image_path)
+        except FileNotFoundError:
+            logger.error(f"File not found: {image_path}")
+            return {}
+        except PermissionError:
+            logger.error(f"Permission denied for file: {image_path}")
+            return {}
+        except Exception as e:
+            logger.error(f"Unexpected error accessing file metadata for {image_path}: {e}")
+            return {}
 
-        Args:
-            image_path (str): The path to the image file.
-            pixmap (QPixmap, optional): The pixmap object if already loaded.
-
-        Returns:
-            dict: Metadata dictionary for the image.
-        """
-        stat_info = os.stat(image_path)
         metadata = {
             'size': pixmap.size() if pixmap else None,
             'format': pixmap.cacheKey() if pixmap else None,
-            'last_modified': stat_info.st_mtime,  # Unix timestamp
+            'last_modified': stat_info.st_mtime,
             'file_size': stat_info.st_size,
         }
         logger.debug(f'Extracted metadata {metadata} from {image_path}')
 
-        # Platform-specific optimization
         if platform.system() == 'Linux':
-            metadata['inode'] = stat_info.st_ino  # Add inode for Linux
+            metadata['inode'] = stat_info.st_ino
 
-        # Cache the metadata
         self.metadata_cache[image_path] = metadata
         self.save_cache_to_disk(image_path, metadata)
 

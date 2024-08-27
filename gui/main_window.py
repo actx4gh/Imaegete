@@ -1,19 +1,34 @@
 import os
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QMenu
+from PyQt6.QtWidgets import QMenu, QApplication
 
 import config
 import logger
 from glavnaqt.core.config import UIConfiguration
 from glavnaqt.ui.main_window import MainWindow
 
+class CleanupThread(QThread):
+    finished_cleanup = pyqtSignal()
+
+    def __init__(self, image_manager):
+        super().__init__()
+        self.image_manager = image_manager
+
+    def run(self):
+        # Perform cleanup tasks, such as stopping threads
+        logger.debug("CleanupThread: Stopping image loader threads.")
+        self.image_manager.stop_threads()
+        logger.debug("CleanupThread: Cleanup complete.")
+        self.finished_cleanup.emit()
+
 
 class ImageSorterGUI(MainWindow):
     def __init__(self, image_display, image_manager, image_controller, status_bar_manager, app_name='ImageSorter',
                  *args, **kwargs):
         logger.debug("Initializing ImageSorterGUI.")
+        self.cleanup_thread = None
         self.image_display = image_display
         self.app_name = app_name
         self.image_manager = image_manager
@@ -56,15 +71,67 @@ class ImageSorterGUI(MainWindow):
         self.status_bar_manager.set_main_window(self)
         logger.debug("Status bar manager configured and signals connected.")
 
-        self.event_bus.subscribe('resize', lambda event: self.on_resize())
-        logger.debug("Signals connected for image display.")
-
-        self.image_manager.image_cleared.connect(self.update_ui_on_image_cleared)
         self.setup_interactive_status_bar()
+        self._connect_signals()
 
         self.show()
         logger.debug("Main window shown.")
         logger.debug("Initial image load triggered.")
+
+    def _connect_signals(self):
+        """Connect signals. Ensures signals are connected only once."""
+        self.event_bus.subscribe('resize', lambda event: self.on_resize())
+        self.image_manager.image_cleared.connect(self.update_ui_on_image_cleared)
+        self.customContextMenuRequested.connect(self.show_context_menu)
+        logger.debug("Signals connected for image display.")
+
+    def _disconnect_signals(self):
+        """Disconnect signals to avoid memory leaks."""
+        try:
+            self.event_bus.unsubscribe('resize', lambda event: self.on_resize())
+            self.image_manager.image_cleared.disconnect(self.update_ui_on_image_cleared)
+            self.customContextMenuRequested.disconnect(self.show_context_menu)
+            logger.debug("Signals disconnected.")
+        except TypeError:
+            # If signals are not connected, a TypeError is raised.
+            logger.debug("No signals were connected or already disconnected.")
+
+    def closeEvent(self, event):
+        """Handle the window close event to disconnect signals and perform cleanup."""
+        logger.debug("Closing ImageSorterGUI...")
+
+        # Disconnect all signals to prevent future emissions
+        self._disconnect_signals()
+
+        # Create a cleanup thread and perform cleanup asynchronously
+        self.cleanup_thread = CleanupThread(self.image_manager)
+        self.cleanup_thread.finished_cleanup.connect(QApplication.quit)
+        self.cleanup_thread.start()
+
+        # Immediately proceed with closing the window
+        logger.debug("Exiting application after GUI close.")
+        event.ignore()  # Prevent default close, as QApplication.quit() will handle it
+        QApplication.quit()
+
+
+    def update_ui_on_image_loaded(self, file_path, pixmap):
+        """UI update after image is loaded."""
+        if self.image_display:
+            self.image_display.display_image(file_path, pixmap)
+
+    def update_ui_on_image_cleared(self):
+        """Update the UI when the image is cleared."""
+        if self.image_display:
+            self.image_display.clear_image()
+        if self.status_bar_manager:
+            self.status_bar_manager.update_status_bar("No image loaded")
+
+    def open_file_location(self):
+        """UI interaction for opening file location."""
+        current_image_path = self.image_controller.get_current_image_path()
+        if current_image_path:
+            folder_path = os.path.dirname(current_image_path)
+            os.startfile(folder_path)
 
     def update_ui_on_image_loaded(self, file_path, pixmap):
         if self.image_display:
@@ -93,7 +160,6 @@ class ImageSorterGUI(MainWindow):
         if self.status_bar_manager.status_label:
             self.status_bar_manager.status_label.mousePressEvent = self.status_bar_clicked
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.show_context_menu)
 
     def _initialize_ui(self, collapsible_sections):
         """Ensure status_bar_manager is initialized before parent UI setup."""
