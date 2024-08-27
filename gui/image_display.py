@@ -1,5 +1,5 @@
-from PyQt6.QtCore import Qt, pyqtSignal, QObject
-from PyQt6.QtWidgets import QLabel, QSizePolicy, QMessageBox, QVBoxLayout, QWidget
+from PyQt6.QtCore import Qt, QObject
+from PyQt6.QtWidgets import QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 import logger
 
@@ -36,8 +36,8 @@ class ImageDisplay(QObject):
             self.update_image_label()
             logger.debug(f"Image displayed: {image_path}")
         else:
-            logger.error("[ImageDisplay] Error: No image to display")
-            QMessageBox.critical(self.widget, "Error", "No image to display!")
+            self.image_label.setText("No image to display.")
+            self.clear_image()
 
     def update_image_label(self):
         logger.debug("Updating image label.")

@@ -22,12 +22,21 @@ class ImageController(QObject):
         self.main_window = main_window
         logger.debug("Main window set in ImageController.")
         bind_keys(main_window, self.image_manager)
-        # Load image after main window is set to ensure everything is ready
-        self.image_manager.load_image()
+
+        # Connect the image_list_populated signal
+        self.image_manager.image_list_populated.connect(self.on_image_list_populated)
+
+    def on_image_list_populated(self):
+        """Load the first image when the image list is populated."""
+        logger.debug("Image list populated signal received.")
+        if self.image_manager.image_handler.image_list:
+            self.image_manager.current_index = 0  # Start from the first image
+            self.image_manager.load_image()  # Trigger loading of the first image
 
     def on_image_loaded(self, file_path, pixmap):
         logger.debug(f"on_image_loaded triggered with file_path: {file_path}.")
         if self.main_window:
             self.main_window.image_display.display_image(file_path, pixmap)
+            logger.info(f"Image displayed: {file_path}")
         else:
             logger.error("Main window is not set in ImageController.")

@@ -114,6 +114,8 @@ def alignment_to_string(alignment):
     return " | ".join(alignments) if alignments else "AlignNone"
 
 
+# main.py
+
 def main():
     logger.debug("Starting application.")
     app = QApplication(sys.argv)
@@ -146,23 +148,18 @@ def main():
         status_bar_manager=status_bar_manager
     )
 
-    logger.debug("Setting main window in ImageController.")
-    image_controller.set_main_window(sorter_gui)
-    logger.debug("Main window set in ImageController.")
-
-    # Now load the initial image
-
-    logger.debug("Configuring StatusBarManager with the main GUI window.")
-
-    # Force initial UI updates after everything is set up
+    # Show GUI immediately
     sorter_gui.show()
     sorter_gui.resize(sorter_gui.size())  # Trigger resize event to ensure layout is updated
     logger.debug("Main GUI window shown and resized.")
 
+    # Set main window in ImageController after GUI is shown
+    image_controller.set_main_window(sorter_gui)
+    logger.debug("Main window set in ImageController.")
+
     # Connect the application quit event
     def on_exit():
         logger.info("[main] Application exit triggered")
-
 
     app.aboutToQuit.connect(on_exit)
 

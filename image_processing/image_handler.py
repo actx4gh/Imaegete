@@ -16,7 +16,6 @@ class ImageHandler:
 
         self.image_list = []
         self.deleted_images = []  # Store actions and original indexes for undo
-        self.refresh_image_list()  # Initial full scan
 
     def add_image_to_list(self, image_path, index=None):
         """Add a new image to the image list at the specified index or at the end."""

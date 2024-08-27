@@ -3,11 +3,23 @@
 import os
 import random
 
-from PyQt6.QtCore import pyqtSignal, QObject
+from PyQt6.QtCore import pyqtSignal, QObject, QThread
 from PyQt6.QtGui import QPixmap
 
 import logger
 from .image_loader import ThreadedImageLoader
+
+
+class RefreshImageListThread(QThread):
+    image_list_populated = pyqtSignal()
+
+    def __init__(self, image_handler):
+        super().__init__()
+        self.image_handler = image_handler
+
+    def run(self):
+        self.image_handler.refresh_image_list()
+        self.image_list_populated.emit()
 
 
 class ImageManager(QObject):
@@ -16,6 +28,7 @@ class ImageManager(QObject):
     cache_image_signal = pyqtSignal(str, QPixmap, dict)
     image_list_updated = pyqtSignal()
     image_list_changed = pyqtSignal(str, bool)
+    image_list_populated = pyqtSignal()  # New signal
 
     def __init__(self, image_handler, image_cache, app_name='ImageSorter', ):
         logger.debug("Initializing ImageManager.")
@@ -36,7 +49,17 @@ class ImageManager(QObject):
         self.cache_image_signal.connect(self.cache_image_in_main_thread)
         self.image_list_updated.connect(self.on_image_list_updated)
         self.image_cache.initialize_watchdog()
+        self.refresh_thread = RefreshImageListThread(self.image_handler)
+        self.refresh_thread.image_list_populated.connect(self.on_image_list_populated)
+        self.refresh_thread.start()
         logger.debug("ImageManager initialized.")
+
+    def on_image_list_populated(self):
+        """Handle the event when the image list is populated."""
+        logger.debug("Image list populated, loading first image if available.")
+        if self.image_handler.image_list:
+            self.current_index = 0  # Ensure we start at the first image
+            self.load_image()  # Load the first image immediately
 
     def random_image(self):
         """Display a random image without repeating until all images have been shown."""
@@ -76,38 +99,33 @@ class ImageManager(QObject):
             self.image_cleared.connect(lambda: self.main_window.status_bar_manager.update_status_bar("No image loaded"))
             self.signals_connected = True
 
+    # image_manager.py
+
     def load_image(self):
-        # Delay signal emissions until after initial load
-        if not self.signals_connected:
-            # Load the initial image without emitting signals
-            if self.current_index < len(self.image_handler.image_list):
-                image_path = self.get_absolute_image_path(self.current_index)
+        logger.debug(f"Loading image at index: {self.current_index}")
+
+        # Ensure current_index is within the range of image list
+        if self.current_index < len(self.image_handler.image_list) and self.current_index >= 0:
+            image_path = self.get_absolute_image_path(self.current_index)
+
+            if image_path:  # Ensure we have a valid path
                 self.current_pixmap = self.image_cache.load_image(image_path)
+
                 if self.current_pixmap:
                     self.current_image_path = image_path
                     self.current_metadata = self.image_cache.get_metadata(image_path)
                     self.connect_signals()
+                    self.image_loaded.emit(image_path, self.current_pixmap)
+                    logger.debug(f"Image loaded successfully: {image_path}")
                 else:
+                    logger.error(f"Failed to load image: {image_path}")
                     self.image_cleared.emit()
             else:
+                logger.error("No valid image path found to load.")
                 self.image_cleared.emit()
         else:
-            # Normal loading process once signals are connected
-            if self.current_index < len(self.image_handler.image_list):
-                image_path = self.get_absolute_image_path(self.current_index)
-                if self.current_image_path == image_path and self.current_pixmap is not None:
-                    self.image_loaded.emit(image_path, self.current_pixmap)
-                    return
-
-                self.current_pixmap = self.image_cache.load_image(image_path)
-                if self.current_pixmap:
-                    self.current_image_path = image_path
-                    self.current_metadata = self.image_cache.get_metadata(image_path)
-                    self.image_loaded.emit(image_path, self.current_pixmap)
-                else:
-                    self.load_image_async(image_path)
-            else:
-                self.image_cleared.emit()
+            logger.debug("No images available to load or index out of bounds, clearing image display.")
+            self.image_cleared.emit()
 
     def refresh_image_list(self, emit=True):
         """Refresh the image list and reset shuffled indices."""
