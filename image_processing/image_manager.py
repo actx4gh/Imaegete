@@ -1,6 +1,7 @@
 # image_manager.py
 
 import os
+import random
 
 from PyQt6.QtCore import pyqtSignal, QObject
 from PyQt6.QtGui import QPixmap
@@ -31,10 +32,27 @@ class ImageManager(QObject):
         self.current_image_path = None
         self.current_metadata = None
         self.current_pixmap = None
+        self.shuffled_indices = []
         self.cache_image_signal.connect(self.cache_image_in_main_thread)
         self.image_list_updated.connect(self.on_image_list_updated)
         self.image_cache.initialize_watchdog()
         logger.debug("ImageManager initialized.")
+
+    def random_image(self):
+        """Display a random image without repeating until all images have been shown."""
+        if not self.shuffled_indices:
+            # If all images have been shown, re-shuffle
+            self.shuffled_indices = list(range(len(self.image_handler.image_list)))
+            random.shuffle(self.shuffled_indices)
+            logger.info("All images have been shown. Reshuffling the list.")
+
+        # Get the next random index
+        next_index = self.shuffled_indices.pop(0)
+        self.current_index = next_index  # Update current index to the new random index
+
+        # Load the randomly selected image
+        self.load_image()
+        logger.info(f"Displaying random image at index {self.current_index}: {self.get_current_image_path()}")
 
     def on_image_list_updated(self):
         """Handle actions when the image list is updated, especially after sorting or deleting."""
@@ -92,7 +110,9 @@ class ImageManager(QObject):
                 self.image_cleared.emit()
 
     def refresh_image_list(self, emit=True):
+        """Refresh the image list and reset shuffled indices."""
         self.image_handler.refresh_image_list()
+        self.shuffled_indices = []
         if emit:
             self.image_list_updated.emit()  # Emit signal after refreshing
 

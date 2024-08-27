@@ -16,6 +16,7 @@ NEXT_KEY = 'Right'
 PREV_KEY = 'Left'
 FIRST_KEY = 'Home'
 LAST_KEY = 'End'
+RANDOM_KEY = 'R'
 DELETE_KEY = 'Delete'
 UNDO_KEY = 'U'
 IMAGE_CACHE_MAX_SIZE = 20  # Maximum number of images in cache

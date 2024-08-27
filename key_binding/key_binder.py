@@ -1,7 +1,7 @@
 from PyQt6.QtGui import QKeySequence, QShortcut
 
 import config
-from config import NEXT_KEY, PREV_KEY, FIRST_KEY, LAST_KEY, UNDO_KEY, DELETE_KEY
+from config import NEXT_KEY, PREV_KEY, FIRST_KEY, LAST_KEY, UNDO_KEY, DELETE_KEY, RANDOM_KEY
 
 
 def bind_keys(gui, image_manager):
@@ -21,3 +21,5 @@ def bind_keys(gui, image_manager):
     last_shortcut.activated.connect(image_manager.last_image)
     undo_shortcut = QShortcut(QKeySequence(UNDO_KEY), gui)
     undo_shortcut.activated.connect(image_manager.undo_last_action)
+    undo_shortcut = QShortcut(QKeySequence(RANDOM_KEY), gui)
+    undo_shortcut.activated.connect(image_manager.random_image)
