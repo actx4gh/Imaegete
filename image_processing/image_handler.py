@@ -6,6 +6,7 @@ from natsort import os_sorted
 import config
 import logger
 from .file_operations import move_related_files, check_and_remove_empty_dir
+from PyQt6.QtCore import pyqtBoundSignal
 
 
 class ImageHandler:
@@ -13,8 +14,8 @@ class ImageHandler:
         self.dest_folders = config.dest_folders
         self.delete_folders = config.delete_folders
         self.start_dirs = config.start_dirs
-
         self.image_list = []
+        self.first_image = None
         self.deleted_images = []  # Store actions and original indexes for undo
 
     def add_image_to_list(self, image_path, index=None):
@@ -123,12 +124,13 @@ class ImageHandler:
         """Find the start directory corresponding to the image path."""
         return next((d for d in self.start_dirs if os.path.abspath(image_path).startswith(os.path.abspath(d))), None)
 
-    def refresh_image_list(self):
+    def refresh_image_list(self, signal=None):
         """Initial full scan to build the list of images from all start directories."""
         logger.debug("Starting refresh_image_list")
         logger.debug('refresh_image_list called. Call stack:\n{}'.format(traceback.format_stack()))
 
         temp_image_set = set()  # Use a set to avoid duplicates directly
+        self.interrogated_list = []
         for start_dir in self.start_dirs:
             logger.debug(f"Processing start directory: {start_dir}")
             for root, dirs, files in os.walk(start_dir):
@@ -138,7 +140,7 @@ class ImageHandler:
                 self._filter_directories(dirs, root_abs, start_dir)
 
                 # Add image files to the set
-                self._add_image_files_to_set(temp_image_set, root_abs, files)
+                self._add_image_files_to_set(temp_image_set, root_abs, files, signal)
 
         # Convert set to a sorted list for final image list
         self.image_list = os_sorted(list(temp_image_set))
@@ -151,12 +153,17 @@ class ImageHandler:
         dirs[:] = [d for d in dirs if
                    os.path.join(root_abs, d) not in dest_dirs and os.path.join(root_abs, d) != delete_dir]
 
-    def _add_image_files_to_set(self, image_set, root_abs, files):
+    def _add_image_files_to_set(self, image_set, root_abs, files, signal=None):
         """Add image files to the set."""
         for file in files:
             if self.is_image_file(file):
                 file_path = os.path.join(root_abs, file)
                 image_set.add(file_path)
+                self.interrogated_list.append(file_path)
+                if isinstance(signal, pyqtBoundSignal) and not self.first_image:
+                    self.first_image = file_path
+                    signal.emit()
+
 
     def is_image_file(self, filename):
         """Check if the file is a valid image format."""

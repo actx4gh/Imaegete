@@ -18,8 +18,8 @@ class RefreshImageListThread(QThread):
         self.image_handler = image_handler
 
     def run(self):
-        self.image_handler.refresh_image_list()
-        self.image_list_populated.emit()
+        self.image_handler.refresh_image_list(signal=self.image_list_populated)
+        #self.image_list_populated.emit()
 
 
 class ImageManager(QObject):
@@ -57,9 +57,9 @@ class ImageManager(QObject):
     def on_image_list_populated(self):
         """Handle the event when the image list is populated."""
         logger.debug("Image list populated, loading first image if available.")
-        if self.image_handler.image_list:
-            self.current_index = 0  # Ensure we start at the first image
-            self.load_image()  # Load the first image immediately
+        if self.image_handler.first_image or self.image_handler.image_list:
+            self.current_index = 0
+            self.load_image(first_image=self.image_handler.first_image)
 
     def random_image(self):
         """Display a random image without repeating until all images have been shown."""
@@ -101,14 +101,15 @@ class ImageManager(QObject):
 
     # image_manager.py
 
-    def load_image(self):
+    def load_image(self, first_image=None):
         logger.debug(f"Loading image at index: {self.current_index}")
 
         # Ensure current_index is within the range of image list
-        if self.current_index < len(self.image_handler.image_list) and self.current_index >= 0:
+        if first_image or self.current_index < len(self.image_handler.image_list) and self.current_index >= 0:
             image_path = self.get_absolute_image_path(self.current_index)
 
-            if image_path:  # Ensure we have a valid path
+            if image_path or first_image:  # Ensure we have a valid path
+                image_path = first_image
                 self.current_pixmap = self.image_cache.load_image(image_path)
 
                 if self.current_pixmap:
