@@ -171,7 +171,7 @@ class ImageHandler:
                             logger.debug(f'First image found: {self.first_image}')
                         # Emit signal for each file added
                         if signal and isinstance(signal, pyqtBoundSignal):
-                            logger.debug(f'Emitting signal image population')
+                            logger.debug(f'Emitting signal image population with image list count {len(self.image_list)}')
                             signal.emit()
 
         # Step 4: Sort the temporary image list after all images are added

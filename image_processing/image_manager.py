@@ -59,6 +59,7 @@ class ImageManager(QObject):
             logger.debug("Loading first image if available.")
             self.current_index = 0
             self.load_image()
+            self.pre_fetch_images(self.current_index + 1, self.current_index + 3)
         else:
             logger.debug("Image list populating, updating status bar.")
             self.main_window.status_bar_manager.update_status_bar()

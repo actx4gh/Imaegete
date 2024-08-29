@@ -9,6 +9,7 @@ import logger
 from glavnaqt.core.config import UIConfiguration
 from glavnaqt.ui.main_window import MainWindow
 
+
 class CleanupThread(QThread):
     finished_cleanup = pyqtSignal()
 
@@ -113,7 +114,6 @@ class ImageSorterGUI(MainWindow):
         event.ignore()  # Prevent default close, as QApplication.quit() will handle it
         QApplication.quit()
 
-
     def update_ui_on_image_loaded(self, file_path, pixmap):
         """UI update after image is loaded."""
         if self.image_display:
@@ -133,19 +133,10 @@ class ImageSorterGUI(MainWindow):
             folder_path = os.path.dirname(current_image_path)
             os.startfile(folder_path)
 
-    def update_ui_on_image_loaded(self, file_path, pixmap):
-        if self.image_display:
-            self.image_display.display_image(file_path, pixmap)
-
     def on_resize(self):
         self.image_display.update_image_label()  # Ensure the image label is updated on resize
         self.log_resize_event()
 
-    def update_ui_on_image_cleared(self):
-        if self.image_display:
-            self.image_display.clear_image()
-        if self.status_bar_manager:
-            self.status_bar_manager.update_status_bar("No image loaded")
 
     @property
     def status_bar_manager(self):

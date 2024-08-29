@@ -153,7 +153,7 @@ class ImageCache:
         if pixmap and not pixmap.isNull():
             QPixmapCache.insert(image_path, pixmap)  # Insert pixmap into cache
 
-        if metadata:
+        if metadata and self.metadata_cache[image_path] != metadata:
             self.metadata_cache[image_path] = metadata
             self.save_cache_to_disk(image_path, metadata)
             self.metadata_cache.move_to_end(image_path)
