@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-
+import traceback
 import logger
 from glavnaqt.ui.status_bar_manager import StatusBarManager as BaseStatusBarManager
 
@@ -18,7 +18,8 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
         super().set_main_window(main_window)
 
     def update_status_bar(self, file_path=None):
-        logger.debug(f"update_status_bar called with file_path: {file_path}")
+        logger.debug('update_status_bar called. Call stack:\n{}'.format(traceback.format_stack()))
+
         if not self.main_window or not self.status_label:
             logger.error("Main window or status label is not initialized.")
             return
@@ -47,7 +48,7 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
                        f"📏 {dimensions} • 💾 {file_size} • 📅 {modification_date}")
 
         if self.status_label.text() == status_text:
-            logger.debug("Status bar text is already up-to-date, skipping update.")
+            logger.debug(f"Status bar text is already up-to-date, skipping update. {status_text}")
             return
 
         logger.debug(f"Setting status_text with text: {status_text}")

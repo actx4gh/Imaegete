@@ -1,12 +1,14 @@
 import os
 import traceback
+from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
 
+from PyQt6.QtCore import pyqtBoundSignal
 from natsort import os_sorted
 
 import config
 import logger
-from .file_operations import move_related_files, check_and_remove_empty_dir
-from PyQt6.QtCore import pyqtBoundSignal
+from .file_operations import move_related_files, check_and_remove_empty_dir, list_all_directories_concurrent
 
 
 class ImageHandler:
@@ -127,43 +129,54 @@ class ImageHandler:
     def refresh_image_list(self, signal=None):
         """Initial full scan to build the list of images from all start directories."""
         logger.debug("Starting refresh_image_list")
-        logger.debug('refresh_image_list called. Call stack:\n{}'.format(traceback.format_stack()))
 
-        temp_image_set = set()  # Use a set to avoid duplicates directly
-        self.interrogated_list = []
-        for start_dir in self.start_dirs:
-            logger.debug(f"Processing start directory: {start_dir}")
-            for root, dirs, files in os.walk(start_dir):
-                root_abs = os.path.abspath(root)
+        # Step 1: List all directories concurrently
+        all_dirs = list_all_directories_concurrent(self.start_dirs)
 
-                # Filter directories in place
-                self._filter_directories(dirs, root_abs, start_dir)
+        # Step 2: Sort all directories using os_sorted
+        sorted_dirs = os_sorted(all_dirs)
 
-                # Add image files to the set
-                self._add_image_files_to_set(temp_image_set, root_abs, files, signal)
+        # Step 3: Prepare for concurrent processing
+        self.image_list = []  # Clear current image list
+        first_image_found = False  # To track if first image is set
+        lock = Lock()  # Lock for thread-safe list modification
 
-        # Convert set to a sorted list for final image list
-        self.image_list = os_sorted(list(temp_image_set))
+        def process_files_in_directory(directory):
+            """Helper function to process files in a directory and add image files."""
+            image_files = []
+            for root, _, files in os.walk(directory):
+                sorted_files = os_sorted(files)  # Sort files using os_sorted
+                for file in sorted_files:
+                    if self.is_image_file(file):
+                        file_path = os.path.join(root, file)
+                        image_files.append(file_path)
+                break  # Only process the first level of files
+            return image_files
+
+        # Use ThreadPoolExecutor to maximize concurrency
+        with ThreadPoolExecutor() as executor:
+            # List of futures to process in sorted directory order
+            futures = [executor.submit(process_files_in_directory, d) for d in sorted_dirs]
+
+            # Collect results in the order of directory submission
+            for future in futures:
+                image_files = future.result()
+                with lock:
+                    if image_files:
+                        self.image_list.extend(image_files)
+                        # Set the first image if not already set
+                        if not first_image_found:
+                            self.first_image = image_files[0]
+                            first_image_found = True
+                            logger.debug(f'First image found: {self.first_image}')
+                        # Emit signal for each file added
+                        if signal and isinstance(signal, pyqtBoundSignal):
+                            logger.debug(f'Emitting signal image population')
+                            signal.emit()
+
+        # Step 4: Sort the temporary image list after all images are added
+        self.image_list = os_sorted(self.image_list)
         logger.debug(f"Completed refresh_image_list with {len(self.image_list)} images.")
-
-    def _filter_directories(self, dirs, root_abs, start_dir):
-        """Filter out destination and delete directories."""
-        dest_dirs = [os.path.abspath(f) for f in self.dest_folders[start_dir].values()]
-        delete_dir = os.path.abspath(self.delete_folders[start_dir])
-        dirs[:] = [d for d in dirs if
-                   os.path.join(root_abs, d) not in dest_dirs and os.path.join(root_abs, d) != delete_dir]
-
-    def _add_image_files_to_set(self, image_set, root_abs, files, signal=None):
-        """Add image files to the set."""
-        for file in files:
-            if self.is_image_file(file):
-                file_path = os.path.join(root_abs, file)
-                image_set.add(file_path)
-                self.interrogated_list.append(file_path)
-                if isinstance(signal, pyqtBoundSignal) and not self.first_image:
-                    self.first_image = file_path
-                    signal.emit()
-
 
     def is_image_file(self, filename):
         """Check if the file is a valid image format."""

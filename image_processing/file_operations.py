@@ -15,9 +15,6 @@ def move_file(src, dest):
         logger.error(f"Failed to move file from {src} to {dest}: {e}")
 
 
-9
-
-
 def move_related_files(filename, src_folder, dest_folder):
     # Extract only the filename part
     base, _ = os.path.splitext(os.path.basename(filename))
@@ -49,7 +46,7 @@ def check_and_remove_empty_dir(dir_path):
 
 def scan_directory(directory):
     """Helper function to list all directories within a given directory."""
-    subdirs = []
+    subdirs = [directory]
     try:
         with os.scandir(directory) as it:
             for entry in it:
@@ -60,21 +57,29 @@ def scan_directory(directory):
     return subdirs
 
 
-def list_all_directories_concurrent(start_dirs):
-    """List all directories recursively using concurrent threads from multiple start directories."""
+def list_all_directories_concurrent(start_dir):
+    """List all directories recursively using concurrent threads."""
     directories = []
-    dirs_to_process = start_dirs.copy()  # Initialize with all start directories
+    seen_directories = set()
+
+    if isinstance(start_dir, str):
+        dirs_to_process = [start_dir]
+    else:
+        dirs_to_process = list(start_dir)
 
     with ThreadPoolExecutor() as executor:
         while dirs_to_process:
-            # Submit tasks for each directory to be processed
+            # Submit tasks for each new directory to be processed
             future_to_dir = {executor.submit(scan_directory, d): d for d in dirs_to_process}
             dirs_to_process = []  # Reset for the next batch of directories
 
             # Collect results as they are completed
             for future in future_to_dir:
                 subdirs = future.result()
-                directories.extend(subdirs)
-                dirs_to_process.extend(subdirs)
+                for subdir in subdirs:
+                    if subdir not in seen_directories:
+                        seen_directories.add(subdir)
+                        directories.append(subdir)
+                        dirs_to_process.append(subdir)
 
     return directories
