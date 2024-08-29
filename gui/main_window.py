@@ -8,6 +8,7 @@ import config
 import logger
 from glavnaqt.core.config import UIConfiguration
 from glavnaqt.ui.main_window import MainWindow
+from key_binding.key_binder import bind_keys
 
 
 class CleanupThread(QThread):
@@ -26,14 +27,15 @@ class CleanupThread(QThread):
 
 
 class ImageSorterGUI(MainWindow):
-    def __init__(self, image_display, image_manager, image_controller, status_bar_manager, app_name='ImageSorter',
+    def __init__(self, image_display, image_manager, status_bar_manager, app_name='ImageSorter',
                  *args, **kwargs):
         logger.debug("Initializing ImageSorterGUI.")
         self.cleanup_thread = None
         self.image_display = image_display
         self.app_name = app_name
         self.image_manager = image_manager
-        self.image_controller = image_controller
+
+        logger.debug("Creating main GUI window (ImageSorterGUI).")
 
         # Define the UI configuration
         ui_config = UIConfiguration(
@@ -79,8 +81,13 @@ class ImageSorterGUI(MainWindow):
         logger.debug("Main window shown.")
         logger.debug("Initial image load triggered.")
 
+    def bind_keys(self):
+        """Bind keys for the main window."""
+        bind_keys(self, self.image_manager)
+
     def _connect_signals(self):
         """Connect signals. Ensures signals are connected only once."""
+        self.image_manager.image_loaded.connect(self.update_ui_on_image_loaded)
         self.event_bus.subscribe('resize', lambda event: self.on_resize())
         self.image_manager.image_cleared.connect(self.update_ui_on_image_cleared)
         self.customContextMenuRequested.connect(self.show_context_menu)
@@ -92,6 +99,7 @@ class ImageSorterGUI(MainWindow):
             self.event_bus.unsubscribe('resize', lambda event: self.on_resize())
             self.image_manager.image_cleared.disconnect(self.update_ui_on_image_cleared)
             self.customContextMenuRequested.disconnect(self.show_context_menu)
+            self.image_manager.image_loaded.disconnect(self.update_ui_on_image_loaded)
             logger.debug("Signals disconnected.")
         except TypeError:
             # If signals are not connected, a TypeError is raised.
@@ -118,6 +126,8 @@ class ImageSorterGUI(MainWindow):
         """UI update after image is loaded."""
         if self.image_display:
             self.image_display.display_image(file_path, pixmap)
+        if self.status_bar_manager:
+            self.status_bar_manager.update_status_bar()
 
     def update_ui_on_image_cleared(self):
         """Update the UI when the image is cleared."""
@@ -126,17 +136,9 @@ class ImageSorterGUI(MainWindow):
         if self.status_bar_manager:
             self.status_bar_manager.update_status_bar("No image loaded")
 
-    def open_file_location(self):
-        """UI interaction for opening file location."""
-        current_image_path = self.image_controller.get_current_image_path()
-        if current_image_path:
-            folder_path = os.path.dirname(current_image_path)
-            os.startfile(folder_path)
-
     def on_resize(self):
         self.image_display.update_image_label()  # Ensure the image label is updated on resize
         self.log_resize_event()
-
 
     @property
     def status_bar_manager(self):
@@ -188,7 +190,7 @@ class ImageSorterGUI(MainWindow):
         return "filename" if pos.x() < 100 else "zoom" if pos.x() < 200 else "date"
 
     def open_file_location(self):
-        current_image_path = self.image_controller.image_manager.get_current_image_path()
+        current_image_path = self.image_manager.image_manager.get_current_image_path()
         if current_image_path:
             folder_path = os.path.dirname(current_image_path)
             os.startfile(folder_path)
@@ -198,6 +200,6 @@ class ImageSorterGUI(MainWindow):
         pass
 
     def open_file_properties(self):
-        current_image_path = self.image_controller.image_manager.get_current_image_path()
+        current_image_path = self.image_manager.image_manager.get_current_image_path()
         if current_image_path:
             os.system(f'explorer /select,\"{current_image_path}\"')

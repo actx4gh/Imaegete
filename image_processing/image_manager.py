@@ -45,6 +45,7 @@ class ImageManager(QObject):
         self.current_metadata = None
         self.current_pixmap = None
         self.shuffled_indices = []
+        self.image_list_populated.connect(self.on_image_list_populated)
         self.cache_image_signal.connect(self.cache_image_in_main_thread)
         self.image_list_updated.connect(self.on_image_list_updated)
         self.image_cache.initialize_watchdog()
@@ -98,8 +99,8 @@ class ImageManager(QObject):
 
     def connect_signals(self):
         if not self.signals_connected:
-            self.image_loaded.connect(self.main_window.status_bar_manager.update_status_bar)
-            self.image_cleared.connect(lambda: self.main_window.status_bar_manager.update_status_bar("No image loaded"))
+            #self.image_loaded.connect(self.main_window.status_bar_manager.update_status_bar)
+            #self.image_cleared.connect(lambda: self.main_window.status_bar_manager.update_status_bar("No image loaded"))
             self.signals_connected = True
 
     # image_manager.py
@@ -120,7 +121,6 @@ class ImageManager(QObject):
                     self.current_metadata = self.image_cache.get_metadata(image_path)
                     self.connect_signals()
                     self.image_loaded.emit(image_path, self.current_pixmap)
-                    logger.debug(f"Image loaded successfully: {image_path}")
                 else:
                     logger.error(f"Failed to load image: {image_path}")
                     self.image_cleared.emit()
@@ -130,6 +130,8 @@ class ImageManager(QObject):
         else:
             logger.debug("No images available to load or index out of bounds, clearing image display.")
             self.image_cleared.emit()
+
+
 
     def refresh_image_list(self, emit=True):
         """Refresh the image list and reset shuffled indices."""
