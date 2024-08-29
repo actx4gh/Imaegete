@@ -136,9 +136,8 @@ class ImageHandler:
 
         # Step 3: Prepare for concurrent processing
         with self.lock:
-            self.image_list = []  # Clear current image list
+            self.image_list.clear()
         first_image_found = False  # To track if first image is set
-        lock = RLock()  # Lock for thread-safe list modification
 
         def process_files_in_directory(directory):
             """Helper function to process files in a directory and add image files."""

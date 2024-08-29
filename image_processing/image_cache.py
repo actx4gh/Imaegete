@@ -3,6 +3,7 @@ import pickle
 import platform
 from collections import OrderedDict
 
+import psutil
 from PyQt6.QtGui import QPixmapCache
 
 import config
@@ -32,8 +33,16 @@ class ImageCache:
         else:
             logger.debug(f'Found existing cache dir {self.cache_dir}')
 
-        QPixmapCache.setCacheLimit(config.CACHE_LIMIT_KB * 5)  # Increase QPixmapCache size
-        logger.info(f"QPixmapCache limit set to: {config.CACHE_LIMIT_KB * 5} KB")
+        self.dynamic_cache_adjustment()
+
+    def dynamic_cache_adjustment(self):
+        """Adjust cache size dynamically based on available system memory."""
+        memory_info = psutil.virtual_memory()
+        # Set cache size to be a percentage of available memory, up to a max limit
+        available_memory_mb = memory_info.available // (1024 * 1024)
+        new_cache_size = min(available_memory_mb // 10, self.max_size)
+        QPixmapCache.setCacheLimit(new_cache_size * 1024)  # QPixmapCache uses KB
+        logger.info(f"Dynamically adjusted QPixmapCache limit to: {new_cache_size} MB")
 
     def get_pixmap(self, image_path):
         """Get the pixmap from QPixmapCache using consistent key."""
@@ -118,8 +127,8 @@ class ImageCache:
         return None
 
     def refresh_cache(self, image_path):
-        """Refresh or remove the cache for a specific image."""
         logger.info(f"Refreshing cache for {image_path}")
+        self.dynamic_cache_adjustment()
 
         # Remove old cache entries
         if image_path in self.metadata_cache:
@@ -149,7 +158,7 @@ class ImageCache:
         return metadata or {}
 
     def add_to_cache(self, image_path, pixmap=None, metadata=None):
-        """Add pixmap and metadata to the cache."""
+        self.dynamic_cache_adjustment()
         if pixmap and not pixmap.isNull():
             QPixmapCache.insert(image_path, pixmap)  # Insert pixmap into cache
 
@@ -157,9 +166,10 @@ class ImageCache:
             self.metadata_cache[image_path] = metadata
             self.save_cache_to_disk(image_path, metadata)
             self.metadata_cache.move_to_end(image_path)
-            if len(self.metadata_cache) > self.max_size:
-                # Implement LRU eviction policy
-                self.metadata_cache.popitem(last=False)
+        while len(self.metadata_cache) > self.max_size:
+            removed_path, _ = self.metadata_cache.popitem(last=False)
+            QPixmapCache.remove(removed_path)
+            logger.info(f"Evicted {removed_path} from cache due to size limit.")
 
     def load_image(self, image_path):
         """Load an image from the cache or file system."""
