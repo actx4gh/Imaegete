@@ -5,7 +5,7 @@ import random
 
 from PyQt6.QtCore import pyqtSignal, QObject, QThread
 from PyQt6.QtGui import QPixmap
-
+from threading import RLock
 import logger
 from .image_loader import ThreadedImageLoader
 
@@ -45,6 +45,7 @@ class ImageManager(QObject):
         self.current_metadata = None
         self.current_pixmap = None
         self.shuffled_indices = []
+        self.lock = RLock()
         self.image_list_populated.connect(self.on_image_list_populated)
         self.cache_image_signal.connect(self.cache_image_in_main_thread)
         self.image_list_updated.connect(self.on_image_list_updated)
@@ -58,7 +59,8 @@ class ImageManager(QObject):
         """Handle the event when the image list is populated."""
         if self.image_handler.first_image and not self.current_image_path:
             logger.debug("Loading first image if available.")
-            self.current_index = 0
+            with self.lock:
+                self.current_index = 0
             self.load_image()
             self.pre_fetch_images(self.current_index + 1, self.current_index + 3)
         else:
@@ -67,35 +69,33 @@ class ImageManager(QObject):
 
     def random_image(self):
         """Display a random image without repeating until all images have been shown."""
-        if not self.shuffled_indices:
-            # Reshuffle only if we've exhausted all images
-            self.shuffled_indices = list(range(len(self.image_handler.image_list)))
-            random.shuffle(self.shuffled_indices)
-            logger.info("All images have been shown. Reshuffling the list.")
+        with self.lock:
+            if not self.shuffled_indices:
+                # Reshuffle only if we've exhausted all images
+                self.shuffled_indices = list(range(len(self.image_handler.image_list)))
+                random.shuffle(self.shuffled_indices)
+                logger.info("All images have been shown. Reshuffling the list.")
 
-        # Pop the next random index from the list
-        next_index = self.shuffled_indices.pop(0)
-        self.current_index = next_index  # Update current index to the new random index
+            next_index = self.shuffled_indices.pop(0)
+            self.current_index = next_index  # Update current index to the new random index
 
-        # Load the randomly selected image
-        self.load_image()
-        logger.info(f"Displaying random image at index {self.current_index}: {self.get_current_image_path()}")
+            # Load the randomly selected image
+            self.load_image()
+            logger.info(f"Displaying random image at index {self.current_index}: {self.get_current_image_path()}")
 
     def on_image_list_updated(self):
-        """Handle actions when the image list is updated, especially after sorting or deleting."""
-        if self.current_image_path and self.current_image_path in self.image_handler.image_list:
-            # Update current index based on the current image path
-            self.current_index = self.image_handler.image_list.index(self.current_image_path)
-        else:
-            # If the current image path is not found, check if there's a next image
-            if self.current_index < len(self.image_handler.image_list):
-                self.current_index = min(self.current_index, len(self.image_handler.image_list) - 1)
+       with self.lock:
+            if self.current_image_path and self.current_image_path in self.image_handler.image_list:
+                # Update current index based on the current image path
+                self.current_index = self.image_handler.image_list.index(self.current_image_path)
             else:
-                # If the index is out of bounds or list is empty, reset to the last valid index or 0
-                self.current_index = max(len(self.image_handler.image_list) - 1, 0)
+                if self.current_index < len(self.image_handler.image_list):
+                    self.current_index = min(self.current_index, len(self.image_handler.image_list) - 1)
+                else:
+                    self.current_index = max(len(self.image_handler.image_list) - 1, 0)
 
-        self.ensure_valid_index()  # Ensure the current index is valid
-        self.load_image()  # Reload the current image
+       self.ensure_valid_index()
+       self.load_image()
 
     def connect_signals(self):
         if not self.signals_connected:
@@ -115,10 +115,12 @@ class ImageManager(QObject):
                 image_path = self.image_handler.first_image
 
             if image_path:
-                self.current_pixmap = self.image_cache.load_image(image_path)
+                with self.lock:
+                    self.current_pixmap = self.image_cache.load_image(image_path)
                 if self.current_pixmap:
-                    self.current_image_path = image_path
-                    self.current_metadata = self.image_cache.get_metadata(image_path)
+                    with self.lock:
+                        self.current_image_path = image_path
+                        self.current_metadata = self.image_cache.get_metadata(image_path)
                     self.connect_signals()
                     self.image_loaded.emit(image_path, self.current_pixmap)
                 else:
@@ -136,7 +138,8 @@ class ImageManager(QObject):
     def refresh_image_list(self, emit=True):
         """Refresh the image list and reset shuffled indices."""
         self.image_handler.refresh_image_list()
-        self.shuffled_indices = []
+        with self.lock:
+            self.shuffled_indices = []
         if emit:
             self.image_list_updated.emit()  # Emit signal after refreshing
 
@@ -151,20 +154,22 @@ class ImageManager(QObject):
             logger.error(f"Image is None for path: {image_path}")
             return
 
-        self.current_metadata = self.image_cache.get_metadata(image_path)
-        if not self.current_metadata:
-            logger.debug(f"Metadata not found for {image_path}, loading now.")
-            self.current_metadata = self.image_cache.extract_metadata(image_path, image)
-            cache = True
+        with self.lock:
+            self.current_metadata = self.image_cache.get_metadata(image_path)
+            if not self.current_metadata:
+                logger.debug(f"Metadata not found for {image_path}, loading now.")
+                self.current_metadata = self.image_cache.extract_metadata(image_path, image)
+                cache = True
 
-        self.current_pixmap = self.image_cache.get_pixmap(image_path)
+            self.current_pixmap = self.image_cache.get_pixmap(image_path)
         if not self.current_pixmap and self.current_pixmap != image:
             logger.debug(f"Pixmap not found in QPixmapCache for {image_path}, caching now.")
             cache = True
 
         if cache:
             self.cache_image_signal.emit(image_path, image, self.current_metadata)
-        self.current_image_path = image_path
+        with self.lock:
+            self.current_image_path = image_path
 
     def get_absolute_image_path(self, index):
         """Returns the absolute path of an image at the specified index."""
@@ -204,18 +209,19 @@ class ImageManager(QObject):
         self.loader_thread.start()
 
     def next_image(self):
-        if self.current_image_path in self.image_handler.image_list:
-            self.current_index = self.image_handler.image_list.index(self.current_image_path)
-        else:
-            self.current_index = 0
+        with self.lock:
+            if self.current_image_path in self.image_handler.image_list:
+                self.current_index = self.image_handler.image_list.index(self.current_image_path)
+            else:
+                self.current_index = 0
 
-        # Navigate to the next image
-        if self.current_index < len(self.image_handler.image_list) - 1:
-            self.current_index += 1
-            logger.info(f"Moving to next image: index {self.current_index}")
-        else:
-            self.current_index = 0  # Wrap around to the first image
-            logger.info("Wrapped around to the first image")
+            # Navigate to the next image
+            if self.current_index < len(self.image_handler.image_list) - 1:
+                self.current_index += 1
+                logger.info(f"Moving to next image: index {self.current_index}")
+            else:
+                self.current_index = 0  # Wrap around to the first image
+                logger.info("Wrapped around to the first image")
 
         self.load_image()
         self.pre_fetch_images(self.current_index + 1, self.current_index + 3)
@@ -256,30 +262,32 @@ class ImageManager(QObject):
                 self.image_cache.extract_metadata(image_path, QPixmap(image_path))
 
     def previous_image(self):
-        # Update current index based on the latest list without refreshing
-        if self.current_image_path in self.image_handler.image_list:
-            self.current_index = self.image_handler.image_list.index(self.current_image_path)
-        else:
-            self.current_index = len(self.image_handler.image_list) - 1
+        with self.lock:
+            if self.current_image_path in self.image_handler.image_list:
+                self.current_index = self.image_handler.image_list.index(self.current_image_path)
+            else:
+                self.current_index = len(self.image_handler.image_list) - 1
 
-        # Navigate to the previous image
-        if self.current_index > 0:
-            self.current_index -= 1
-            logger.info(f"Moving to previous image: index {self.current_index}")
-        else:
-            self.current_index = len(self.image_handler.image_list) - 1  # Wrap around to the last image
-            logger.info("Wrapped around to the last image")
+            # Navigate to the previous image
+            if self.current_index > 0:
+                self.current_index -= 1
+                logger.info(f"Moving to previous image: index {self.current_index}")
+            else:
+                self.current_index = len(self.image_handler.image_list) - 1  # Wrap around to the last image
+                logger.info("Wrapped around to the last image")
 
         self.load_image()
         self.pre_fetch_images(self.current_index - 3, self.current_index - 1)
 
     def first_image(self):
-        self.current_index = 0
+        with self.lock:
+            self.current_index = 0
         self.load_image()
         self.pre_fetch_images(self.current_index + 1, self.current_index + 3)
 
     def last_image(self):
-        self.current_index = len(self.image_handler.image_list) - 1
+        with self.lock:
+            self.current_index = len(self.image_handler.image_list) - 1
         self.load_image()
         self.pre_fetch_images(self.current_index - 3, self.current_index - 1)
 
@@ -288,18 +296,17 @@ class ImageManager(QObject):
             current_image = self.image_handler.image_list[self.current_index]
             logger.info(f"Moving image: {current_image} to category {category}")
             self.image_handler.move_image(current_image, category)
-            # Removed image list refresh call
 
-            # Update current index based on the current image path
-            if self.current_image_path in self.image_handler.image_list:
-                self.current_index = self.image_handler.image_list.index(self.current_image_path)
-            else:
-                # Adjust index to point to the next or previous image if available
-                if self.current_index < len(self.image_handler.image_list):
-                    self.current_index = min(self.current_index, len(self.image_handler.image_list) - 1)
+            with self.lock:
+                if self.current_image_path in self.image_handler.image_list:
+                    self.current_index = self.image_handler.image_list.index(self.current_image_path)
                 else:
-                    # If no images left or index out of bounds, reset to last valid index
-                    self.current_index = max(len(self.image_handler.image_list) - 1, 0)
+                    # Adjust index to point to the next or previous image if available
+                    if self.current_index < len(self.image_handler.image_list):
+                        self.current_index = min(self.current_index, len(self.image_handler.image_list) - 1)
+                    else:
+                        # If no images left or index out of bounds, reset to last valid index
+                        self.current_index = max(len(self.image_handler.image_list) - 1, 0)
 
             self.ensure_valid_index()  # Ensure the current index is valid
             self.load_image()
@@ -342,7 +349,8 @@ class ImageManager(QObject):
 
             # Update current index to point to the restored image
             if image_path in self.image_handler.image_list:
-                self.current_index = self.image_handler.image_list.index(image_path)
+                with self.lock:
+                    self.current_index = self.image_handler.image_list.index(image_path)
 
             # Ensure the index is valid and refresh the display
             self.ensure_valid_index()
@@ -350,15 +358,17 @@ class ImageManager(QObject):
             self.image_list_updated.emit()
 
     def ensure_valid_index(self):
-        if self.current_index >= len(self.image_handler.image_list):
-            self.current_index = len(self.image_handler.image_list) - 1
-        if self.current_index < 0:
-            self.current_index = 0
+        with self.lock:
+            if self.current_index >= len(self.image_handler.image_list):
+                self.current_index = len(self.image_handler.image_list) - 1
+            if self.current_index < 0:
+                self.current_index = 0
         logger.info(f"Ensuring valid index: {self.current_index}")
 
     def ensure_valid_index_after_delete(self):
         if self.current_index >= len(self.image_handler.image_list):
-            self.current_index = len(self.image_handler.image_list) - 1
+            with self.lock:
+                self.current_index = len(self.image_handler.image_list) - 1
         logger.info(f"Ensuring valid index after delete: {self.current_index}")
 
     def get_current_image_path(self):

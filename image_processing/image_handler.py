@@ -1,7 +1,6 @@
 import os
-import traceback
 from concurrent.futures import ThreadPoolExecutor
-from threading import Lock
+from threading import RLock
 
 from PyQt6.QtCore import pyqtBoundSignal
 from natsort import os_sorted
@@ -18,20 +17,23 @@ class ImageHandler:
         self.start_dirs = config.start_dirs
         self.image_list = []
         self.first_image = None
-        self.deleted_images = []  # Store actions and original indexes for undo
+        self.deleted_images = []
+        self.lock = RLock()
 
     def add_image_to_list(self, image_path, index=None):
         """Add a new image to the image list at the specified index or at the end."""
         if self.is_image_file(image_path) and image_path not in self.image_list:
-            if index is not None:
-                self.image_list.insert(index, image_path)
-            else:
-                self.image_list.append(image_path)
+            with self.lock:
+                if index is not None:
+                    self.image_list.insert(index, image_path)
+                else:
+                    self.image_list.append(image_path)
 
     def remove_image_from_list(self, image_path):
         """Remove an image from the image list."""
         if image_path in self.image_list:
-            self.image_list.remove(image_path)
+            with self.lock:
+                self.image_list.remove(image_path)
 
     def move_image(self, image_path, category):
         """Move image to the specified category folder."""
@@ -51,11 +53,9 @@ class ImageHandler:
         move_related_files(image_path, os.path.dirname(image_path), dest_folder)
         logger.info(f"Moved image: {image_path} to category {category}")
 
-        # Record action with original index
-        self.deleted_images.append(('move', image_path, category, original_index))
-
-        # Directly remove the image from the list
-        self.image_list.pop(original_index)
+        with self.lock:
+            self.deleted_images.append(('move', image_path, category, original_index))
+            self.image_list.pop(original_index)
         check_and_remove_empty_dir(dest_folder)
 
     def delete_image(self, image_path):
@@ -76,11 +76,9 @@ class ImageHandler:
         move_related_files(image_path, os.path.dirname(image_path), delete_folder)
         logger.info(f"Deleted image: {image_path}")
 
-        # Record action with original index
-        self.deleted_images.append(('delete', image_path, original_index))
-
-        # Directly remove the image from the list
-        self.image_list.pop(original_index)
+        with self.lock:
+            self.deleted_images.append(('delete', image_path, original_index))
+            self.image_list.pop(original_index)
         check_and_remove_empty_dir(delete_folder)
 
     def undo_last_action(self):
@@ -137,9 +135,10 @@ class ImageHandler:
         sorted_dirs = os_sorted(all_dirs)
 
         # Step 3: Prepare for concurrent processing
-        self.image_list = []  # Clear current image list
+        with self.lock:
+            self.image_list = []  # Clear current image list
         first_image_found = False  # To track if first image is set
-        lock = Lock()  # Lock for thread-safe list modification
+        lock = RLock()  # Lock for thread-safe list modification
 
         def process_files_in_directory(directory):
             """Helper function to process files in a directory and add image files."""
@@ -161,21 +160,20 @@ class ImageHandler:
             # Collect results in the order of directory submission
             for future in futures:
                 image_files = future.result()
-                with lock:
-                    if image_files:
+                if image_files:
+                    with self.lock:
                         self.image_list.extend(image_files)
-                        # Set the first image if not already set
                         if not first_image_found:
                             self.first_image = image_files[0]
                             first_image_found = True
                             logger.debug(f'First image found: {self.first_image}')
-                        # Emit signal for each file added
                         if signal and isinstance(signal, pyqtBoundSignal):
-                            logger.debug(f'Emitting signal image population with image list count {len(self.image_list)}')
+                            logger.debug(
+                                f'Emitting signal image population with image list count {len(self.image_list)}')
                             signal.emit()
 
-        # Step 4: Sort the temporary image list after all images are added
-        self.image_list = os_sorted(self.image_list)
+        with self.lock:
+            self.image_list = os_sorted(self.image_list)
         logger.debug(f"Completed refresh_image_list with {len(self.image_list)} images.")
 
     def is_image_file(self, filename):
