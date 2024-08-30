@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import QMenu, QApplication
 
 import config
 import logger
-from glavnaqt.core.config import UIConfiguration
+from glavnaqt.core import config as glavnaqt_config
 from glavnaqt.ui.main_window import MainWindow
 from key_binding.key_binder import bind_keys
 
@@ -36,50 +36,36 @@ class ImageSorterGUI(MainWindow):
         self.image_manager = image_manager
 
         logger.debug("Creating main GUI window (ImageSorterGUI).")
+        glavnaqt_config.config.font_size = "Helvetica"
+        glavnaqt_config.config.font_size = 13
+        glavnaqt_config.config.splitter_handle_width = 3
+        glavnaqt_config.config.enable_status_bar_manager = True
+        glavnaqt_config.config.update_collapsible_section('top', self.format_category_keys(config.categories), glavnaqt_config.ALIGN_CENTER)
+        glavnaqt_config.config.update_collapsible_section('main_content', 'test main cntent', alignment=glavnaqt_config.ALIGN_CENTER, widget=self.image_display.get_widget())
+        glavnaqt_config.config.update_collapsible_section('bottom', 'test status bar', alignment=glavnaqt_config.ALIGN_CENTER)
+        super().__init__(*args, **kwargs)
 
-        # Define the UI configuration
-        ui_config = UIConfiguration(
-            font_face="Helvetica",
-            font_size=13,
-            splitter_handle_width=3,
-            window_size=(800, 600),
-            window_position=(150, 150),
-            enable_status_bar_manager=True,
-            collapsible_sections={
-                'top': {
-                    'text': self.format_category_keys(config.categories),
-                    'alignment': UIConfiguration.ALIGN_CENTER,
-                },
-                'main_content': {
-                    'alignment': UIConfiguration.ALIGN_CENTER,
-                    'widget': self.image_display.get_widget()
-                },
-                'bottom': {
-                    'alignment': UIConfiguration.ALIGN_CENTER
-                }
-            }
-        )
-
-        super().__init__(ui_config, *args, **kwargs)
         logger.debug("UI configuration set up.")
 
-        self.status_bar_manager = status_bar_manager
         self.setWindowTitle(f"{self.app_name} - {config.WINDOW_TITLE_SUFFIX}")
 
         # Defer signal connections until after initial image load
         self.image_manager.main_window = self
         self.image_manager.load_image()  # Load initial image without emitting signals
 
-        # Connect signals only after loading the initial image
-        self.status_bar_manager.set_main_window(self)
         logger.debug("Status bar manager configured and signals connected.")
 
         self.setup_interactive_status_bar()
         self._connect_signals()
-
         self.show()
         logger.debug("Main window shown.")
         logger.debug("Initial image load triggered.")
+
+    def resizeEvent(self, event):
+        """Override resizeEvent to add additional behavior while preserving base functionality."""
+        self.image_display.update_image_label()  # Ensure the image label is updated on resize
+        self.resize_emission_args['zoom_percentage'] = self.image_display.get_zoom_percentage()
+        super().resizeEvent(event)
 
     def bind_keys(self):
         """Bind keys for the main window."""
@@ -88,7 +74,6 @@ class ImageSorterGUI(MainWindow):
     def _connect_signals(self):
         """Connect signals. Ensures signals are connected only once."""
         self.image_manager.image_loaded.connect(self.update_ui_on_image_loaded)
-        self.event_bus.subscribe('resize', lambda event: self.on_resize())
         self.image_manager.image_cleared.connect(self.update_ui_on_image_cleared)
         self.customContextMenuRequested.connect(self.show_context_menu)
         logger.debug("Signals connected for image display.")
@@ -96,7 +81,6 @@ class ImageSorterGUI(MainWindow):
     def _disconnect_signals(self):
         """Disconnect signals to avoid memory leaks."""
         try:
-            self.event_bus.unsubscribe('resize', lambda event: self.on_resize())
             self.image_manager.image_cleared.disconnect(self.update_ui_on_image_cleared)
             self.customContextMenuRequested.disconnect(self.show_context_menu)
             self.image_manager.image_loaded.disconnect(self.update_ui_on_image_loaded)
@@ -126,8 +110,8 @@ class ImageSorterGUI(MainWindow):
         """UI update after image is loaded."""
         if self.image_display:
             self.image_display.display_image(file_path, pixmap)
-        if self.status_bar_manager:
-            self.status_bar_manager.update_status_bar()
+        if self.status_bar:
+            self.event_bus.emit('status_update', file_path, self.image_display.get_zoom_percentage())
 
     def update_ui_on_image_cleared(self):
         """Update the UI when the image is cleared."""
@@ -137,7 +121,6 @@ class ImageSorterGUI(MainWindow):
             self.status_bar_manager.update_status_bar("No image loaded")
 
     def on_resize(self):
-        self.image_display.update_image_label()  # Ensure the image label is updated on resize
         self.log_resize_event()
 
     @property
@@ -150,8 +133,8 @@ class ImageSorterGUI(MainWindow):
 
     def setup_interactive_status_bar(self):
         """Setup status bar interaction after it is fully configured."""
-        if self.status_bar_manager.status_label:
-            self.status_bar_manager.status_label.mousePressEvent = self.status_bar_clicked
+        if self.status_label:
+            self.status_label.mousePressEvent = self.status_bar_clicked
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
 
     def _initialize_ui(self, collapsible_sections):

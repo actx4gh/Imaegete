@@ -2,11 +2,13 @@
 
 import os
 import random
+from threading import RLock
 
 from PyQt6.QtCore import pyqtSignal, QObject, QThread
 from PyQt6.QtGui import QPixmap
-from threading import RLock
+
 import logger
+from glavnaqt.core.event_bus import create_or_get_shared_event_bus
 from .image_loader import ThreadedImageLoader
 
 
@@ -33,6 +35,7 @@ class ImageManager(QObject):
         logger.debug("Initializing ImageManager.")
         super().__init__()
         self.app_name = app_name
+        self.event_bus = create_or_get_shared_event_bus()
         self.image_handler = image_handler
         self.signals_connected = False
         self.image_cache = image_cache
@@ -46,7 +49,6 @@ class ImageManager(QObject):
         self.current_pixmap = None
         self.shuffled_indices = []
         self.lock = RLock()
-        self.image_list_populated.connect(self.on_image_list_populated)
         self.cache_image_signal.connect(self.cache_image_in_main_thread)
         self.image_list_updated.connect(self.on_image_list_updated)
         self.image_cache.initialize_watchdog()
@@ -58,14 +60,12 @@ class ImageManager(QObject):
     def on_image_list_populated(self):
         """Handle the event when the image list is populated."""
         if self.image_handler.first_image and not self.current_image_path:
-            logger.debug("Loading first image if available.")
             with self.lock:
                 self.current_index = 0
             self.load_image()
             self.pre_fetch_images(self.current_index + 1, self.current_index + 3)
         else:
-            logger.debug("Image list populating, updating status bar.")
-            self.main_window.status_bar_manager.update_status_bar()
+            self.event_bus.emit('status_update')
 
     def random_image(self):
         """Display a random image without repeating until all images have been shown."""
@@ -84,7 +84,7 @@ class ImageManager(QObject):
             logger.info(f"Displaying random image at index {self.current_index}: {self.get_current_image_path()}")
 
     def on_image_list_updated(self):
-       with self.lock:
+        with self.lock:
             if self.current_image_path and self.current_image_path in self.image_handler.image_list:
                 # Update current index based on the current image path
                 self.current_index = self.image_handler.image_list.index(self.current_image_path)
@@ -94,16 +94,8 @@ class ImageManager(QObject):
                 else:
                     self.current_index = max(len(self.image_handler.image_list) - 1, 0)
 
-       self.ensure_valid_index()
-       self.load_image()
-
-    def connect_signals(self):
-        if not self.signals_connected:
-            #self.image_loaded.connect(self.main_window.status_bar_manager.update_status_bar)
-            #self.image_cleared.connect(lambda: self.main_window.status_bar_manager.update_status_bar("No image loaded"))
-            self.signals_connected = True
-
-    # image_manager.py
+        self.ensure_valid_index()
+        self.load_image()
 
     def load_image(self, image_path=None):
         logger.debug(f"Loading image at index: {self.current_index}")
@@ -121,7 +113,6 @@ class ImageManager(QObject):
                     with self.lock:
                         self.current_image_path = image_path
                         self.current_metadata = self.image_cache.get_metadata(image_path)
-                    self.connect_signals()
                     self.image_loaded.emit(image_path, self.current_pixmap)
                 else:
                     logger.error(f"Failed to load image: {image_path}")
@@ -132,8 +123,6 @@ class ImageManager(QObject):
         else:
             logger.debug("No images available to load or index out of bounds, clearing image display.")
             self.image_cleared.emit()
-
-
 
     def refresh_image_list(self, emit=True):
         """Refresh the image list and reset shuffled indices."""

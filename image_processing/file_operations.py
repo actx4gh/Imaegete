@@ -70,12 +70,25 @@ def list_all_directories_concurrent(start_dir):
     with ThreadPoolExecutor() as executor:
         while dirs_to_process:
             # Submit tasks for each new directory to be processed
-            future_to_dir = {executor.submit(scan_directory, d): d for d in dirs_to_process}
+            future_to_dir = {}
+            for d in dirs_to_process:
+                if not executor._shutdown:  # Check if executor is not shut down
+                    future = executor.submit(scan_directory, d)
+                    future_to_dir[future] = d
+                else:
+                    logger.warning("Attempted to submit task after executor shutdown.")
+                    break
+
             dirs_to_process = []  # Reset for the next batch of directories
 
             # Collect results as they are completed
             for future in future_to_dir:
-                subdirs = future.result()
+                try:
+                    subdirs = future.result()
+                except Exception as e:
+                    logger.error(f"Exception while scanning directory: {e}")
+                    continue
+
                 for subdir in subdirs:
                     if subdir not in seen_directories:
                         seen_directories.add(subdir)
@@ -83,3 +96,30 @@ def list_all_directories_concurrent(start_dir):
                         dirs_to_process.append(subdir)
 
     return directories
+#def list_all_directories_concurrent(start_dir):
+#    """List all directories recursively using concurrent threads."""
+#    directories = []
+#    seen_directories = set()
+#
+#    if isinstance(start_dir, str):
+#        dirs_to_process = [start_dir]
+#    else:
+#        dirs_to_process = list(start_dir)
+#
+#    with ThreadPoolExecutor() as executor:
+#        while dirs_to_process:
+#            # Submit tasks for each new directory to be processed
+#            future_to_dir = {executor.submit(scan_directory, d): d for d in dirs_to_process}
+#            dirs_to_process = []  # Reset for the next batch of directories
+#
+#            # Collect results as they are completed
+#            for future in future_to_dir:
+#                subdirs = future.result()
+#                for subdir in subdirs:
+#                    if subdir not in seen_directories:
+#                        seen_directories.add(subdir)
+#                        directories.append(subdir)
+#                        dirs_to_process.append(subdir)
+#
+#    return directories
+#

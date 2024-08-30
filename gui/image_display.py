@@ -43,7 +43,7 @@ class ImageDisplay(QObject):
         logger.debug("Updating image label.")
         if self.current_pixmap:
             scaled_pixmap = self.current_pixmap.scaled(self.image_label.size(), Qt.AspectRatioMode.KeepAspectRatio,
-                                                       Qt.TransformationMode.SmoothTransformation)
+                                                       Qt.TransformationMode.FastTransformation)
             self.image_label.setPixmap(scaled_pixmap)
             logger.debug(f"[ImageDisplay] Updated image label size: {self.image_label.size()}")
         else:
