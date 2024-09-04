@@ -127,9 +127,7 @@ def main():
         max_size=config.IMAGE_CACHE_MAX_SIZE
     )
     image_manager = ImageManager(image_handler=image_handler, image_cache=image_cache)
-
-    # Initialize status bar manager without main_window
-    status_bar_manager = ImageSorterStatusBarManager(image_manager)
+    _ = ImageSorterStatusBarManager(image_manager)
 
     # Create the main window with all dependencies injected
     logger.debug("Creating main GUI window (ImageSorterGUI).")

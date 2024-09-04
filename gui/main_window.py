@@ -30,38 +30,43 @@ class ImageSorterGUI(MainWindow):
     def __init__(self, image_display, image_manager, app_name='ImageSorter',
                  *args, **kwargs):
         logger.debug("Initializing ImageSorterGUI.")
+        self.signals_connected = False
         self.cleanup_thread = None
         self.image_display = image_display
         self.app_name = app_name
         self.image_manager = image_manager
 
-        logger.debug("Creating main GUI window (ImageSorterGUI).")
+        logger.debug(f"Creating main GUI window {config.WINDOW_TITLE_SUFFIX}.")
+        self._initialize_ui_components()
+        super().__init__(*args, **kwargs)
+        self.setWindowTitle(f"{self.app_name} - {config.WINDOW_TITLE_SUFFIX}")
+        self.setup_interactive_status_bar()
+        logger.debug("UI configuration set up.")
+
+        self._connect_signals()
+        self.image_manager.refresh_image_list(emit=False)
+        self.image_manager.load_image()
+
+        logger.debug("Status bar manager configured and signals connected.")
+
+        self.show()
+        logger.debug("Main window shown.")
+        logger.debug("Initial image load triggered.")
+
+    def _initialize_ui_components(self):
+        """Initialize UI components and configure settings."""
+        logger.debug("UI configuration set up.")
         glavnaqt_config.config.font_size = "Helvetica"
         glavnaqt_config.config.font_size = 13
         glavnaqt_config.config.splitter_handle_width = 3
         glavnaqt_config.config.enable_status_bar_manager = True
-        glavnaqt_config.config.update_collapsible_section('top', self.format_category_keys(config.categories), glavnaqt_config.ALIGN_CENTER)
-        glavnaqt_config.config.update_collapsible_section('main_content', 'test main content', alignment=glavnaqt_config.ALIGN_CENTER, widget=self.image_display.get_widget())
-        glavnaqt_config.config.update_collapsible_section('bottom', 'test status bar', alignment=glavnaqt_config.ALIGN_CENTER)
-        #glavnaqt_config.config.update_collapsible_section('left', 'Left Sidebar', alignment=glavnaqt_config.ALIGN_CENTER)
-        #glavnaqt_config.config.update_collapsible_section('right', 'Right Sidebar', alignment=glavnaqt_config.ALIGN_CENTER)
-        super().__init__(*args, **kwargs)
-
-        logger.debug("UI configuration set up.")
-
-        self.setWindowTitle(f"{self.app_name} - {config.WINDOW_TITLE_SUFFIX}")
-
-        # Defer signal connections until after initial image load
-        self.image_manager.main_window = self
-        self.image_manager.load_image()  # Load initial image without emitting signals
-
-        logger.debug("Status bar manager configured and signals connected.")
-
-        self.setup_interactive_status_bar()
-        self._connect_signals()
-        self.show()
-        logger.debug("Main window shown.")
-        logger.debug("Initial image load triggered.")
+        glavnaqt_config.config.update_collapsible_section('top', self.format_category_keys(config.categories),
+                                                          glavnaqt_config.ALIGN_CENTER)
+        glavnaqt_config.config.update_collapsible_section('main_content', 'test main content',
+                                                          alignment=glavnaqt_config.ALIGN_CENTER,
+                                                          widget=self.image_display.get_widget())
+        glavnaqt_config.config.update_collapsible_section('bottom', 'test status bar',
+                                                          alignment=glavnaqt_config.ALIGN_CENTER)
 
     def resizeEvent(self, event):
         """Override resizeEvent to add additional behavior while preserving base functionality."""
@@ -78,6 +83,7 @@ class ImageSorterGUI(MainWindow):
         self.image_manager.image_loaded.connect(self.update_ui_on_image_loaded)
         self.image_manager.image_cleared.connect(self.update_ui_on_image_cleared)
         self.customContextMenuRequested.connect(self.show_context_menu)
+        self.signals_connected = True
         logger.debug("Signals connected for image display.")
 
     def _disconnect_signals(self):
@@ -119,19 +125,9 @@ class ImageSorterGUI(MainWindow):
         """Update the UI when the image is cleared."""
         if self.image_display:
             self.image_display.clear_image()
-        if self.status_bar_manager:
-            self.status_bar_manager.update_status_bar("No image loaded")
 
     def on_resize(self):
         self.log_resize_event()
-
-    @property
-    def status_bar_manager(self):
-        return self._status_bar_manager
-
-    @status_bar_manager.setter
-    def status_bar_manager(self, value):
-        self._status_bar_manager = value
 
     def setup_interactive_status_bar(self):
         """Setup status bar interaction after it is fully configured."""

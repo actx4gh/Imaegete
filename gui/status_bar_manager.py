@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+
 import logger
 from glavnaqt.ui.status_bar_manager import StatusBarManager as BaseStatusBarManager
 
@@ -17,9 +18,20 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
 
     def update_status_bar(self, file_path=None, zoom_percentage=None):
         """Override and augment the update_status_bar method from the base class."""
-        if not file_path:
+        if file_path is None:
             file_path = self.image_manager.get_current_image_path()
+
+        if not file_path:
+            self.update_status_for_no_image()
+            return
+
         self.start_worker(file_path=file_path, zoom_percentage=zoom_percentage)
+
+    def update_status_for_no_image(self):
+        """Update the status bar when there is no image loaded."""
+        self.bar_data.clear()
+        self.status_label.setText("No image loaded")
+        self.status_label.setToolTip("")
 
     def start_worker(self, *args, **kwargs):
         """Override start_worker to initialize StatusBarUpdateWorker with custom logic."""
@@ -27,7 +39,7 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
         # Custom logic to avoid redundant worker starts
         if self.worker and self.worker.isRunning():
             # If a worker is already running, avoid starting a new one
-            #logger.debug("Worker already running; skipping start_worker.")
+            # logger.debug("Worker already running; skipping start_worker.")
             return
 
         # Start the worker with necessary parameters

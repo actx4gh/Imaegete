@@ -2,7 +2,7 @@
 
 import os
 import random
-from threading import RLock
+from threading import RLock, Event
 
 from PyQt6.QtCore import pyqtSignal, QObject, QThread, Qt
 from PyQt6.QtGui import QPixmap
@@ -18,10 +18,21 @@ class RefreshImageListThread(QThread):
     def __init__(self, image_handler):
         super().__init__()
         self.image_handler = image_handler
+        self.thread_started = Event()  # Event to signal thread is alive
 
     def run(self):
-        logger.debug(f'running thread to refresh image list')
+        # Signal that the thread is now alive
+        self.thread_started.set()
+
+        # Perform the thread's work
+        logger.debug('Running thread to refresh image list')
         self.image_handler.refresh_image_list(signal=self.image_list_populated)
+
+    def wait_until_alive(self):
+        """
+        Blocks until the thread is marked as alive (i.e., has started running).
+        """
+        self.thread_started.wait()
 
 
 class ImageManager(QObject):
@@ -38,7 +49,6 @@ class ImageManager(QObject):
         self.app_name = app_name
         self.event_bus = create_or_get_shared_event_bus()
         self.image_handler = image_handler
-        self.signals_connected = False
         self.image_cache = image_cache
         self.image_cache.set_refresh_image_list_callback(self.image_handler.refresh_image_list)
         self.image_cache.set_ensure_valid_index_callback(self.ensure_valid_index)
@@ -52,7 +62,9 @@ class ImageManager(QObject):
         self.lock = RLock()
         self.cache_image_signal.connect(self.cache_image_in_main_thread)
         self.image_list_updated.connect(self.on_image_list_updated)
-        self.image_cache.initialize_watchdog()
+        self.watchdog_started = False
+
+    def _start_refresh_worker(self):
         self.refresh_thread = RefreshImageListThread(self.image_handler)
         # Ensure the signal is connected before starting the thread
         logger.debug("Connecting image_list_populated signal to on_image_list_populated.")
@@ -61,7 +73,12 @@ class ImageManager(QObject):
         logger.debug("Connected image_list_populated signal to on_image_list_populated.")
 
         self.refresh_thread.start()
+        self.refresh_thread.wait_until_alive()
+
         logger.debug("ImageManager initialized.")
+        if not self.watchdog_started:
+            self.image_cache.initialize_watchdog()
+            self.watchdog_started = True
 
     def on_image_list_populated(self):
         logger.debug('entering on_image_list_populated')
@@ -137,8 +154,7 @@ class ImageManager(QObject):
             self.image_cleared.emit()
 
     def refresh_image_list(self, emit=True):
-        """Refresh the image list and reset shuffled indices."""
-        self.image_handler.refresh_image_list()
+        self._start_refresh_worker()
         with self.lock:
             self.shuffled_indices = []
         if emit:
@@ -204,8 +220,10 @@ class ImageManager(QObject):
         logger.info(f"Loading image asynchronously: {image_path} (Prefetch: {prefetch})")
         self.loader_thread = ThreadedImageLoader(image_path)
         if prefetch:
+            logger.info(f"Connecting image_loaded signal to on_image_prefetched")
             self.loader_thread.image_loaded.connect(lambda path, img: self.on_image_prefetched(path, img))
         else:
+            logger.info(f"Connecting image_loaded signal to on_image_loaded")
             self.loader_thread.image_loaded.connect(self.on_image_loaded)
         self.loader_thread.start()
 
