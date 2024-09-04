@@ -27,7 +27,7 @@ class CleanupThread(QThread):
 
 
 class ImageSorterGUI(MainWindow):
-    def __init__(self, image_display, image_manager, status_bar_manager, app_name='ImageSorter',
+    def __init__(self, image_display, image_manager, app_name='ImageSorter',
                  *args, **kwargs):
         logger.debug("Initializing ImageSorterGUI.")
         self.cleanup_thread = None
@@ -41,8 +41,10 @@ class ImageSorterGUI(MainWindow):
         glavnaqt_config.config.splitter_handle_width = 3
         glavnaqt_config.config.enable_status_bar_manager = True
         glavnaqt_config.config.update_collapsible_section('top', self.format_category_keys(config.categories), glavnaqt_config.ALIGN_CENTER)
-        glavnaqt_config.config.update_collapsible_section('main_content', 'test main cntent', alignment=glavnaqt_config.ALIGN_CENTER, widget=self.image_display.get_widget())
+        glavnaqt_config.config.update_collapsible_section('main_content', 'test main content', alignment=glavnaqt_config.ALIGN_CENTER, widget=self.image_display.get_widget())
         glavnaqt_config.config.update_collapsible_section('bottom', 'test status bar', alignment=glavnaqt_config.ALIGN_CENTER)
+        #glavnaqt_config.config.update_collapsible_section('left', 'Left Sidebar', alignment=glavnaqt_config.ALIGN_CENTER)
+        #glavnaqt_config.config.update_collapsible_section('right', 'Right Sidebar', alignment=glavnaqt_config.ALIGN_CENTER)
         super().__init__(*args, **kwargs)
 
         logger.debug("UI configuration set up.")

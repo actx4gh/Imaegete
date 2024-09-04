@@ -135,8 +135,7 @@ def main():
     logger.debug("Creating main GUI window (ImageSorterGUI).")
     sorter_gui = ImageSorterGUI(
         image_display=image_display,
-        image_manager=image_manager,
-        status_bar_manager=status_bar_manager
+        image_manager=image_manager
     )
 
     # Show GUI immediately
@@ -146,7 +145,7 @@ def main():
     # Connect the application quit event
     def on_exit():
         logger.info("[main] Application exit triggered")
-
+    #log_widget_hierarchy(sorter_gui.central_widget)
     app.aboutToQuit.connect(on_exit)
 
     logger.info("[main] Application starting")

@@ -1,6 +1,5 @@
 import os
 from datetime import datetime
-import traceback
 import logger
 from glavnaqt.ui.status_bar_manager import StatusBarManager as BaseStatusBarManager
 
@@ -28,7 +27,7 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
         # Custom logic to avoid redundant worker starts
         if self.worker and self.worker.isRunning():
             # If a worker is already running, avoid starting a new one
-            logger.debug("Worker already running; skipping start_worker.")
+            #logger.debug("Worker already running; skipping start_worker.")
             return
 
         # Start the worker with necessary parameters

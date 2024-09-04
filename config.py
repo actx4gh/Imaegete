@@ -11,7 +11,10 @@ CACHE_LIMIT_KB = 204800  # 200 MB in KB
 RESIZE_TIMER_INTERVAL = 300  # Timer interval in milliseconds
 LOGGER_NAME = 'image_sorter'
 LOG_FILE_NAME = f'{LOGGER_NAME}.log'
-WINDOW_TITLE_SUFFIX = 'Image Sorter'
+WINDOW_TITLE_SUFFIX = ('Image Sorter'
+                       '')
+
+# key binds
 NEXT_KEY = 'Right'
 PREV_KEY = 'Left'
 FIRST_KEY = 'Home'
@@ -19,7 +22,10 @@ LAST_KEY = 'End'
 RANDOM_KEY = 'R'
 DELETE_KEY = 'Delete'
 UNDO_KEY = 'U'
-IMAGE_CACHE_MAX_SIZE = 20  # Maximum number of images in cache
+FULLSCREEN_KEY = 'F'
+
+# Maximum number of images in cache
+IMAGE_CACHE_MAX_SIZE = 20
 
 
 class Config:

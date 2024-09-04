@@ -4,7 +4,7 @@ import os
 import random
 from threading import RLock
 
-from PyQt6.QtCore import pyqtSignal, QObject, QThread
+from PyQt6.QtCore import pyqtSignal, QObject, QThread, Qt
 from PyQt6.QtGui import QPixmap
 
 import logger
@@ -20,6 +20,7 @@ class RefreshImageListThread(QThread):
         self.image_handler = image_handler
 
     def run(self):
+        logger.debug(f'running thread to refresh image list')
         self.image_handler.refresh_image_list(signal=self.image_list_populated)
 
 
@@ -53,13 +54,19 @@ class ImageManager(QObject):
         self.image_list_updated.connect(self.on_image_list_updated)
         self.image_cache.initialize_watchdog()
         self.refresh_thread = RefreshImageListThread(self.image_handler)
-        self.refresh_thread.image_list_populated.connect(self.on_image_list_populated)
+        # Ensure the signal is connected before starting the thread
+        logger.debug("Connecting image_list_populated signal to on_image_list_populated.")
+        self.refresh_thread.image_list_populated.connect(self.on_image_list_populated,
+                                                         Qt.ConnectionType.BlockingQueuedConnection)
+        logger.debug("Connected image_list_populated signal to on_image_list_populated.")
+
         self.refresh_thread.start()
         logger.debug("ImageManager initialized.")
 
     def on_image_list_populated(self):
-        """Handle the event when the image list is populated."""
+        logger.debug('entering on_image_list_populated')
         if self.image_handler.first_image and not self.current_image_path:
+            logger.debug(f'got first image')
             with self.lock:
                 self.current_index = 0
             self.load_image()
@@ -107,12 +114,17 @@ class ImageManager(QObject):
                 image_path = self.image_handler.first_image
 
             if image_path:
+                logger.debug(f"Waiting to acquire lock before loading image pixmap from cache")
                 with self.lock:
                     self.current_pixmap = self.image_cache.load_image(image_path)
+                    logger.debug(f"Lock acquired, Pixmap loaded from cache")
                 if self.current_pixmap:
+                    logger.debug(f"Waiting to acquire lock before setting shared vars for image_path / metadata")
                     with self.lock:
                         self.current_image_path = image_path
                         self.current_metadata = self.image_cache.get_metadata(image_path)
+                        logger.debug(f"Lock acquired, shared vars set")
+                    logger.debug(f"Emitting signal that image manager is ready for image to be loaded")
                     self.image_loaded.emit(image_path, self.current_pixmap)
                 else:
                     logger.error(f"Failed to load image: {image_path}")
