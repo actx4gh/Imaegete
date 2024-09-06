@@ -17,7 +17,7 @@ def load_image_with_qpixmap(image_path):
     """
     # Check if the file exists
     if not os.path.exists(image_path):
-        logger.error(f"Image file does not exist: {image_path}")
+        logger.error(f"[ImageUtils] Image file does not exist: {image_path}")
         return None
 
     # Attempt to load the image
@@ -25,7 +25,7 @@ def load_image_with_qpixmap(image_path):
 
     # Check if the image format is unsupported or loading failed
     if pixmap.isNull():
-        logger.error(f"Failed to load image (unsupported format or corrupted file): {image_path}")
+        logger.error(f"[ImageUtils] Failed to load image (unsupported format or corrupted file): {image_path}")
         return None
 
     return pixmap

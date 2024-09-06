@@ -39,7 +39,7 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
         # Custom logic to avoid redundant worker starts
         if self.worker and self.worker.isRunning():
             # If a worker is already running, avoid starting a new one
-            # logger.debug("Worker already running; skipping start_worker.")
+            # logger.debug("[StatusBarManager] Worker already running; skipping start_worker.")
             return
 
         # Start the worker with necessary parameters
@@ -63,7 +63,7 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
         if file_path:
             metadata = self.image_manager.current_metadata or self.image_manager.image_cache.get_metadata(file_path)
             if not metadata:
-                logger.warning(f"Metadata not found for {file_path}. Status bar information may be incomplete.")
+                logger.warning(f"[StatusBarManager] Metadata not found for {file_path}. Status bar information may be incomplete.")
                 super().update_status_bar("No metadata available")
                 return
 

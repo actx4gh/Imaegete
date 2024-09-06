@@ -20,42 +20,42 @@ class CleanupThread(QThread):
 
     def run(self):
         # Perform cleanup tasks, such as stopping threads
-        logger.debug("CleanupThread: Stopping image loader threads.")
-        self.image_manager.stop_threads()
-        logger.debug("CleanupThread: Cleanup complete.")
+        logger.debug("[CleanupThread] Stopping image loader threads.")
+        self.image_manager.shutdown()
+        logger.debug("[CleanupThread] Cleanup complete.")
         self.finished_cleanup.emit()
 
 
 class ImageSorterGUI(MainWindow):
     def __init__(self, image_display, image_manager, app_name='ImageSorter',
                  *args, **kwargs):
-        logger.debug("Initializing ImageSorterGUI.")
+        logger.debug("[ImageSorterGUI] Initializing ImageSorterGUI.")
         self.signals_connected = False
         self.cleanup_thread = None
         self.image_display = image_display
         self.app_name = app_name
         self.image_manager = image_manager
 
-        logger.debug(f"Creating main GUI window {config.WINDOW_TITLE_SUFFIX}.")
+        logger.debug(f"[ImageSorterGUI] Creating main GUI window {config.WINDOW_TITLE_SUFFIX}.")
         self._initialize_ui_components()
         super().__init__(*args, **kwargs)
-        self.setWindowTitle(f"{self.app_name} - {config.WINDOW_TITLE_SUFFIX}")
+        self.setWindowTitle(f"{self.app_name} - No image loaded")
         self.setup_interactive_status_bar()
-        logger.debug("UI configuration set up.")
+        logger.debug("[ImageSorterGUI] UI configuration set up.")
 
         self._connect_signals()
-        self.image_manager.refresh_image_list(emit=False)
+        #self.image_manager.refresh_image_list(emit=False)
         self.image_manager.load_image()
 
-        logger.debug("Status bar manager configured and signals connected.")
+        logger.debug("[ImageSorterGUI] Status bar manager configured and signals connected.")
 
         self.show()
-        logger.debug("Main window shown.")
-        logger.debug("Initial image load triggered.")
+        logger.debug("[ImageSorterGUI] Main window shown.")
+        logger.debug("[ImageSorterGUI] Initial image load triggered.")
 
     def _initialize_ui_components(self):
         """Initialize UI components and configure settings."""
-        logger.debug("UI configuration set up.")
+        logger.debug("[ImageSorterGUI] UI configuration set up.")
         glavnaqt_config.config.font_size = "Helvetica"
         glavnaqt_config.config.font_size = 13
         glavnaqt_config.config.splitter_handle_width = 3
@@ -84,7 +84,7 @@ class ImageSorterGUI(MainWindow):
         self.image_manager.image_cleared.connect(self.update_ui_on_image_cleared)
         self.customContextMenuRequested.connect(self.show_context_menu)
         self.signals_connected = True
-        logger.debug("Signals connected for image display.")
+        logger.debug("[ImageSorterGUI] Signals connected for image display.")
 
     def _disconnect_signals(self):
         """Disconnect signals to avoid memory leaks."""
@@ -92,14 +92,14 @@ class ImageSorterGUI(MainWindow):
             self.image_manager.image_cleared.disconnect(self.update_ui_on_image_cleared)
             self.customContextMenuRequested.disconnect(self.show_context_menu)
             self.image_manager.image_loaded.disconnect(self.update_ui_on_image_loaded)
-            logger.debug("Signals disconnected.")
+            logger.debug("[ImageSorterGUI] Signals disconnected.")
         except TypeError:
             # If signals are not connected, a TypeError is raised.
-            logger.debug("No signals were connected or already disconnected.")
+            logger.debug("[ImageSorterGUI] No signals were connected or already disconnected.")
 
     def closeEvent(self, event):
         """Handle the window close event to disconnect signals and perform cleanup."""
-        logger.debug("Closing ImageSorterGUI...")
+        logger.debug("[ImageSorterGUI] Closing ImageSorterGUI...")
 
         # Disconnect all signals to prevent future emissions
         self._disconnect_signals()
@@ -110,7 +110,7 @@ class ImageSorterGUI(MainWindow):
         self.cleanup_thread.start()
 
         # Immediately proceed with closing the window
-        logger.debug("Exiting application after GUI close.")
+        logger.debug("[ImageSorterGUI] Exiting application after GUI close.")
         event.ignore()  # Prevent default close, as QApplication.quit() will handle it
         QApplication.quit()
 
@@ -120,6 +120,7 @@ class ImageSorterGUI(MainWindow):
             self.image_display.display_image(file_path, pixmap)
         if self.status_bar:
             self.event_bus.emit('status_update', file_path, self.image_display.get_zoom_percentage())
+        self.setWindowTitle(f"{self.app_name} - {os.path.basename(file_path)}")
 
     def update_ui_on_image_cleared(self):
         """Update the UI when the image is cleared."""

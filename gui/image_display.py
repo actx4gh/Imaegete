@@ -32,27 +32,25 @@ class ImageDisplay(QObject):
         return self.widget
 
     def display_image(self, image_path, pixmap):
-        logger.debug(f"Attempting to display image: {image_path}")
+        logger.debug(f"[ImageDisplay] Attempting to display image: {image_path}")
         if pixmap:
             logger.info(f"[ImageDisplay] Displaying image: {image_path}")
             self.current_pixmap = pixmap
             self.update_image_label()
-            logger.debug(f"Image displayed: {image_path}")
+            logger.debug(f"[ImageDisplay] Image displayed: {image_path}")
         else:
             self.image_label.setText("No image to display.")
             self.clear_image()
 
-
-
     def update_image_label(self):
-        logger.debug("Updating image label.")
+        logger.debug("[ImageDisplay] Updating image label.")
         if self.current_pixmap:
             scaled_pixmap = self.current_pixmap.scaled(self.image_label.size(), Qt.AspectRatioMode.KeepAspectRatio,
                                                        Qt.TransformationMode.FastTransformation)
             self.image_label.setPixmap(scaled_pixmap)
             logger.debug(f"[ImageDisplay] Updated image label size: {self.image_label.size()}")
         else:
-            logger.debug("No pixmap found, clearing image.")
+            logger.debug("[ImageDisplay] No pixmap found, clearing image.")
             self.clear_image()
 
     def clear_image(self):
@@ -79,4 +77,4 @@ class ImageDisplay(QObject):
             main.toggle_fullscreen_layout()
             main.showFullScreen()
         self.is_fullscreen = not self.is_fullscreen
-        logger.debug(f"Full-screen mode toggled: {self.is_fullscreen}")
+        logger.debug(f"[ImageDisplay] Full-screen mode toggled: {self.is_fullscreen}")

@@ -1,4 +1,3 @@
-# file_operations.py
 import os
 import shutil
 from concurrent.futures import ThreadPoolExecutor
@@ -10,9 +9,9 @@ def move_file(src, dest):
     try:
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.move(src, dest)
-        logger.info(f"Moved file from {src} to {dest}")
+        logger.info(f"[FileOperations] Moved file from {src} to {dest}")
     except Exception as e:
-        logger.error(f"Failed to move file from {src} to {dest}: {e}")
+        logger.error(f"[FileOperations] Failed to move file from {src} to {dest}: {e}")
 
 
 def move_related_files(filename, src_folder, dest_folder):
@@ -39,9 +38,9 @@ def check_and_remove_empty_dir(dir_path):
     if os.path.isdir(dir_path) and not os.listdir(dir_path):
         try:
             os.rmdir(dir_path)
-            logger.info(f"Removed empty directory: {dir_path}")
+            logger.info(f"[FileOperations] Removed empty directory: {dir_path}")
         except Exception as e:
-            logger.error(f"Failed to remove directory {dir_path}: {e}")
+            logger.error(f"[FileOperations] Failed to remove directory {dir_path}: {e}")
 
 
 def scan_directory(directory):
@@ -76,7 +75,7 @@ def list_all_directories_concurrent(start_dir):
                     future = executor.submit(scan_directory, d)
                     future_to_dir[future] = d
                 else:
-                    logger.warning("Attempted to submit task after executor shutdown.")
+                    logger.warning("[FileOperations] Attempted to submit task after executor shutdown.")
                     break
 
             dirs_to_process = []  # Reset for the next batch of directories
@@ -86,7 +85,7 @@ def list_all_directories_concurrent(start_dir):
                 try:
                     subdirs = future.result()
                 except Exception as e:
-                    logger.error(f"Exception while scanning directory: {e}")
+                    logger.error(f"[FileOperations] Exception while scanning directory: {e}")
                     continue
 
                 for subdir in subdirs:
@@ -96,7 +95,7 @@ def list_all_directories_concurrent(start_dir):
                         dirs_to_process.append(subdir)
 
     return directories
-#def list_all_directories_concurrent(start_dir):
+# def list_all_directories_concurrent(start_dir):
 #    """List all directories recursively using concurrent threads."""
 #    directories = []
 #    seen_directories = set()

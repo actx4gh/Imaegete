@@ -116,21 +116,19 @@ def alignment_to_string(alignment):
 # main.py
 
 def main():
-    logger.debug("Starting application.")
+    logger.debug("[Main] Starting application.")
     app = QApplication(sys.argv)
 
     # Create dependencies
-    image_display = ImageDisplay()
-    image_handler = ImageHandler()
     image_cache = ImageCache(
-        app_name='ImageSorter',
         max_size=config.IMAGE_CACHE_MAX_SIZE
     )
+    image_handler = ImageHandler()
     image_manager = ImageManager(image_handler=image_handler, image_cache=image_cache)
     _ = ImageSorterStatusBarManager(image_manager)
 
-    # Create the main window with all dependencies injected
-    logger.debug("Creating main GUI window (ImageSorterGUI).")
+    image_display = ImageDisplay()
+    logger.debug("[Main] Creating main GUI window (ImageSorterGUI).")
     sorter_gui = ImageSorterGUI(
         image_display=image_display,
         image_manager=image_manager
@@ -142,11 +140,11 @@ def main():
 
     # Connect the application quit event
     def on_exit():
-        logger.info("[main] Application exit triggered")
+        logger.info("[Main] Application exit triggered")
     #log_widget_hierarchy(sorter_gui.central_widget)
     app.aboutToQuit.connect(on_exit)
 
-    logger.info("[main] Application starting")
+    logger.info("[Main] Application starting")
     sys.exit(app.exec())
 
 

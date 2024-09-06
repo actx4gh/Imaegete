@@ -2,12 +2,47 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from threading import RLock
 
+from PyQt6.QtCore import QThread
 from PyQt6.QtCore import pyqtBoundSignal
 from natsort import os_sorted
 
 import config
 import logger
+from exceptions import ImageSorterError
 from .file_operations import move_related_files, check_and_remove_empty_dir, list_all_directories_concurrent
+
+
+class MoveFileWorker(QThread):
+    def __init__(self, image_path, source_dir, dest_dir, callback=None, parent=None):
+        super().__init__(parent)
+        self.image_path = image_path
+        self.source_dir = source_dir
+        self.dest_dir = dest_dir
+        self.callback = callback  # Optional callback function to call after work is done
+        self.thread_id = QThread.currentThreadId()
+        # self.thread_memory_address = id(QThread.currentThread())
+
+    # Inside MoveFileWorker class in image_handler.py
+
+    def run(self):
+        logger.info(
+            f"[MoveFileWorker {self.thread_id}] thread started for moving from {self.source_dir} to {self.dest_dir}")
+        try:
+            move_related_files(self.image_path, self.source_dir, self.dest_dir)
+            logger.info(f"[MoveFileWorker {self.thread_id}]Finished moving files for {self.image_path}")
+            check_and_remove_empty_dir(self.dest_dir)
+            logger.info(
+                f"[MoveFileWorker {self.thread_id}] Checked and removed empty directory if necessary: {self.dest_dir}")
+            logger.info(f"[MoveFileWorker {self.thread_id}] Moved file from {self.source_dir} to {self.dest_dir}")
+        except Exception as e:
+            logger.error(f"[MoveFileWorker {self.thread_id}] Error in MoveFileWorker: {e}")
+
+        if self.callback:
+            try:
+                self.callback()  # Execute callback if provided
+                logger.debug(f"[MoveFileWorker {self.thread_id}] Callback executed successfully.")
+            except Exception as e:
+                logger.error(f"[MoveFileWorker {self.thread_id}] Error executing callback in MoveFileWorker: {e}")
 
 
 class ImageHandler:
@@ -16,8 +51,7 @@ class ImageHandler:
         self.delete_folders = config.delete_folders
         self.start_dirs = config.start_dirs
         self.image_list = []
-        self.first_image = None
-        self.deleted_images = []
+        self.sorted_images = []
         self.lock = RLock()
 
     def add_image_to_list(self, image_path, index=None):
@@ -35,90 +69,102 @@ class ImageHandler:
             with self.lock:
                 self.image_list.remove(image_path)
 
-    def move_image(self, image_path, category):
-        """Move image to the specified category folder."""
+    # In image_handler.py
+
+    def delete_image(self, image_path, original_index):
+        """Move image to the delete folder without removing it from the cache."""
         start_dir = self.find_start_directory(image_path)
         if not start_dir:
-            logger.error(f"Start directory for image {image_path} not found.")
+            logger.error(f"[ImageHandler] Start directory for image {image_path} not found.")
             return
 
-        logger.debug(f"Moving image: {image_path}")
-
-        dest_folder = self.dest_folders[start_dir].get(category)
-        if not dest_folder:
-            logger.error(f"Destination folder not found for category {category} in directory {start_dir}")
-            return
-
-        original_index = self.image_list.index(image_path)
-        move_related_files(image_path, os.path.dirname(image_path), dest_folder)
-        logger.info(f"Moved image: {image_path} to category {category}")
-
-        with self.lock:
-            self.deleted_images.append(('move', image_path, category, original_index))
-            self.image_list.pop(original_index)
-        check_and_remove_empty_dir(dest_folder)
-
-    def delete_image(self, image_path):
-        """Move image to the delete folder."""
-        start_dir = self.find_start_directory(image_path)
-        if not start_dir:
-            logger.error(f"Start directory for image {image_path} not found.")
-            return
-
-        logger.debug(f"Deleting image: {image_path}")
+        logger.info(f"[ImageHandler] Deleting image: {image_path}")
 
         delete_folder = self.delete_folders.get(start_dir)
         if not delete_folder:
-            logger.error(f"No delete folder found for directory {start_dir}")
+            logger.error(f"[ImageHandler] No delete folder found for directory {start_dir}")
             return
 
-        original_index = self.image_list.index(image_path)
-        move_related_files(image_path, os.path.dirname(image_path), delete_folder)
-        logger.info(f"Deleted image: {image_path}")
+        with self.lock:
+            self.sorted_images.append(('delete', image_path, original_index))
+            self.image_list.pop(original_index)
+
+        # Start delete operation in a background thread
+        self.worker = MoveFileWorker(image_path, os.path.dirname(image_path), delete_folder)
+        self.worker.start()
+
+        logger.info(f"[ImageHandler] Deleted image: {image_path}")
+
+    def move_image(self, image_path, category, original_index):
+        """Move image to the specified category folder without removing it from the cache."""
+        start_dir = self.find_start_directory(image_path)
+        if not start_dir:
+            logger.error(f"[ImageHandler] Start directory for image {image_path} not found.")
+            return
+
+        logger.info(f"[ImageHandler] Moving image: {image_path}")
+
+        dest_folder = self.dest_folders[start_dir].get(category)
+        if not dest_folder:
+            logger.error(
+                f"[ImageHandler] Destination folder not found for category {category} in directory {start_dir}")
+            return
 
         with self.lock:
-            self.deleted_images.append(('delete', image_path, original_index))
+            self.sorted_images.append(('move', image_path, category, original_index))
             self.image_list.pop(original_index)
-        check_and_remove_empty_dir(delete_folder)
+
+        # Start move operation in a background thread
+        self.worker = MoveFileWorker(image_path, os.path.dirname(image_path), dest_folder)
+        self.worker.start()
+
+        logger.info(f"[ImageHandler] Moved image: {image_path} to category {category}")
 
     def undo_last_action(self):
-        """Undo the last move or delete action."""
-        if self.deleted_images:
-            last_action = self.deleted_images.pop()
-            action_type = last_action[0]
-            image_path = last_action[1]
-            original_index = last_action[-1]  # Get the stored original index
+        if not self.sorted_images:
+            logger.warning("[ImageHandler] No actions to undo.")
+            return None
 
-            start_dir = self.find_start_directory(image_path)
-            if not start_dir:
-                logger.error(f"Start directory for image {image_path} not found.")
-                return None
+        last_action = self.sorted_images.pop()
+        action_type, image_path, *rest = last_action
+        original_index = rest[-1]  # Get the stored original index
 
-            if action_type == 'delete':
-                delete_folder = self.delete_folders.get(start_dir)
-                if delete_folder:
-                    original_path = image_path.replace(delete_folder, start_dir)
-                    move_related_files(image_path, delete_folder, os.path.dirname(original_path))
-                    check_and_remove_empty_dir(delete_folder)
-                    logger.info(f"Undo delete: {image_path} back to original location {original_path}")
+        logger.info(f"[ImageHandler] Undoing action: {action_type} on {image_path} at index {original_index}")
+        with self.lock:
+            if image_path not in self.image_list:
+                # Insert the image back at its original index
+                self.image_list.insert(original_index, image_path)
+            logger.info(f"[ImageHandler] Restored image: {image_path} to index: {original_index}")
 
-                    # Restore image at its original index
-                    self.add_image_to_list(original_path, original_index)
+        return last_action
 
-            elif action_type == 'move':
-                category = last_action[2]
-                dest_folder = self.dest_folders[start_dir].get(category)
-                if dest_folder:
-                    original_path = image_path.replace(dest_folder, start_dir)
-                    move_related_files(image_path, dest_folder, os.path.dirname(original_path))
-                    check_and_remove_empty_dir(dest_folder)
-                    logger.info(f"Undo move: {image_path} from {category} back to original location {original_path}")
+    def complete_undo_last_action(self, image_path, action_type, rest):
+        start_dir = self.find_start_directory(image_path)
+        if not start_dir:
+            logger.error(f"[ImageHandler] Start directory for image {image_path} not found.")
+            return None
 
-                    # Restore image at its original index
-                    self.add_image_to_list(original_path, original_index)
+        if action_type == 'delete':
+            source_dir = self.delete_folders.get(start_dir)
+            dest_dir = start_dir
+        elif action_type == 'move':
+            category = rest[0]
+            source_dir = self.dest_folders[start_dir].get(category)
+            dest_dir = start_dir
+        else:
+            raise ImageSorterError(f"Action type {action_type} unrecognized")
 
-            return last_action
-        return None
+        logger.debug(
+            f"[ImageHandler] Creating MoveFileWorker thread for undo_last_action with source: {source_dir}, dest: {dest_dir}")
+        self.worker = MoveFileWorker(
+            image_path,
+            source_dir,
+            dest_dir)
+        self.worker.start()
+        logger.debug("[ImageHandler] MoveFileWorker thread started for undo_last_action")
+
+    def restore_image(self, image_path, original_index):
+        """Restore image to its original index in the image list."""
 
     def find_start_directory(self, image_path):
         """Find the start directory corresponding to the image path."""
@@ -126,7 +172,7 @@ class ImageHandler:
 
     def refresh_image_list(self, signal=None):
         """Initial full scan to build the list of images from all start directories."""
-        logger.debug("Starting refresh_image_list")
+        logger.info("[ImageHandler] Starting image list refresh")
 
         # Step 1: List all directories concurrently
         all_dirs = list_all_directories_concurrent(self.start_dirs)
@@ -137,7 +183,6 @@ class ImageHandler:
         # Step 3: Prepare for concurrent processing
         with self.lock:
             self.image_list.clear()
-        first_image_found = False  # To track if first image is set
 
         def process_files_in_directory(directory):
             """Helper function to process files in a directory and add image files."""
@@ -148,6 +193,8 @@ class ImageHandler:
                     if self.is_image_file(file):
                         file_path = os.path.join(root, file)
                         image_files.append(file_path)
+                    else:
+                        logger.debug(f'[ImageHandler] Refresh thread: Skipping non-image file {file}')
                 break  # Only process the first level of files
             return image_files
 
@@ -162,20 +209,16 @@ class ImageHandler:
                 if image_files:
                     with self.lock:
                         self.image_list.extend(image_files)
-                        if not first_image_found:
-                            self.first_image = image_files[0]
-                            first_image_found = True
-                            logger.debug(f'First image found: {self.first_image}')
                         if signal and isinstance(signal, pyqtBoundSignal):
                             logger.debug(
-                                f'Emitting signal image population with image list count {len(self.image_list)}')
+                                f'[ImageHandler] Emitting signal image population with image list count {len(self.image_list)}')
                             signal.emit()
 
         with self.lock:
             self.image_list = os_sorted(self.image_list)
-        logger.debug(f"Completed refresh_image_list with {len(self.image_list)} images.")
+        logger.debug(f"[ImageHandler] Completed refresh_image_list with {len(self.image_list)} images.")
 
     def is_image_file(self, filename):
         """Check if the file is a valid image format."""
-        valid_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.gif']
+        valid_extensions = ['.webp', '.jpg', '.jpeg', '.png', '.bmp', '.gif']
         return any(filename.lower().endswith(ext) for ext in valid_extensions)
