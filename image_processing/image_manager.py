@@ -51,7 +51,6 @@ class ImageManager(QObject):
         self.image_handler = image_handler
         self.image_cache = image_cache
         self.current_index = 0
-        self.loader_thread = None
         self.current_image_path = None
         self.current_metadata = None
         self.current_pixmap = None
@@ -78,8 +77,35 @@ class ImageManager(QObject):
 
     def get_current_image_path(self):
         if 0 <= self.current_index < len(self.image_handler.image_list):
-            return self.image_handler.image_list[self.current_index]
-        return None
+            return self.image_handler.image_list[self.current_index]  # deque supports index-based access
+
+    def next_image(self):
+        """Navigate to the next image."""
+        with self.lock:
+            if self.current_image_path in self.image_handler.image_list:
+                self.current_index = self.image_handler.image_list.index(self.current_image_path)
+            else:
+                self.current_index = 0
+
+            if self.current_index < len(self.image_handler.image_list) - 1:
+                self.current_index += 1
+            else:
+                self.current_index = 0  # Wrap around
+        self.load_image()
+
+    def previous_image(self):
+        """Navigate to the previous image."""
+        with self.lock:
+            if self.current_image_path in self.image_handler.image_list:
+                self.current_index = self.image_handler.image_list.index(self.current_image_path)
+            else:
+                self.current_index = len(self.image_handler.image_list) - 1
+
+            if self.current_index > 0:
+                self.current_index -= 1
+            else:
+                self.current_index = len(self.image_handler.image_list) - 1
+        self.load_image()
 
     def get_current_image_index(self):
         return self.current_index
@@ -242,10 +268,10 @@ class ImageManager(QObject):
         if last_action:
             logger.debug(f'[ImageManager] Undo last action - got last_action {last_action}')
             action_type, image_path, *rest = last_action
-            original_index = last_action[2]
+            original_index = rest[-1]  # Correctly extract the original index
 
             if image_path in self.image_handler.image_list:
-                self.current_index = original_index
+                self.current_index = original_index  # Ensure this is set to the integer index
                 self.current_image_path = image_path
                 logger.debug(
                     f'[ImageManager] undo_last_action set current_index to {self.current_index}, current_image_path to {self.current_image_path}')
@@ -254,43 +280,8 @@ class ImageManager(QObject):
             self.load_image()
             self.image_handler.complete_undo_last_action(image_path, action_type, rest)
             self.image_list_updated.emit()
-
         else:
             logger.warning("[ImageManager] No action to undo.")
-
-    def next_image(self):
-        with self.lock:
-            if self.current_image_path in self.image_handler.image_list:
-                self.current_index = self.image_handler.image_list.index(self.current_image_path)
-            else:
-                self.current_index = 0
-
-            # Navigate to the next image
-            if self.current_index < len(self.image_handler.image_list) - 1:
-                self.current_index += 1
-                logger.info(f"[ImageManager] Moving to next image: index {self.current_index}")
-            else:
-                self.current_index = 0
-                logger.info("[ImageManager] Wrapped around to the first image")
-
-        self.load_image()
-
-    def previous_image(self):
-        with self.lock:
-            if self.current_image_path in self.image_handler.image_list:
-                self.current_index = self.image_handler.image_list.index(self.current_image_path)
-            else:
-                self.current_index = len(self.image_handler.image_list) - 1
-
-            # Navigate to the previous image
-            if self.current_index > 0:
-                self.current_index -= 1
-                logger.info(f"[ImageManager] Moving to previous image: index {self.current_index}")
-            else:
-                self.current_index = len(self.image_handler.image_list) - 1  # Wrap around to the last image
-                logger.info("[ImageManager] Wrapped around to the last image")
-
-        self.load_image()
 
     def first_image(self):
         with self.lock:
@@ -351,19 +342,41 @@ class ImageManager(QObject):
         logger.info(f"[ImageManager] Ensuring valid index: {self.current_index}")
 
     def shutdown(self):
-        """Clean up and stop all threads gracefully."""
-        logger.info("[ImageManager] Shutting down ImageManager and stopping all threads.")
+        """Clean up and stop all threads and components gracefully."""
+        logger.info("[ImageManager] Initiating shutdown for ImageManager.")
 
-        # Stop the loader thread if it's running
-        if self.loader_thread:
-            self.loader_thread.quit()
-            self.loader_thread.wait()
-            self.loader_thread = None
-            logger.info("[ImageManager] Loader thread stopped.")
+        # Stop the watchdog observer first if it has started
+        if hasattr(self.image_cache, 'watchdog_observer'):
+            try:
+                # Ensure the watchdog observer is running before attempting to stop it
+                if self.image_cache.watchdog_observer.is_alive():
+                    logger.info("[ImageManager] Stopping watchdog observer.")
+                    self.image_cache.watchdog_observer.stop()
+                    self.image_cache.watchdog_observer.join(timeout=5)
+                    logger.info("[ImageManager] Watchdog observer stopped.")
+                else:
+                    logger.warning("[ImageManager] Watchdog observer was not running or not started.")
+            except Exception as e:
+                logger.error(f"[ImageManager] Error while stopping watchdog observer: {e}")
+        else:
+            logger.warning("[ImageManager] Watchdog observer not found during shutdown.")
 
-        # Stop the refresh thread if it's running
-        if self.refresh_thread:
+        # Continue shutting down other components
+        if self.refresh_thread and self.refresh_thread.isRunning():
+            logger.info("[ImageManager] Stopping the refresh thread.")
             self.refresh_thread.quit()
             self.refresh_thread.wait()
-            self.refresh_thread = None
             logger.info("[ImageManager] Refresh thread stopped.")
+
+        # Shutdown ImageCache and MetadataManager thread pools
+        if self.image_cache.event_pool:
+            logger.info("[ImageManager] Shutting down ImageCache thread pool.")
+            self.image_cache.event_pool.shutdown(wait=True)
+            logger.info("[ImageManager] ImageCache thread pool shutdown complete.")
+
+        if self.image_cache.metadata_manager.metadata_pool:
+            logger.info("[ImageManager] Shutting down MetadataManager thread pool.")
+            self.image_cache.metadata_manager.metadata_pool.shutdown(wait=True)
+            logger.info("[ImageManager] MetadataManager thread pool shutdown complete.")
+
+        logger.info("[ImageManager] All threads successfully stopped. Application shutdown complete.")
