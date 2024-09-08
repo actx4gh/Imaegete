@@ -1,7 +1,7 @@
 from PyQt6.QtCore import Qt, QObject
 from PyQt6.QtWidgets import QLabel, QSizePolicy, QVBoxLayout, QWidget
 
-import logger
+from core import logger
 
 
 class ImageDisplay(QObject):

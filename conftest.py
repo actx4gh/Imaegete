@@ -9,7 +9,7 @@ from PIL import Image
 from image_handler import ImageHandler
 
 from gui import ImageSorterGUI
-from logger import setup_logging
+from core.logger import setup_logging
 
 
 @pytest.fixture(scope='session', autouse=True)

@@ -1,34 +1,17 @@
 import os
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QMenu, QApplication
+from PyQt6.QtWidgets import QMenu
 
-import config
-import logger
+from core import config, logger
 from glavnaqt.core import config as glavnaqt_config
 from glavnaqt.ui.main_window import MainWindow
 from key_binding.key_binder import bind_keys
 
 
-class CleanupThread(QThread):
-    finished_cleanup = pyqtSignal()
-
-    def __init__(self, image_manager):
-        super().__init__()
-        self.image_manager = image_manager
-
-    def run(self):
-        # Perform cleanup tasks, such as stopping threads
-        logger.debug("[CleanupThread] Stopping image loader threads.")
-        self.image_manager.shutdown()
-        logger.debug("[CleanupThread] Cleanup complete.")
-        self.finished_cleanup.emit()
-
-
 class ImageSorterGUI(MainWindow):
-    def __init__(self, image_display, image_manager, app_name='ImageSorter',
-                 *args, **kwargs):
+    def __init__(self, image_display, image_manager, app_name='ImageSorter', *args, **kwargs):
         logger.debug("[ImageSorterGUI] Initializing ImageSorterGUI.")
         self.signals_connected = False
         self.cleanup_thread = None
@@ -44,11 +27,9 @@ class ImageSorterGUI(MainWindow):
         logger.debug("[ImageSorterGUI] UI configuration set up.")
 
         self._connect_signals()
-        #self.image_manager.refresh_image_list(emit=False)
         self.image_manager.load_image()
 
         logger.debug("[ImageSorterGUI] Status bar manager configured and signals connected.")
-
         self.show()
         logger.debug("[ImageSorterGUI] Main window shown.")
         logger.debug("[ImageSorterGUI] Initial image load triggered.")
@@ -94,25 +75,7 @@ class ImageSorterGUI(MainWindow):
             self.image_manager.image_loaded.disconnect(self.update_ui_on_image_loaded)
             logger.debug("[ImageSorterGUI] Signals disconnected.")
         except TypeError:
-            # If signals are not connected, a TypeError is raised.
             logger.debug("[ImageSorterGUI] No signals were connected or already disconnected.")
-
-    def closeEvent(self, event):
-        """Handle the window close event to disconnect signals and perform cleanup."""
-        logger.debug("[ImageSorterGUI] Closing ImageSorterGUI...")
-
-        # Disconnect all signals to prevent future emissions
-        self._disconnect_signals()
-
-        # Create a cleanup thread and perform cleanup asynchronously
-        self.cleanup_thread = CleanupThread(self.image_manager)
-        self.cleanup_thread.finished_cleanup.connect(QApplication.quit)
-        self.cleanup_thread.start()
-
-        # Immediately proceed with closing the window
-        logger.debug("[ImageSorterGUI] Exiting application after GUI close.")
-        event.ignore()  # Prevent default close, as QApplication.quit() will handle it
-        QApplication.quit()
 
     def update_ui_on_image_loaded(self, file_path, pixmap):
         """UI update after image is loaded."""
@@ -138,7 +101,6 @@ class ImageSorterGUI(MainWindow):
 
     def _initialize_ui(self, collapsible_sections):
         """Ensure status_bar_manager is initialized before parent UI setup."""
-        # Call the parent method
         super()._initialize_ui(collapsible_sections)
 
     def log_resize_event(self):
@@ -172,7 +134,7 @@ class ImageSorterGUI(MainWindow):
         return "filename" if pos.x() < 100 else "zoom" if pos.x() < 200 else "date"
 
     def open_file_location(self):
-        current_image_path = self.image_manager.image_manager.get_current_image_path()
+        current_image_path = self.image_manager.get_current_image_path()
         if current_image_path:
             folder_path = os.path.dirname(current_image_path)
             os.startfile(folder_path)
@@ -182,6 +144,19 @@ class ImageSorterGUI(MainWindow):
         pass
 
     def open_file_properties(self):
-        current_image_path = self.image_manager.image_manager.get_current_image_path()
+        current_image_path = self.image_manager.get_current_image_path()
         if current_image_path:
             os.system(f'explorer /select,\"{current_image_path}\"')
+
+    def closeEvent(self, event):
+        """Handle the window close event to disconnect signals and perform cleanup."""
+        logger.debug("[ImageSorterGUI] Closing ImageSorterGUI...")
+
+        # Disconnect signals to avoid issues
+        self._disconnect_signals()
+
+        # Shutdown the thread manager
+        self.image_manager.shutdown()
+
+        logger.debug("[ImageSorterGUI] Exiting application.")
+        event.accept()

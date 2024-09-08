@@ -1,9 +1,8 @@
 import os
 import tempfile
 import yaml
-from config import is_cygwin, parse_args, ensure_windows_path, read_config_file, get_configuration, ensure_directories_exist
-import pytest
-import sys
+from core.config import is_cygwin, parse_args, read_config_file, get_configuration, ensure_directories_exist
+
 
 def test_is_cygwin():
     # Test cygwin

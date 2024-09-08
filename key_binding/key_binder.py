@@ -1,7 +1,7 @@
 from PyQt6.QtGui import QKeySequence, QShortcut
 
-import config
-from config import NEXT_KEY, PREV_KEY, FIRST_KEY, LAST_KEY, UNDO_KEY, DELETE_KEY, RANDOM_KEY, FULLSCREEN_KEY
+from core import config
+from core.config import NEXT_KEY, PREV_KEY, FIRST_KEY, LAST_KEY, UNDO_KEY, DELETE_KEY, RANDOM_KEY, FULLSCREEN_KEY
 
 
 def bind_keys(gui, image_manager):

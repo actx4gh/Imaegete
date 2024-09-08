@@ -1,6 +1,6 @@
 import os
 import time
-from logger import setup_logging
+from core.logger import setup_logging
 from pytest import mark
 
 @mark.logging

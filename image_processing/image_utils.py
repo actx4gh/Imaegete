@@ -2,7 +2,7 @@ import os
 
 from PyQt6.QtGui import QPixmap
 
-import logger
+from core import logger
 
 
 def load_image_with_qpixmap(image_path):

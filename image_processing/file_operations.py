@@ -2,7 +2,7 @@ import os
 import shutil
 from concurrent.futures import ThreadPoolExecutor
 
-import logger
+from core import logger
 
 
 def move_file(src, dest):

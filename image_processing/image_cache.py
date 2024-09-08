@@ -7,8 +7,7 @@ from functools import lru_cache
 from PyQt6.QtGui import QPixmapCache, QPixmap
 from fasteners import ReaderWriterLock
 
-import config
-import logger
+from core import config, logger
 
 if config.platform_name == 'Linux':
     import inotify.adapters

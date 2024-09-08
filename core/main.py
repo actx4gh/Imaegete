@@ -3,13 +3,13 @@ import sys
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtWidgets import QWidget, QSplitter, QLabel
+from core.thread_manager import ThreadManager
 
-import config
-import logger
+from core import config, logger
 from gui.image_display import ImageDisplay
 from gui.main_window import ImageSorterGUI
 from gui.status_bar_manager import ImageSorterStatusBarManager
-from image_processing.image_cache import ImageCache
+from image_processing.cache_manager import CacheManager
 from image_processing.image_handler import ImageHandler
 from image_processing.image_manager import ImageManager
 
@@ -113,37 +113,32 @@ def alignment_to_string(alignment):
     return " | ".join(alignments) if alignments else "AlignNone"
 
 
-# main.py
-
 def main():
     logger.debug("[Main] Starting application.")
     app = QApplication(sys.argv)
 
-    # Create dependencies
-    image_cache = ImageCache(
-        max_size=config.IMAGE_CACHE_MAX_SIZE
-    )
-    image_handler = ImageHandler()
-    image_manager = ImageManager(image_handler=image_handler, image_cache=image_cache)
-    _ = ImageSorterStatusBarManager(image_manager)
+    # Initialize the ThreadManager
+    thread_manager = ThreadManager()
 
+    # Initialize CacheManager, ImageHandler, and ImageManager with ThreadManager
+    cache_manager = CacheManager(config.cache_dir, thread_manager)
+    image_handler = ImageHandler(thread_manager)
+    image_manager = ImageManager(image_handler, cache_manager, thread_manager)
+
+    # Initialize the GUI and pass the image manager
     image_display = ImageDisplay()
-    logger.debug("[Main] Creating main GUI window (ImageSorterGUI).")
-    sorter_gui = ImageSorterGUI(
-        image_display=image_display,
-        image_manager=image_manager
-    )
+    _ = ImageSorterStatusBarManager(image_manager=image_manager)
+    sorter_gui = ImageSorterGUI(image_display=image_display, image_manager=image_manager)
 
-    # Show GUI immediately
+    # Show the GUI
     sorter_gui.show()
-    sorter_gui.bind_keys()
 
-    # Connect the application quit event
+    # Graceful shutdown on app exit
     def on_exit():
         logger.info("[Main] Application exit triggered")
-    #log_widget_hierarchy(sorter_gui.central_widget)
-    app.aboutToQuit.connect(on_exit)
+        thread_manager.shutdown()
 
+    app.aboutToQuit.connect(on_exit)
     logger.info("[Main] Application starting")
     sys.exit(app.exec())
 

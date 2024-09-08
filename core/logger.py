@@ -1,7 +1,7 @@
 import logging
 import os
 import inspect
-import config
+from core import config
 
 
 # Function to dynamically get or create a logger based on module hierarchy
