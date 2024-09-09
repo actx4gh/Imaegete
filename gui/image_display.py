@@ -8,15 +8,7 @@ class ImageDisplay(QObject):
 
     def __init__(self):
         super().__init__()
-        self.widget = QWidget()
-        self.widget.setObjectName("image_display_widget")
-        self.layout = QVBoxLayout(self.widget)
-
-        # Remove margins and paddings
-        self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.setSpacing(0)
-
-        self.image_label = QLabel(self.widget)
+        self.image_label = QLabel()
         self.image_label.setObjectName("image_display_label")
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.image_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -24,12 +16,8 @@ class ImageDisplay(QObject):
 
         # Remove margins from the label
         self.image_label.setContentsMargins(0, 0, 0, 0)
-        self.layout.addWidget(self.image_label)
         self.current_pixmap = None
         self.is_fullscreen = False
-
-    def get_widget(self):
-        return self.widget
 
     def display_image(self, image_path, pixmap):
         logger.debug(f"[ImageDisplay] Attempting to display image: {image_path}")
@@ -71,10 +59,13 @@ class ImageDisplay(QObject):
     def toggle_fullscreen(self, main):
         """Toggle full-screen display of the current image."""
         if self.is_fullscreen:
-            main.showNormal()
             main.toggle_fullscreen_layout()
+            main.showNormal()
         else:
             main.toggle_fullscreen_layout()
             main.showFullScreen()
+        # Ensure the image label is updated and resized
+        self.image_label.resize(main.size())  # Resize the image label to match the full screen
+        self.update_image_label()
         self.is_fullscreen = not self.is_fullscreen
         logger.debug(f"[ImageDisplay] Full-screen mode toggled: {self.is_fullscreen}")

@@ -46,7 +46,7 @@ class ImageSorterGUI(MainWindow):
                                                           glavnaqt_config.ALIGN_CENTER)
         glavnaqt_config.config.update_collapsible_section('main_content', 'test main content',
                                                           alignment=glavnaqt_config.ALIGN_CENTER,
-                                                          widget=self.image_display.get_widget())
+                                                          widget=self.image_display.image_label)
         glavnaqt_config.config.update_collapsible_section('bottom', 'test status bar',
                                                           alignment=glavnaqt_config.ALIGN_CENTER)
 

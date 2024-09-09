@@ -1,4 +1,5 @@
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import RLock
 
@@ -105,62 +106,30 @@ class ImageHandler:
         self._move_image_task(image_path, source_dir, dest_dir)
 
     def refresh_image_list(self, signal=None, shutdown_event=None):
+        """Submit task to refresh the image list asynchronously and log the time taken."""
         if shutdown_event and shutdown_event.is_set():
             logger.info("[ImageHandler] Shutdown initiated, not starting new refresh task.")
             return
 
         logger.info("[ImageHandler] Submitting refresh image list task.")
+
+        start_time = time.time()  # Start the timer
         self.thread_manager.submit_task(self._refresh_image_list_task, signal, shutdown_event)
-
-    def _process_files_in_directory(self, directory, shutdown_event, signal):
-        image_files = []
-        local_files = []  # Collect files locally before locking
-        count = 0
-        files_processed = 0
-        batch_size = 5  # Start with a small batch size, adjust as we scan
-
-        for root, _, files in os.walk(directory):
-
-            for file in os_sorted(files):
-
-                if self.is_image_file(file):
-                    file_path = os.path.join(root, file)
-                    local_files.append(file_path)  # Append locally instead of directly to image_list
-                    count += 1
-                    files_processed += 1
-
-                if len(local_files) >= batch_size:
-                    # Lock and extend the image list with the batch
-                    with self.lock:
-                        self.image_list.extend(local_files)
-                    local_files = []  # Clear local batch
-
-                if shutdown_event.is_set():
-                    logger.debug("[ImageHandler] Shutdown initiated, stopping after file processing.")
-                    return image_files
-
-                # Emit signal after processing a batch of files
-                if count % batch_size == 0 and signal:
-                    signal.emit()
-
-        # Final append for any remaining files in the local batch
-        if local_files:
-            with self.lock:
-                self.image_list.extend(local_files)
-
-        return image_files
+        end_time = time.time()  # End the timer after the task is submitted
+        elapsed_time = end_time - start_time
+        logger.info(f"[ImageHandler] Time taken to submit the image list refresh task: {elapsed_time:.4f} seconds")
 
     def _refresh_image_list_task(self, signal=None, shutdown_event=None):
-        """Task to refresh the image list with respect to shutdown events."""
+        """Task to refresh the image list with respect to shutdown events and log the time taken."""
         logger.debug("[ImageHandler] Starting image list refresh.")
 
         all_dirs = os_sorted(self.start_dirs)
 
+        start_time = time.time()  # Start the timer
         with self.lock:
             self.image_list.clear()
 
         def process_files_in_directory(directory):
-            """Process files in a directory, checking shutdown_event."""
             return self._process_files_in_directory(directory, shutdown_event, signal)
 
         with ThreadPoolExecutor() as executor:
@@ -173,13 +142,57 @@ class ImageHandler:
                         if image_files:
                             with self.lock:
                                 self.image_list.extend(image_files)
-
                     except Exception as e:
                         logger.error(f"[ImageHandler] Error during image list refresh: {e}")
 
             finally:
-                logger.debug("[ImageHandler] Shutting down the executor.")
                 executor.shutdown(wait=False)
+
+        end_time = time.time()  # End the timer after refreshing the list
+        elapsed_time = end_time - start_time
+        logger.info(f"[ImageHandler] Time taken to refresh image list: {elapsed_time:.4f} seconds")
+
+    def _process_files_in_directory(self, directory, shutdown_event, signal):
+        image_files = []
+        local_files = []  # Collect files locally before locking
+        files_processed = 0
+        batch_size = 5  # Start with a small batch size, adjust as we scan
+
+        for root, _, files in os.walk(directory):
+
+            for file in os_sorted(files):
+
+                if self.is_image_file(file):
+                    file_path = os.path.join(root, file)
+                    local_files.append(file_path)  # Append locally instead of directly to image_list
+                    files_processed += 1
+
+                if files_processed % 100 == 0:
+                    batch_size = min(batch_size + 10, 100)
+
+                if len(local_files) >= batch_size:
+                    # Lock and extend the image list with the batch
+                    with self.lock:
+                        self.image_list.extend(local_files)
+                    local_files = []  # Clear local batch
+
+                if shutdown_event.is_set():
+                    logger.debug("[ImageHandler] Shutdown initiated, stopping after file processing.")
+                    return image_files
+
+                # Emit signal after processing a batch of files
+                if files_processed % batch_size == 0 and signal:
+                    signal.emit()
+
+        # Final append for any remaining files in the local batch
+        if local_files:
+            with self.lock:
+                self.image_list.extend(local_files)
+
+        if signal:
+            signal.emit()
+
+        return image_files
 
     def shutdown(self):
         """Handle shutdown for ImageHandler."""

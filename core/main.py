@@ -121,8 +121,8 @@ def main():
     thread_manager = ThreadManager()
 
     # Initialize CacheManager, ImageHandler, and ImageManager with ThreadManager
-    cache_manager = CacheManager(config.cache_dir, thread_manager)
     image_handler = ImageHandler(thread_manager)
+    cache_manager = CacheManager(config.cache_dir, thread_manager, image_directories=image_handler.start_dirs)
     image_manager = ImageManager(image_handler, cache_manager, thread_manager)
 
     # Initialize the GUI and pass the image manager

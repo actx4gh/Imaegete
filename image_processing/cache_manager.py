@@ -13,7 +13,7 @@ from core import logger
 
 
 class CacheManager:
-    def __init__(self, cache_dir, thread_manager, max_size=500, debounce_interval=0.5, stability_check_interval=1,
+    def __init__(self, cache_dir, thread_manager, image_directories, max_size=500, debounce_interval=0.5, stability_check_interval=1,
                  stability_check_retries=3):
         """Initialize CacheManager with cache directory and ThreadManager."""
         self.debounce_interval = debounce_interval
@@ -21,6 +21,7 @@ class CacheManager:
         self.stability_check_retries = stability_check_retries
         self.cache_dir = cache_dir
         self.thread_manager = thread_manager
+        self.image_directories = image_directories
         self.max_size = max_size
         self.metadata_cache = OrderedDict()
         self.metadata_manager = MetadataManager(self.cache_dir, self.thread_manager)
@@ -119,7 +120,8 @@ class CacheManager:
         """Initialize the watchdog to monitor changes in the cache directory."""
         event_handler = CacheEventHandler(self)
         self.watchdog_observer = Observer()
-        self.watchdog_observer.schedule(event_handler, self.cache_dir, recursive=True)
+        for directory in self.image_directories:
+            self.watchdog_observer.schedule(event_handler, directory, recursive=True)
         self.watchdog_observer.start()
         logger.info(f"[CacheManager] Watchdog started, monitoring directory: {self.cache_dir}")
 
@@ -195,14 +197,16 @@ class MetadataManager:
         self.lock = ReaderWriterLock()
 
     def save_metadata(self, image_path, metadata):
-        """Asynchronously save metadata to disk with thread safety."""
-        cache_path = self.get_cache_path(image_path)
-
         def async_save():
-            with self.lock.write_lock():
-                with open(cache_path, 'wb') as f:
-                    pickle.dump(metadata, f)
-            logger.info(f"[MetadataManager] Metadata saved for {image_path}.")
+            cache_path = self.get_cache_path(image_path)
+            current_metadata = self.load_metadata(image_path)
+
+            # Only save if the metadata has changed
+            if current_metadata != metadata:
+                with self.lock.write_lock():
+                    with open(cache_path, 'wb') as f:
+                        pickle.dump(metadata, f)
+                logger.info(f"[MetadataManager] Metadata saved for {image_path}.")
 
         self.thread_manager.submit_task(async_save)
 
