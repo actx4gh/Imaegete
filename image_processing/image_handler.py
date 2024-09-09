@@ -105,56 +105,48 @@ class ImageHandler:
         self._move_image_task(image_path, source_dir, dest_dir)
 
     def refresh_image_list(self, signal=None, shutdown_event=None):
-        """Refresh the image list asynchronously using ThreadManager."""
         if shutdown_event and shutdown_event.is_set():
             logger.info("[ImageHandler] Shutdown initiated, not starting new refresh task.")
             return
 
         logger.info("[ImageHandler] Submitting refresh image list task.")
-        # Ensure signal is passed correctly to the task
         self.thread_manager.submit_task(self._refresh_image_list_task, signal, shutdown_event)
 
     def _process_files_in_directory(self, directory, shutdown_event, signal):
-        """Helper function to process files in a directory and add image files."""
         image_files = []
-
-        # Check if shutdown is triggered before starting the walk
-        if shutdown_event.is_set():
-            logger.debug("[ImageHandler] Shutdown initiated, stopping refresh.")
-            return []
+        local_files = []  # Collect files locally before locking
+        count = 0
+        files_processed = 0
+        batch_size = 5  # Start with a small batch size, adjust as we scan
 
         for root, _, files in os.walk(directory):
-            # Check for shutdown at the directory level
-            if shutdown_event.is_set():
-                logger.debug("[ImageHandler] Shutdown initiated, stopping mid-directory scan.")
-                return image_files  # Return early if shutdown is triggered
 
             for file in os_sorted(files):
-                # Check for shutdown at the file level
-                if shutdown_event.is_set():
-                    logger.debug("[ImageHandler] Shutdown initiated, stopping mid-file scan.")
-                    return image_files  # Return early if shutdown is triggered
 
-                # Process the image file if it's valid
                 if self.is_image_file(file):
                     file_path = os.path.join(root, file)
-                    image_files.append(file_path)
+                    local_files.append(file_path)  # Append locally instead of directly to image_list
+                    count += 1
+                    files_processed += 1
+
+                if len(local_files) >= batch_size:
+                    # Lock and extend the image list with the batch
                     with self.lock:
-                        self.image_list.append(file_path)
-                    logger.debug(f"[ImageHandler] Image found: {file_path}")
+                        self.image_list.extend(local_files)
+                    local_files = []  # Clear local batch
 
-                    # Emit signal after file is processed, but check shutdown first
-                    if shutdown_event.is_set():
-                        logger.debug("[ImageHandler] Shutdown initiated, stopping after file processing.")
-                        return image_files  # Return immediately if shutdown is triggered
+                if shutdown_event.is_set():
+                    logger.debug("[ImageHandler] Shutdown initiated, stopping after file processing.")
+                    return image_files
 
-                    if signal:
-                        signal.emit()
+                # Emit signal after processing a batch of files
+                if count % batch_size == 0 and signal:
+                    signal.emit()
 
-            # Check shutdown again after processing each directory
-            if shutdown_event.is_set():
-                logger.debug("[ImageHandler] Shutdown initiated, stopping after directory scan.")
-                return image_files  # Return early if shutdown is triggered
+        # Final append for any remaining files in the local batch
+        if local_files:
+            with self.lock:
+                self.image_list.extend(local_files)
 
         return image_files
 
@@ -176,30 +168,18 @@ class ImageHandler:
 
             try:
                 for future in as_completed(futures):
-                    if shutdown_event.is_set():
-                        logger.debug("[ImageHandler] Shutdown initiated, canceling remaining tasks.")
-                        for f in futures:
-                            if not f.done():
-                                f.cancel()  # Cancel pending tasks
-                        break
-
                     try:
                         image_files = future.result()
                         if image_files:
                             with self.lock:
                                 self.image_list.extend(image_files)
 
-                        # Early break if shutdown is triggered
-                        if shutdown_event.is_set():
-                            logger.debug("[ImageHandler] Breaking image list refresh due to shutdown.")
-                            break
-
                     except Exception as e:
                         logger.error(f"[ImageHandler] Error during image list refresh: {e}")
 
             finally:
                 logger.debug("[ImageHandler] Shutting down the executor.")
-                executor.shutdown(wait=False)  # Force executor shutdown if necessary
+                executor.shutdown(wait=False)
 
     def shutdown(self):
         """Handle shutdown for ImageHandler."""

@@ -28,6 +28,7 @@ class ImageSorterGUI(MainWindow):
 
         self._connect_signals()
         self.image_manager.load_image()
+        bind_keys(self, self.image_manager)
 
         logger.debug("[ImageSorterGUI] Status bar manager configured and signals connected.")
         self.show()
@@ -51,13 +52,10 @@ class ImageSorterGUI(MainWindow):
 
     def resizeEvent(self, event):
         """Override resizeEvent to add additional behavior while preserving base functionality."""
-        self.image_display.update_image_label()  # Ensure the image label is updated on resize
-        self.resize_emission_args['zoom_percentage'] = self.image_display.get_zoom_percentage()
+        if self.image_manager.current_image_path:
+            self.image_display.update_image_label()  # Ensure the image label is updated on resize
+            self.resize_emission_args['zoom_percentage'] = self.image_display.get_zoom_percentage()
         super().resizeEvent(event)
-
-    def bind_keys(self):
-        """Bind keys for the main window."""
-        bind_keys(self, self.image_manager)
 
     def _connect_signals(self):
         """Connect signals. Ensures signals are connected only once."""

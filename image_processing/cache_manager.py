@@ -1,8 +1,8 @@
 import os
 import pickle
 import time
-from functools import lru_cache
 from collections import OrderedDict
+from functools import lru_cache
 
 from PyQt6.QtGui import QPixmapCache, QPixmap
 from fasteners import ReaderWriterLock
@@ -29,20 +29,6 @@ class CacheManager:
         self.initialize_watchdog()
         self.debounce_tasks = {}
 
-    def get_metadata(self, image_path):
-        """Retrieve metadata from cache or load from disk if not cached."""
-        if image_path in self.metadata_cache:
-            self.metadata_cache.move_to_end(image_path)  # Mark as recently used
-            return self.metadata_cache[image_path]
-
-        # If not in memory, load from disk
-        metadata = self.metadata_manager.load_metadata(image_path)
-        if metadata:
-            self.metadata_cache[image_path] = metadata  # Cache it in memory
-            if len(self.metadata_cache) > self.max_size:
-                self.metadata_cache.popitem(last=False)  # Evict oldest entry
-        return metadata
-
     @lru_cache(maxsize=128)
     def retrieve_pixmap(self, image_path):
         """Retrieve pixmap from cache or load from disk if not available."""
@@ -60,7 +46,17 @@ class CacheManager:
         """Add pixmap to cache asynchronously and save metadata."""
         if not pixmap.isNull():
             QPixmapCache.insert(image_path, pixmap)
-            metadata = {'size': pixmap.size(), 'cache_key': pixmap.cacheKey()}
+
+            # Get file size and last modified date
+            file_size = os.path.getsize(image_path)
+            last_modified = os.path.getmtime(image_path)
+
+            metadata = {
+                'size': pixmap.size(),
+                'cache_key': pixmap.cacheKey(),
+                'file_size': file_size,  # Cache file size
+                'last_modified': last_modified  # Cache modification date
+            }
             self.metadata_manager.save_metadata(image_path, metadata)
 
             # Also cache metadata in memory
@@ -177,7 +173,18 @@ class CacheManager:
             self.monitor_cache_size()
 
     def get_metadata(self, image_path):
-        return self.metadata_manager.load_metadata(image_path)
+        """Retrieve metadata from cache or load from disk if not cached."""
+        if image_path in self.metadata_cache:
+            self.metadata_cache.move_to_end(image_path)  # Mark as recently used
+            return self.metadata_cache[image_path]
+
+        # If not in memory, load from disk
+        metadata = self.metadata_manager.load_metadata(image_path)
+        if metadata:
+            self.metadata_cache[image_path] = metadata  # Cache it in memory
+            if len(self.metadata_cache) > self.max_size:
+                self.metadata_cache.popitem(last=False)  # Evict oldest entry
+        return metadata
 
 
 class MetadataManager:

@@ -33,7 +33,7 @@ class ImageDisplay(QObject):
 
     def display_image(self, image_path, pixmap):
         logger.debug(f"[ImageDisplay] Attempting to display image: {image_path}")
-        if pixmap:
+        if pixmap and self.current_pixmap != pixmap:
             logger.info(f"[ImageDisplay] Displaying image: {image_path}")
             self.current_pixmap = pixmap
             self.update_image_label()

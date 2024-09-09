@@ -15,6 +15,7 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
         # Use the event bus from the parent class
         self.event_bus.subscribe('image_loaded', self.update_status_bar)
         self.event_bus.subscribe('metadata_changed', self.update_status_bar)
+        self.event_bus.subscribe('update_image_total', self.update_image_total)
 
     def update_status_bar(self, file_path=None, zoom_percentage=None):
         """Override and augment the update_status_bar method from the base class."""
@@ -26,6 +27,15 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
             return
 
         self.start_worker(file_path=file_path, zoom_percentage=zoom_percentage)
+
+    def update_image_total(self):
+        """
+        Override the update_status_bar method to optionally update metadata.
+        If metadata_update is False, only update the total number of images.
+        """
+        self.bar_data['total_images'] = len(self.image_manager.image_handler.image_list)
+
+        self.start_worker(file_path=None, zoom_percentage=None)
 
     def update_status_for_no_image(self):
         """Update the status bar when there is no image loaded."""
