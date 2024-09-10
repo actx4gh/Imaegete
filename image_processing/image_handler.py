@@ -1,46 +1,51 @@
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from threading import RLock
+from threading import RLock, Event
 
 from natsort import os_sorted
-
 from core import config, logger
 from core.exceptions import ImageSorterError
 from .file_operations import move_related_files, check_and_remove_empty_dir
 
 
 class ImageHandler:
-    def __init__(self, thread_manager):
-        self.thread_manager = thread_manager  # Use ThreadManager for async tasks
+    def __init__(self, thread_manager, data_service):
+        self.thread_manager = thread_manager
+        self.data_service = data_service  # Use the data service for shared state
         self.dest_folders = config.dest_folders
         self.delete_folders = config.delete_folders
         self.start_dirs = config.start_dirs
-        self.image_list = []
-        self.sorted_images = []
+
         self.lock = RLock()
+        self.is_refreshing = Event()
+        # Initialize the image list in the data service
+        self.data_service.set_image_list([])  # Initialize empty image list
 
     def add_image_to_list(self, image_path, index=None):
         """Add a new image to the image list at the specified index or at the end."""
-        if self.is_image_file(image_path) and image_path not in self.image_list:
+        image_list = self.data_service.get_image_list()  # Get the image list from the data service
+        if self.is_image_file(image_path) and image_path not in image_list:
             with self.lock:
                 if index is not None:
-                    self.image_list.insert(index, image_path)
+                    image_list.insert(index, image_path)
                 else:
-                    self.image_list.append(image_path)
+                    image_list.append(image_path)
+            self.data_service.set_image_list(image_list)  # Update the image list in the data service
 
     def remove_image_from_list(self, image_path):
         """Remove an image from the image list."""
         with self.lock:
-            if image_path in self.image_list:
-                self.image_list.remove(image_path)
+            image_list = self.data_service.get_image_list()  # Get the image list from the data service
+            if image_path in image_list:
+                image_list.remove(image_path)
+            self.data_service.set_image_list(image_list)  # Update the image list in the data service
 
     def delete_image(self, image_path):
         """Move image to the delete folder and remove from the list."""
         start_dir = self.find_start_directory(image_path)
         if not start_dir:
             logger.error(f"[ImageHandler] Start directory for image {image_path} not found.")
-            # Add fallback or handle error here
             return
 
         delete_folder = self.delete_folders.get(start_dir)
@@ -61,8 +66,7 @@ class ImageHandler:
 
         dest_folder = self.dest_folders[start_dir].get(category)
         if not dest_folder:
-            logger.error(
-                f"[ImageHandler] Destination folder not found for category {category} in directory {start_dir}")
+            logger.error(f"[ImageHandler] Destination folder not found for category {category} in directory {start_dir}")
             return
 
         self.thread_manager.submit_task(self._move_image_task, image_path, start_dir, dest_folder)
@@ -78,11 +82,11 @@ class ImageHandler:
 
     def undo_last_action(self):
         """Undo the last move or delete action."""
-        if not self.sorted_images:
+        if not self.data_service.sorted_images:
             logger.warning("[ImageHandler] No actions to undo.")
             return
 
-        last_action = self.sorted_images.pop()
+        last_action = self.data_service.sorted_images.pop()
         action_type, image_path, *rest = last_action
         self.thread_manager.submit_task(self._undo_action_task, image_path, action_type, rest)
 
@@ -127,7 +131,7 @@ class ImageHandler:
 
         start_time = time.time()  # Start the timer
         with self.lock:
-            self.image_list.clear()
+            self.data_service.set_image_list([])  # Clear the image list in the data service
 
         def process_files_in_directory(directory):
             return self._process_files_in_directory(directory, shutdown_event, signal)
@@ -141,53 +145,57 @@ class ImageHandler:
                         image_files = future.result()
                         if image_files:
                             with self.lock:
-                                self.image_list.extend(image_files)
+                                image_list = self.data_service.get_image_list()  # Get the current image list
+                                image_list.extend(image_files)
+                                self.data_service.set_image_list(image_list)  # Update the image list in the data service
                     except Exception as e:
                         logger.error(f"[ImageHandler] Error during image list refresh: {e}")
 
             finally:
                 executor.shutdown(wait=False)
 
+        self.is_refreshing.clear()
+        signal.emit()
         end_time = time.time()  # End the timer after refreshing the list
         elapsed_time = end_time - start_time
         logger.info(f"[ImageHandler] Time taken to refresh image list: {elapsed_time:.4f} seconds")
 
     def _process_files_in_directory(self, directory, shutdown_event, signal):
+        """Process image files in the directory and return the list of image paths."""
         image_files = []
-        local_files = []  # Collect files locally before locking
+        local_files = []
         files_processed = 0
-        batch_size = 5  # Start with a small batch size, adjust as we scan
+        batch_size = 5
 
         for root, _, files in os.walk(directory):
-
             for file in os_sorted(files):
-
                 if self.is_image_file(file):
                     file_path = os.path.join(root, file)
-                    local_files.append(file_path)  # Append locally instead of directly to image_list
+                    local_files.append(file_path)
                     files_processed += 1
 
                 if files_processed % 100 == 0:
                     batch_size = min(batch_size + 10, 100)
 
                 if len(local_files) >= batch_size:
-                    # Lock and extend the image list with the batch
                     with self.lock:
-                        self.image_list.extend(local_files)
-                    local_files = []  # Clear local batch
+                        image_list = self.data_service.get_image_list()  # Get the image list
+                        image_list.extend(local_files)
+                        self.data_service.set_image_list(image_list)  # Update image list in data service
+                    local_files = []
 
                 if shutdown_event.is_set():
                     logger.debug("[ImageHandler] Shutdown initiated, stopping after file processing.")
                     return image_files
 
-                # Emit signal after processing a batch of files
                 if files_processed % batch_size == 0 and signal:
                     signal.emit()
 
-        # Final append for any remaining files in the local batch
         if local_files:
             with self.lock:
-                self.image_list.extend(local_files)
+                image_list = self.data_service.get_image_list()
+                image_list.extend(local_files)
+                self.data_service.set_image_list(image_list)
 
         if signal:
             signal.emit()
@@ -208,9 +216,4 @@ class ImageHandler:
         valid_extensions = ['.webp', '.jpg', '.jpeg', '.png', '.bmp', '.gif']
         return any(filename.lower().endswith(ext) for ext in valid_extensions)
 
-    def get_image_path(self, index):
-        """Return the image path at the given index, or None if index is out of bounds."""
-        with self.lock:
-            if 0 <= index < len(self.image_list):
-                return self.image_list[index]
-            return None
+

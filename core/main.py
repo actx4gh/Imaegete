@@ -3,9 +3,10 @@ import sys
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtWidgets import QWidget, QSplitter, QLabel
-from core.thread_manager import ThreadManager
 
 from core import config, logger
+from core.data_service import ImageDataService
+from core.thread_manager import ThreadManager
 from gui.image_display import ImageDisplay
 from gui.main_window import ImageSorterGUI
 from gui.status_bar_manager import ImageSorterStatusBarManager
@@ -117,23 +118,20 @@ def main():
     logger.debug("[Main] Starting application.")
     app = QApplication(sys.argv)
 
-    # Initialize the ThreadManager
     thread_manager = ThreadManager()
 
-    # Initialize CacheManager, ImageHandler, and ImageManager with ThreadManager
-    image_handler = ImageHandler(thread_manager)
-    cache_manager = CacheManager(config.cache_dir, thread_manager, image_directories=image_handler.start_dirs)
-    image_manager = ImageManager(image_handler, cache_manager, thread_manager)
+    data_service = ImageDataService()
+    _ = ImageSorterStatusBarManager(thread_manager=thread_manager, data_service=data_service)
+    cache_manager = CacheManager(config.cache_dir, thread_manager, image_directories=config.start_dirs)
+    data_service.set_cache_manager(cache_manager)
+    image_handler = ImageHandler(thread_manager, data_service)
+    image_manager = ImageManager(image_handler, thread_manager, data_service)
 
-    # Initialize the GUI and pass the image manager
     image_display = ImageDisplay()
-    _ = ImageSorterStatusBarManager(image_manager=image_manager)
-    sorter_gui = ImageSorterGUI(image_display=image_display, image_manager=image_manager)
+    sorter_gui = ImageSorterGUI(image_display=image_display, image_manager=image_manager, data_service=data_service)
 
-    # Show the GUI
     sorter_gui.show()
 
-    # Graceful shutdown on app exit
     def on_exit():
         logger.info("[Main] Application exit triggered")
         thread_manager.shutdown()

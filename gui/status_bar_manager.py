@@ -7,33 +7,37 @@ from glavnaqt.ui.status_bar_manager import StatusBarManager as BaseStatusBarMana
 
 class ImageSorterStatusBarManager(BaseStatusBarManager):
 
-    def __init__(self, image_manager):
+    def __init__(self, thread_manager, data_service):
         super().__init__()  # Initializes the event bus in the parent class
-        self.image_manager = image_manager
+        self.thread_manager = thread_manager
+        self.data_service = data_service
         self.bar_data = {}
 
         # Use the event bus from the parent class
         self.event_bus.subscribe('image_loaded', self.update_status_bar)
         self.event_bus.subscribe('metadata_changed', self.update_status_bar)
         self.event_bus.subscribe('update_image_total', self.update_image_total)
+        self.event_bus.subscribe('show_busy', self.start_busy_indicator)
+        self.event_bus.subscribe('hide_busy', self.stop_busy_indicator)
 
     def update_status_bar(self, file_path=None, zoom_percentage=None):
         """Override and augment the update_status_bar method from the base class."""
-        if file_path is None:
-            file_path = self.image_manager.get_current_image_path()
+        if self.status_label.isVisible():
+            if file_path is None:
+                file_path = self.data_service.get_current_image_path()
 
-        if not file_path:
-            self.update_status_for_no_image()
-            return
+            if not file_path:
+                self.update_status_for_no_image()
+                return
 
-        self.start_worker(file_path=file_path, zoom_percentage=zoom_percentage)
+            self.start_worker(file_path=file_path, zoom_percentage=zoom_percentage)
 
     def update_image_total(self):
         """
         Override the update_status_bar method to optionally update metadata.
         If metadata_update is False, only update the total number of images.
         """
-        self.bar_data['total_images'] = len(self.image_manager.image_handler.image_list)
+        self.bar_data['total_images'] = len(self.data_service.get_image_list())
 
         self.start_worker(file_path=None, zoom_percentage=None)
 
@@ -45,14 +49,13 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
 
     def start_worker(self, *args, **kwargs):
         """Submit the status update task to ThreadManager with custom logic."""
-
         # Custom logic to avoid redundant worker starts
         if self.worker and self.worker.isRunning():
             # If a worker is already running, avoid starting a new one
             return
 
         # Submit the task to the ThreadManager instead of starting a new thread directly
-        self.image_manager.thread_manager.submit_task(self._process_status_update, *args, **kwargs)
+        self.thread_manager.submit_task(self._process_status_update, *args, **kwargs)
 
     def _process_status_update(self, file_path=None, zoom_percentage=None):
         """Fetch data and perform status update in the main thread after worker processing."""
@@ -62,7 +65,7 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
             self.bar_data['zoom_percentage'] = zoom_percentage
 
         if file_path:
-            metadata = self.image_manager.cache_manager.get_metadata(file_path)
+            metadata = self.data_service.cache_manager.get_metadata(file_path)
             if not metadata:
                 logger.warning(
                     f"[StatusBarManager] Metadata not found for {file_path}. Status bar information may be incomplete."
@@ -75,8 +78,8 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
             self.bar_data['dimensions'] = self.get_image_dimensions(metadata)
             self.bar_data['file_size'] = self.get_file_size(metadata)
             self.bar_data['modification_date'] = self.get_modification_date(metadata)
-            self.bar_data['image_index'] = self.image_manager.current_index
-            self.bar_data['total_images'] = len(self.image_manager.image_handler.image_list)
+            self.bar_data['image_index'] = self.data_service.get_current_index()
+            self.bar_data['total_images'] = len(self.data_service.get_image_list())
 
         # Use the @property methods to retrieve the dynamically generated status_text and tooltip_text
         self.status_label.setText(self.status_text)

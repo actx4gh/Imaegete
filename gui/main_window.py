@@ -11,13 +11,14 @@ from key_binding.key_binder import bind_keys
 
 
 class ImageSorterGUI(MainWindow):
-    def __init__(self, image_display, image_manager, app_name='ImageSorter', *args, **kwargs):
+    def __init__(self, image_display, image_manager, data_service, app_name='ImageSorter', *args, **kwargs):
         logger.debug("[ImageSorterGUI] Initializing ImageSorterGUI.")
         self.signals_connected = False
         self.cleanup_thread = None
         self.image_display = image_display
         self.app_name = app_name
         self.image_manager = image_manager
+        self.data_service = data_service
 
         logger.debug(f"[ImageSorterGUI] Creating main GUI window {config.WINDOW_TITLE_SUFFIX}.")
         self._initialize_ui_components()
@@ -27,8 +28,8 @@ class ImageSorterGUI(MainWindow):
         logger.debug("[ImageSorterGUI] UI configuration set up.")
 
         self._connect_signals()
-        self.image_manager.load_image()
         bind_keys(self, self.image_manager)
+        self.image_manager.refresh_image_list()
 
         logger.debug("[ImageSorterGUI] Status bar manager configured and signals connected.")
         self.show()
@@ -52,7 +53,7 @@ class ImageSorterGUI(MainWindow):
 
     def resizeEvent(self, event):
         """Override resizeEvent to add additional behavior while preserving base functionality."""
-        if self.image_manager.current_image_path:
+        if self.data_service.get_current_image_path():
             self.image_display.update_image_label()  # Ensure the image label is updated on resize
             self.resize_emission_args['zoom_percentage'] = self.image_display.get_zoom_percentage()
         super().resizeEvent(event)
@@ -132,7 +133,7 @@ class ImageSorterGUI(MainWindow):
         return "filename" if pos.x() < 100 else "zoom" if pos.x() < 200 else "date"
 
     def open_file_location(self):
-        current_image_path = self.image_manager.get_current_image_path()
+        current_image_path = self.data_service.get_current_image_path()
         if current_image_path:
             folder_path = os.path.dirname(current_image_path)
             os.startfile(folder_path)
@@ -142,7 +143,7 @@ class ImageSorterGUI(MainWindow):
         pass
 
     def open_file_properties(self):
-        current_image_path = self.image_manager.get_current_image_path()
+        current_image_path = self.data_service.get_current_image_path()
         if current_image_path:
             os.system(f'explorer /select,\"{current_image_path}\"')
 
