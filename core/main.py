@@ -5,12 +5,12 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtWidgets import QWidget, QSplitter, QLabel
 
 from core import config, logger
-from image_processing.data_management.data_service import ImageDataService
+from core.data_service import ImageDataService
 from core.thread_manager import ThreadManager
 from gui.image_display import ImageDisplay
 from gui.main_window import ImageSorterGUI
 from gui.status_bar_manager import ImageSorterStatusBarManager
-from image_processing.data_management.cache_manager import CacheManager
+from image_processing.cache_manager import CacheManager
 from image_processing.image_handler import ImageHandler
 from image_processing.image_manager import ImageManager
 
@@ -125,7 +125,7 @@ def main():
     cache_manager = CacheManager(config.cache_dir, thread_manager, image_directories=config.start_dirs)
     data_service.set_cache_manager(cache_manager)
     image_handler = ImageHandler(thread_manager, data_service)
-    image_manager = ImageManager(image_handler, thread_manager)
+    image_manager = ImageManager(image_handler, thread_manager, data_service)
 
     image_display = ImageDisplay()
     sorter_gui = ImageSorterGUI(image_display=image_display, image_manager=image_manager, data_service=data_service)

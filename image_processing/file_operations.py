@@ -14,11 +14,6 @@ def move_file(src, dest):
         logger.error(f"[FileOperations] Failed to move file from {src} to {dest}: {e}")
 
 
-def move_image_and_cleanup(image_path, source_dir, dest_dir):
-    move_related_files(image_path, source_dir, dest_dir)
-    check_and_remove_empty_dir(source_dir)
-
-
 def move_related_files(filename, src_folder, dest_folder):
     # Extract only the filename part
     base, _ = os.path.splitext(os.path.basename(filename))
