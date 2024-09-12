@@ -1,4 +1,3 @@
-import random
 from threading import RLock, Event
 
 from PyQt6.QtCore import pyqtSignal, QObject, Qt
@@ -13,11 +12,10 @@ class ImageManager(QObject):
     image_list_updated = pyqtSignal()
     image_list_populated = pyqtSignal()
 
-    def __init__(self, image_handler, thread_manager, data_service):
+    def __init__(self, image_handler, thread_manager):
         super().__init__()
         self.image_handler = image_handler
         self.thread_manager = thread_manager
-        self.data_service = data_service
         self.shutdown_event = Event()
         self.is_loading = Event()
         self.shuffled_indices = []
@@ -26,8 +24,6 @@ class ImageManager(QObject):
         self.event_bus = create_or_get_shared_event_bus()
 
         self.image_list_updated.connect(self.on_image_list_updated, Qt.ConnectionType.BlockingQueuedConnection)
-        self.data_service.set_current_index(0)
-        self.data_service.set_current_image_path(None)
         self.lock = RLock()
 
     def refresh_image_list(self):
@@ -50,57 +46,32 @@ class ImageManager(QObject):
         logger.info("[ImageManager] Initiating shutdown.")
         self.shutdown_event.set()
         self.thread_manager.shutdown()
-        self.data_service.cache_manager.shutdown()
+        self.image_handler.shutdown()
         logger.info("[ImageManager] Shutdown complete.")
 
     def on_image_list_updated(self):
-        if not self.data_service.get_current_image_path() and self.data_service.get_image_path(0):
+        if not self.image_handler.has_current_image():
             if self.is_loading.is_set():
                 return
             self.is_loading.set()
-            logger.info(f'[ImageManager] Got first image')
-            self.data_service.set_current_index(0)
+            logger.info(f'[ImageManager] No current image found, setting to first image')
+            self.image_handler.set_first_image()
             self.load_image()
         else:
-            self.event_bus.emit('update_image_total')
+            # Let ImageHandler handle the image total update check
+            self.image_handler.update_image_total()
+
         if not self.image_handler.is_refreshing.is_set():
             self.event_bus.emit('hide_busy')
-
-    def next_image(self):
-        """Navigate to the next image."""
-        with self.lock:
-            if len(self.data_service.get_image_list()) > 0:
-                self.data_service.set_current_index(
-                    (self.data_service.get_current_index() + 1) % len(self.data_service.get_image_list()))
-            else:
-                self.data_service.set_current_index(0)
-        self.load_image()
-
-    def previous_image(self):
-        """Navigate to the previous image."""
-        with self.lock:
-            if len(self.data_service.get_image_list()) > 0:
-                self.data_service.set_current_index(
-                    (self.data_service.get_current_index() - 1) % len(self.data_service.get_image_list()))
-            else:
-                self.data_service.set_current_index(0)
-        self.load_image()
+            self.prefetch_images()
 
     def move_image(self, category):
         with self.lock:
-            current_image = self.data_service.get_image_path(self.data_service.get_current_index())
-            if current_image:
-                self.image_handler.move_image(current_image, category)
-                logger.info(f"[ImageManager] Moved image: {current_image} to {category}")
-                self.next_image()  # Move to the next image after moving
+            self.image_handler.move_current_image(category)
 
     def delete_image(self):
         with self.lock:
-            current_image = self.data_service.get_image_path(self.data_service.get_current_index())
-            if current_image:
-                self.image_handler.delete_image(current_image)
-                logger.info(f"[ImageManager] Deleted image: {current_image}")
-                self.next_image()  # Move to the next image after deletion
+            self.image_handler.delete_current_image()
 
     def undo_last_action(self):
         with self.lock:
@@ -113,73 +84,63 @@ class ImageManager(QObject):
 
     def first_image(self):
         with self.lock:
-            self.data_service.set_current_index(0)
+            self.image_handler.set_first_image()
         self.load_image()
 
     def last_image(self):
         with self.lock:
-            # Set the current index to the last image
-            self.data_service.set_current_index(len(self.data_service.get_image_list()) - 1)
+            self.image_handler.last_image()
+        self.load_image()
+
+    def next_image(self):
+        """Delegate to ImageHandler to move to the next image."""
+        with self.lock:
+            self.image_handler.set_next_image()  # Delegate logic
+        self.load_image()
+
+    def previous_image(self):
+        """Delegate to ImageHandler to move to the previous image."""
+        with self.lock:
+            self.image_handler.set_previous_image()  # Delegate logic
         self.load_image()
 
     def random_image(self):
-        """Display a random image without repeating until all images have been shown."""
+        """Delegate to ImageHandler to select a random image."""
         with self.lock:
-            if not self.shuffled_indices:
-                self.shuffled_indices = list(range(len(self.data_service.get_image_list())))
-                random.shuffle(self.shuffled_indices)
-                logger.info("[ImageManager] All images have been shown. Reshuffling the list.")
-
-            next_index = self.shuffled_indices.pop(0)
-            self.data_service.set_current_index(next_index)
-
+            self.image_handler.set_random_image()  # Delegate logic
         self.load_image()
-
-        logger.info(
-            f"[ImageManager] Displaying random image at index {self.data_service.get_current_index()}: {self.data_service.get_current_image_path()}")
 
     def load_image(self, index=None):
         with self.lock:
-            if index:
-                self.data_service.set_current_index(index)
-            elif not isinstance(self.data_service.get_current_index(), int):
-                self.data_service.set_current_index(0)
+            image_path = self.image_handler.set_current_image_by_index(index)
 
-            image_path = self.data_service.get_current_image_path()
             if image_path:
-                # if self.data_service.get_current_image_path() == image_path:
-                #    return
                 self.thread_manager.submit_task(self._load_image_task, image_path)
             else:
                 self.image_cleared.emit()
 
     def _load_image_task(self, image_path):
         """Task to load image asynchronously."""
-        pixmap = self.data_service.cache_manager.retrieve_pixmap(image_path)
-        if pixmap:
-            with self.lock:
-                self.data_service.set_current_image_path(image_path)
+        # Delegate the actual image loading to ImageHandler
+        pixmap = self.image_handler.load_image_from_cache(image_path)
+
+        with self.lock:
+            if pixmap:
+                # Emit the image_loaded signal after successfully loading the pixmap
                 self.image_loaded.emit(image_path, pixmap)
                 self.current_pixmap = pixmap
-        else:
-            with self.lock:
+
+                # Delegate prefetching to ImageHandler if it's not refreshing
+                self.image_handler.prefetch_images_if_needed()
+            else:
+                # Emit signal to clear the image if pixmap is not found
                 self.image_cleared.emit()
+
         self.is_loading.clear()
 
-    def prefetch_images(self):
-        """Prefetch images around the current index asynchronously using ThreadManager."""
-        self.thread_manager.submit_task(self._prefetch_images_task)
+    def prefetch_images(self, depth=3, max_prefetch=10):
+        """Prefetch images around the current index and also prefetch random images."""
+        self.thread_manager.submit_task(self._prefetch_images_task, depth, max_prefetch)
 
-    def _prefetch_images_task(self):
-        """Task to prefetch images around the current index."""
-        total_images = len(self.data_service.get_image_list())
-        if total_images == 0:
-            return
-
-        prefetch_indices = [(self.data_service.get_current_index() + i) % total_images for i in range(1, 4)]
-        prefetch_indices += [(self.data_service.get_current_index() - i) % total_images for i in range(1, 4)]
-
-        for index in prefetch_indices:
-            image_path = self.data_service.get_image_path(index)
-            if image_path and not self.data_service.cache_manager.retrieve_pixmap(image_path):
-                self._load_image_task(image_path)
+    def _prefetch_images_task(self, depth=3, max_prefetch=10):
+        self.image_handler.prefetch_images(depth, max_prefetch)
