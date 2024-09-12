@@ -5,12 +5,12 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtWidgets import QWidget, QSplitter, QLabel
 
 from core import config, logger
-from core.data_service import ImageDataService
+from image_processing.data_management.data_service import ImageDataService
 from core.thread_manager import ThreadManager
 from gui.image_display import ImageDisplay
 from gui.main_window import ImageSorterGUI
 from gui.status_bar_manager import ImageSorterStatusBarManager
-from image_processing.cache_manager import CacheManager
+from image_processing.data_management.cache_manager import CacheManager
 from image_processing.image_handler import ImageHandler
 from image_processing.image_manager import ImageManager
 
@@ -30,7 +30,7 @@ def log_widget_hierarchy(widget, level=0, visited=None):
     widget_id = id(widget)
 
     if widget_id in visited:
-        return  # Skip already logged widgets
+        return  
 
     visited.add(widget_id)
 
@@ -40,14 +40,14 @@ def log_widget_hierarchy(widget, level=0, visited=None):
     size_policy = widget.sizePolicy()
     size_hint = widget.sizeHint()
 
-    # Log the widget with its Python object ID
+    
     logger.debug(f"{indent}Widget: {widget.objectName() or 'Unnamed'}, Type: {type(widget).__name__}, "
                  f"Width: {width}px, Height: {height}px, ID: {hex(widget_id)}")
     logger.debug(f"{indent}    SizePolicy: Horizontal: {size_policy.horizontalPolicy()}, "
                  f"Vertical: {size_policy.verticalPolicy()}")
     logger.debug(f"{indent}    SizeHint: {size_hint.width()}px x {size_hint.height()}px")
 
-    # Log margins if available
+    
     if hasattr(widget, 'getContentsMargins'):
         left_margin, top_margin, right_margin, bottom_margin = widget.getContentsMargins()
         logger.debug(f"{indent}    Margins: Left: {left_margin}px, Right: {right_margin}px, "
@@ -55,7 +55,7 @@ def log_widget_hierarchy(widget, level=0, visited=None):
     else:
         logger.debug(f"{indent}    Margins: Not available for {type(widget).__name__}")
 
-    # Log padding if available (example method, assuming there is a method to get padding)
+    
     if hasattr(widget, 'getContentsPadding'):
         left_padding, top_padding, right_padding, bottom_padding = widget.getContentsPadding()
         logger.debug(f"{indent}    Padding: Left: {left_padding}px, Right: {right_padding}px, "
@@ -63,17 +63,17 @@ def log_widget_hierarchy(widget, level=0, visited=None):
     else:
         logger.debug(f"{indent}    Padding: Not available for {type(widget).__name__}")
 
-    # Check for alignment
+    
     if isinstance(widget, QLabel) or hasattr(widget, 'alignment'):
         alignment = widget.alignment()
         alignment_str = alignment_to_string(alignment)
         logger.debug(f"{indent}    Alignment: {alignment_str}")
 
-    # Log text if widget is a QLabel
+    
     if isinstance(widget, QLabel):
         logger.debug(f"{indent}    Text: {widget.text()}")
 
-    # Check for layout information
+    
     if widget.layout() is not None:
         layout = widget.layout()
         margins = layout.contentsMargins()
@@ -81,12 +81,12 @@ def log_widget_hierarchy(widget, level=0, visited=None):
                      f"ContentsMargins: Left: {margins.left()}px, Right: {margins.right()}px, "
                      f"Top: {margins.top()}px, Bottom: {margins.bottom()}px")
 
-    # Check for splitters
+    
     if isinstance(widget, QSplitter):
         orientation = "Horizontal" if widget.orientation() == Qt.Orientation.Horizontal else "Vertical"
         logger.debug(f"{indent}    Splitter Orientation: {orientation}")
 
-    # Recursively log child widgets
+    
     for child in widget.findChildren(QWidget):
         log_widget_hierarchy(child, level + 1, visited)
 
@@ -125,7 +125,7 @@ def main():
     cache_manager = CacheManager(config.cache_dir, thread_manager, image_directories=config.start_dirs)
     data_service.set_cache_manager(cache_manager)
     image_handler = ImageHandler(thread_manager, data_service)
-    image_manager = ImageManager(image_handler, thread_manager, data_service)
+    image_manager = ImageManager(image_handler, thread_manager)
 
     image_display = ImageDisplay()
     sorter_gui = ImageSorterGUI(image_display=image_display, image_manager=image_manager, data_service=data_service)

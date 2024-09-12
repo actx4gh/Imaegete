@@ -15,7 +15,7 @@ def test_load_image(image_handler, test_jpg):
     handler.image_list = handler.get_image_list()
     image = handler.load_image(0)
     assert image is not None
-    image.close()  # Ensure the image is closed after loading
+    image.close()  
 
 def test_move_file(image_handler):
     handler = image_handler

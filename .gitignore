@@ -1,7 +1,7 @@
-# Ignore PyCharm project settings
+
 .idea/
 
-# Ignore Python cache files
+
 __pycache__/
 tests/__pycache__/
 

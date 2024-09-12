@@ -7,7 +7,7 @@ class ImageSorterError(Exception):
         self.context = context or self._get_context()
 
     def _get_context(self):
-        # Capture the traceback to identify where the exception was raised
+        
         return traceback.format_stack()
 
     def log(self, logger=None):

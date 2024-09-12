@@ -44,7 +44,7 @@ def gui():
                 yield gui_instance, log_file_path
                 root.destroy()
 
-        # Ensure the log file handlers are properly closed before removal
+        
         logger = logging.getLogger('image_sorter')
         for handler in logger.handlers:
             handler.close()

@@ -7,13 +7,13 @@ import yaml
 
 APP_NAME = 'ImageSorter'
 
-CACHE_LIMIT_KB = 204800  # 200 MB in KB
-RESIZE_TIMER_INTERVAL = 300  # Timer interval in milliseconds
+CACHE_LIMIT_KB = 204800  
+RESIZE_TIMER_INTERVAL = 300  
 LOGGER_NAME = 'image_sorter'
 LOG_FILE_NAME = f'{LOGGER_NAME}.log'
 WINDOW_TITLE_SUFFIX = 'Image Sorter'
 
-# key binds
+
 NEXT_KEY = 'Right'
 PREV_KEY = 'Left'
 FIRST_KEY = 'Home'
@@ -23,13 +23,13 @@ DELETE_KEY = 'Delete'
 UNDO_KEY = 'U'
 FULLSCREEN_KEY = 'F'
 
-# Maximum number of images in cache
+
 IMAGE_CACHE_MAX_SIZE = 1024
 
 
 class Config:
     def __init__(self):
-        self.platform_name = platform.system()  # Added platform_name attribute
+        self.platform_name = platform.system()  
         self._default_config_dir = self._get_default_config_dir()
         self._config = self._initialize_configuration()
 
@@ -62,13 +62,13 @@ class Config:
         return parser.parse_args(args)
 
     def _get_default_config_dir(self):
-        system = self.platform_name  # Use the platform_name attribute
+        system = self.platform_name  
 
-        if system == 'Darwin':  # macOS
+        if system == 'Darwin':  
             config_dir = os.path.expanduser(f"~/Library/Application Support/{APP_NAME}")
-        elif system == 'Linux' or 'CYGWIN' in system:  # Linux and Cygwin
+        elif system == 'Linux' or 'CYGWIN' in system:  
             config_dir = os.path.expanduser(f"~/.config/{APP_NAME}")
-        elif system == 'Windows':  # Windows
+        elif system == 'Windows':  
             config_dir = os.path.join(os.getenv('LOCALAPPDATA'), APP_NAME)
         else:
             raise RuntimeError(f"Unsupported OS: {system}")
@@ -82,9 +82,9 @@ class Config:
     def _initialize_configuration(self):
         args = self._parse_args()
 
-        # Resolve the config directory first
+        
         config_dir = self._ensure_windows_path(args.config_dir)
-        # Start with defaults from the command-line arguments
+        
         config = {
             'categories': args.categories,
             'log_level': args.log_level,
@@ -94,21 +94,21 @@ class Config:
             'cache_dir': self._ensure_windows_path(args.cache_dir) if args.cache_dir else os.path.join(config_dir,
                                                                                                        'cache'),
             'sort_dir': self._ensure_windows_path(args.sort_dir) if args.sort_dir else None,
-            'start_dirs': [self._ensure_windows_path(args.start_dirs)]  # Set default start_dirs from args
+            'start_dirs': [self._ensure_windows_path(args.start_dirs)]  
         }
 
-        # Load configuration from the YAML file if provided
+        
         if args.config:
             file_config = self._read_config_file(args.config)
-            # Update config with values from the file if they are not None
+            
             config.update({k: v for k, v in file_config.items() if v is not None})
 
-        # Convert start_dirs to a list of paths
+        
         if isinstance(config['start_dirs'], str):
-            # Convert single start_dir string into a list
+            
             config['start_dirs'] = [self._ensure_windows_path(config['start_dirs'])]
         elif isinstance(config['start_dirs'], list):
-            # Convert each start_dir in the list
+            
             config['start_dirs'] = [self._ensure_windows_path(d.strip()) for d in config['start_dirs']]
 
         config['dest_folders'] = {}
@@ -117,13 +117,13 @@ class Config:
         for start_dir in config['start_dirs']:
             sort_dir = config['sort_dir'] if config['sort_dir'] else start_dir
 
-            # Initialize nested dictionaries for each start_dir
+            
             config['dest_folders'][start_dir] = {}
 
             for category in config['categories']:
                 category_path = self._ensure_windows_path(os.path.join(sort_dir, category))
 
-                # Correctly map category to path specific to each start_dir
+                
                 config['dest_folders'][start_dir][category] = category_path
 
             delete_path = self._ensure_windows_path(os.path.join(sort_dir, 'deleted'))
@@ -137,10 +137,10 @@ class Config:
         raise AttributeError(f"'Config' object has no attribute '{name}'")
 
 
-# Singleton instance of the configuration
+
 config_instance = Config()
 
-# Expose attributes at the module level
+
 categories = config_instance.categories
 dest_folders = config_instance.dest_folders
 delete_folders = config_instance.delete_folders
@@ -151,4 +151,4 @@ log_dir = config_instance.log_dir
 cache_dir = config_instance.cache_dir
 config_dir = config_instance.config_dir
 start_dirs = config_instance.start_dirs
-platform_name = config_instance.platform_name  # Expose platform_name at module level
+platform_name = config_instance.platform_name  

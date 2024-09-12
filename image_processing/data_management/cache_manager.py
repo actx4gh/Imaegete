@@ -17,7 +17,7 @@ class CacheManager:
                  stability_check_retries=3):
         """Initialize CacheManager with cache directory and ThreadManager."""
         self.debounce_interval = debounce_interval
-        self.stability_check_interval = stability_check_interval  # Time between stability checks
+        self.stability_check_interval = stability_check_interval  
         self.stability_check_retries = stability_check_retries
         self.cache_dir = cache_dir
         self.thread_manager = thread_manager
@@ -25,7 +25,7 @@ class CacheManager:
         self.max_size = max_size
         self.metadata_cache = OrderedDict()
         self.metadata_manager = MetadataManager(self.cache_dir, self.thread_manager)
-        QPixmapCache.setCacheLimit(self.max_size * 1024)  # Convert MB to KB for QPixmapCache
+        QPixmapCache.setCacheLimit(self.max_size * 1024)  
         self._setup_cache_directory()
         self.initialize_watchdog()
         self.debounce_tasks = {}
@@ -48,19 +48,19 @@ class CacheManager:
         if not pixmap.isNull():
             QPixmapCache.insert(image_path, pixmap)
 
-            # Get file size and last modified date
+            
             file_size = os.path.getsize(image_path)
             last_modified = os.path.getmtime(image_path)
 
             metadata = {
                 'size': pixmap.size(),
                 'cache_key': pixmap.cacheKey(),
-                'file_size': file_size,  # Cache file size
-                'last_modified': last_modified  # Cache modification date
+                'file_size': file_size,  
+                'last_modified': last_modified  
             }
             self.metadata_manager.save_metadata(image_path, metadata)
 
-            # Also cache metadata in memory
+            
             self.metadata_cache[image_path] = metadata
 
     def find_pixmap(self, image_path):
@@ -79,12 +79,12 @@ class CacheManager:
 
         def debounced_task():
             if self.debounce_tasks.get(image_path):
-                del self.debounce_tasks[image_path]  # Remove the scheduled task once executed
+                del self.debounce_tasks[image_path]  
             self.refresh_cache(image_path)
 
-        # Use a debouncing mechanism
+        
         if image_path not in self.debounce_tasks:
-            # Schedule the task for a future time
+            
             future_task = self.thread_manager.submit_task(debounced_task)
             self.debounce_tasks[image_path] = future_task
 
@@ -106,7 +106,7 @@ class CacheManager:
     def restart_watchdog(self):
         """Restart the watchdog observer in case of failure."""
         logger.warning("[CacheManager] Watchdog observer crashed. Restarting...")
-        self.shutdown_watchdog()  # Ensure previous instance is stopped
+        self.shutdown_watchdog()  
         self.initialize_watchdog()
 
     def shutdown_watchdog(self):
@@ -125,12 +125,12 @@ class CacheManager:
         self.watchdog_observer.start()
         logger.info(f"[CacheManager] Watchdog started, monitoring directory: {self.cache_dir}")
 
-        # Monitor watchdog and restart if needed
+        
         self.thread_manager.submit_task(self._monitor_watchdog)
 
     def _monitor_watchdog(self):
         """Monitor the watchdog observer and restart if it crashes."""
-        while not self.thread_manager.is_shutting_down:  # Respect the shutdown flag
+        while not self.thread_manager.is_shutting_down:  
             if not self.watchdog_observer.is_alive():
                 self.restart_watchdog()
             time.sleep(self.stability_check_interval)
@@ -138,7 +138,7 @@ class CacheManager:
     def shutdown(self):
         """Gracefully shutdown the watchdog observer and remaining cache operations."""
         logger.info("[CacheManager] Initiating shutdown.")
-        self.shutdown_watchdog()  # Call the new method to stop the watchdog
+        self.shutdown_watchdog()  
         self.metadata_manager.shutdown()
 
     def _setup_cache_directory(self):
@@ -154,14 +154,14 @@ class CacheManager:
 
     def monitor_cache_size(self):
         """Monitor cache size and trigger cleanup if necessary."""
-        current_cache_usage = QPixmapCache.cacheLimit() / 1024  # Convert KB to MB
+        current_cache_usage = QPixmapCache.cacheLimit() / 1024  
         if current_cache_usage > self.max_size:
             logger.info("[CacheManager] Cache size exceeded. Cleaning up...")
             self.cleanup_cache()
 
     def cleanup_cache(self):
         """Perform cleanup of the cache."""
-        QPixmapCache.clear()  # This clears the entire cache
+        QPixmapCache.clear()  
         logger.info("[CacheManager] Cache cleaned up.")
 
     def _start_cache_monitor(self):
@@ -171,21 +171,21 @@ class CacheManager:
     def _monitor_task(self):
         """Background task to monitor cache size."""
         while True:
-            time.sleep(self.stability_check_interval)  # Adjust interval as needed
+            time.sleep(self.stability_check_interval)  
             self.monitor_cache_size()
 
     def get_metadata(self, image_path):
         """Retrieve metadata from cache or load from disk if not cached."""
         if image_path in self.metadata_cache:
-            self.metadata_cache.move_to_end(image_path)  # Mark as recently used
+            self.metadata_cache.move_to_end(image_path)  
             return self.metadata_cache[image_path]
 
-        # If not in memory, load from disk
+        
         metadata = self.metadata_manager.load_metadata(image_path)
         if metadata:
-            self.metadata_cache[image_path] = metadata  # Cache it in memory
+            self.metadata_cache[image_path] = metadata  
             if len(self.metadata_cache) > self.max_size:
-                self.metadata_cache.popitem(last=False)  # Evict oldest entry
+                self.metadata_cache.popitem(last=False)  
         return metadata
 
 
@@ -201,7 +201,7 @@ class MetadataManager:
             cache_path = self.get_cache_path(image_path)
             current_metadata = self.load_metadata(image_path)
 
-            # Only save if the metadata has changed
+            
             if current_metadata != metadata:
                 with self.lock.write_lock():
                     with open(cache_path, 'wb') as f:

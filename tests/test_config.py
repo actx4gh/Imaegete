@@ -5,12 +5,12 @@ from core.config import is_cygwin, parse_args, read_config_file, get_configurati
 
 
 def test_is_cygwin():
-    # Test cygwin
+    
     os.environ['OSTYPE'] = 'cygwin'
     result = is_cygwin()
     assert result == True
 
-    # Test linux
+    
     os.environ['OSTYPE'] = 'linux'
     result = is_cygwin()
     assert result == False
