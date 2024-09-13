@@ -115,7 +115,7 @@ def alignment_to_string(alignment):
 
 
 def main():
-    logger.debug("[Main] Starting application.")
+    logger.info("[Main] Starting application.")
     app = QApplication(sys.argv)
 
     thread_manager = ThreadManager()
@@ -137,7 +137,6 @@ def main():
         thread_manager.shutdown()
 
     app.aboutToQuit.connect(on_exit)
-    logger.info("[Main] Application starting")
     sys.exit(app.exec())
 
 

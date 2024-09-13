@@ -71,7 +71,7 @@ class CacheManager(QObject):
             if not success:
                 logger.error(f"[CacheManager] Failed to insert pixmap for {image_path} into QPixmapCache.")
             else:
-                logger.info(f"[CacheManager] Pixmap inserted into cache for {image_path}.")
+                logger.debug(f"[CacheManager] Pixmap inserted into cache for {image_path}.")
 
             # Also save metadata
             file_size = os.path.getsize(image_path)
@@ -91,12 +91,9 @@ class CacheManager(QObject):
 
     def _load_pixmap_from_disk(self, image_path):
         """Load pixmap from disk synchronously on the main thread."""
-        #if QThread.currentThread() != QCoreApplication.instance().thread():
-        #    logger.error(f"_load_pixmap_from_disk called from a background thread for {image_path}")
-        #    return None
         pixmap = QPixmap(image_path)
         if not pixmap.isNull():
-            logger.debug(f"Loaded pixmap size: {pixmap.size()}, Image path: {image_path}")
+            logger.debug(f"[CacheManager] Loaded pixmap size: {pixmap.size()}, Image path: {image_path}")
             return pixmap
         else:
             return None
@@ -110,7 +107,7 @@ class CacheManager(QObject):
             pixmap = self._load_pixmap_from_disk(image_path)
             if pixmap:
                 self._schedule_cache_pixmap(image_path, pixmap)
-                logger.info(f"[CacheManager] Loaded pixmap from disk and scheduled caching: {image_path}")
+                logger.debug(f"[CacheManager] Loaded pixmap from disk and scheduled caching: {image_path}")
         return pixmap
 
     def find_pixmap(self, image_path):
@@ -244,7 +241,7 @@ class MetadataManager:
                 with self.lock.write_lock():
                     with open(cache_path, 'wb') as f:
                         pickle.dump(metadata, f)
-                logger.info(f"[MetadataManager] Metadata saved for {image_path}.")
+                logger.debug(f"[MetadataManager] Metadata saved for {image_path}.")
 
         self.thread_manager.submit_task(async_save)
 

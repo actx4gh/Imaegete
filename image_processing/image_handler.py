@@ -255,13 +255,13 @@ class ImageHandler:
             logger.info("[ImageHandler] Shutdown initiated, not starting new refresh task.")
             return
 
-        logger.info("[ImageHandler] Submitting refresh image list task.")
+        logger.debug("[ImageHandler] Submitting refresh image list task.")
 
         start_time = time.time()
         self.thread_manager.submit_task(self._refresh_image_list_task, signal, shutdown_event)
         end_time = time.time()
         elapsed_time = end_time - start_time
-        logger.info(f"[ImageHandler] Time taken to submit the image list refresh task: {elapsed_time:.4f} seconds")
+        logger.debug(f"[ImageHandler] Time taken to submit the image list refresh task: {elapsed_time:.4f} seconds")
 
     def _refresh_image_list_task(self, signal=None, shutdown_event=None):
         """Task to refresh the image list with respect to shutdown events and log the time taken."""
