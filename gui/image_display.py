@@ -64,7 +64,7 @@ class ImageDisplay(QObject):
         else:
             main.toggle_fullscreen_layout()
             main.showFullScreen()
-        
+
         self.image_label.resize(main.size())  
         self.update_image_label()
         self.is_fullscreen = not self.is_fullscreen

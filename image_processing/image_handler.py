@@ -1,6 +1,7 @@
 import os
 import random
 import time
+import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import RLock, Event
 
@@ -17,7 +18,7 @@ class ImageHandler:
     def __init__(self, thread_manager, data_service):
         self.thread_manager = thread_manager
         self.event_bus = create_or_get_shared_event_bus()
-        self.data_service = data_service  
+        self.data_service = data_service
         self.dest_folders = config.dest_folders
         self.delete_folders = config.delete_folders
         self.start_dirs = config.start_dirs
@@ -27,19 +28,19 @@ class ImageHandler:
 
         self.lock = RLock()
         self.is_refreshing = Event()
-        
-        self.data_service.set_image_list([])  
+
+        self.data_service.set_image_list([])
 
     def add_image_to_list(self, image_path, index=None):
         """Add a new image to the image list at the specified index or at the end."""
-        image_list = self.data_service.get_image_list()  
+        image_list = self.data_service.get_image_list()
         if self.is_image_file(image_path) and image_path not in image_list:
             with self.lock:
                 if index is not None:
                     image_list.insert(index, image_path)
                 else:
                     image_list.append(image_path)
-            self.data_service.set_image_list(image_list)  
+            self.data_service.set_image_list(image_list)
 
     def remove_image_from_list(self, image_path):
         """Remove an image from the image list."""
@@ -82,22 +83,20 @@ class ImageHandler:
     def set_current_image_by_index(self, index=None):
         """Set the current image index and return the current image path."""
         with self.lock:
-            
+
             if index is not None:
                 self.data_service.set_current_index(index)
             elif not isinstance(self.data_service.get_current_index(), int):
-                
+
                 self.data_service.set_current_index(0)
 
-            
             image_path = self.data_service.get_current_image_path()
 
-            
             if image_path:
                 self.data_service.set_current_image_path(image_path)
                 return image_path
 
-            return None  
+            return None
 
     def set_random_image(self):
         """Set the index to a random image, avoiding repeats until all have been shown."""
@@ -109,7 +108,6 @@ class ImageHandler:
                     random.shuffle(self.shuffled_indices)
                     logger.info("[ImageHandler] All images shown, reshuffling the list.")
 
-                
                 random_index = self.shuffled_indices.pop(0)
                 self.set_current_image_by_index(random_index)
 
@@ -131,34 +129,39 @@ class ImageHandler:
         logger.debug(
             f"[ImageManager] Starting prefetch of indexes {list(behind)} and {list(ahead)} from index {self.data_service.get_current_index()} with a total of {total_images} images")
 
-        
         prefetch_indices = [item for pair in zip(ahead, behind) for item in pair]
 
-        
         if len(prefetch_indices) > max_prefetch:
             prefetch_indices = prefetch_indices[:max_prefetch]
             logger.warn(f"[ImageManager] Reduced number of prefetch items to max_prefetch {max_prefetch}")
 
-        
         for index in prefetch_indices:
             image_path = self.data_service.get_image_path(index)
             if image_path:
-                pixmap = self.data_service.cache_manager.retrieve_pixmap(image_path)
-                metadata = self.data_service.cache_manager.get_metadata(image_path)
+                pixmap = self.data_service.cache_manager.find_pixmap(image_path)
+                if pixmap:
+                    logger.debug(f"[ImageManager] Skipping already cached image: {image_path}")
+                else:
+                    logger.info(f"[ImageManager] Prefetching uncached image: {image_path}")
+                    self.data_service.cache_manager.retrieve_pixmap(image_path)
+                    self.data_service.cache_manager.get_metadata(image_path)
 
-        
-        random_indices = random.sample(range(total_images), min(depth, total_images))
-        logger.debug(f"[ImageManager] Prefetching {depth} random images with indices {random_indices}")
-
-        for index in random_indices:
-            image_path = self.data_service.get_image_path(index)
-            if image_path:
-                pixmap = self.data_service.cache_manager.retrieve_pixmap(image_path)
-                metadata = self.data_service.cache_manager.get_metadata(image_path)
+    #        random_indices = random.sample(range(total_images), min(depth, total_images))
+    #        logger.debug(f"[ImageManager] Prefetching {depth} random images with indices {random_indices}")
+    #
+    #        for index in random_indices:
+    #            image_path = self.data_service.get_image_path(index)
+    #            if image_path:
+    #                pixmap = self.data_service.cache_manager.retrieve_pixmap(image_path)
+    #                metadata = self.data_service.cache_manager.get_metadata(image_path)
 
     def load_image_from_cache(self, image_path):
-        """Retrieve the image pixmap from the cache."""
-        return self.data_service.cache_manager.retrieve_pixmap(image_path)
+        """Retrieve the image pixmap from the cache and ensure insertion on the main thread."""
+        logger.debug(f"Call stack for image_handler.load_image_from_cache {traceback.format_stack()}")
+
+        logger.debug(f"Loading image from cache or disk: {image_path}")
+        pixmap = self.data_service.cache_manager.retrieve_pixmap(image_path)
+        return pixmap
 
     def prefetch_images_if_needed(self):
         """Check if prefetching is needed and perform prefetching."""
@@ -254,9 +257,9 @@ class ImageHandler:
 
         logger.info("[ImageHandler] Submitting refresh image list task.")
 
-        start_time = time.time()  
+        start_time = time.time()
         self.thread_manager.submit_task(self._refresh_image_list_task, signal, shutdown_event)
-        end_time = time.time()  
+        end_time = time.time()
         elapsed_time = end_time - start_time
         logger.info(f"[ImageHandler] Time taken to submit the image list refresh task: {elapsed_time:.4f} seconds")
 
@@ -266,9 +269,9 @@ class ImageHandler:
 
         all_dirs = os_sorted(self.start_dirs)
 
-        start_time = time.time()  
+        start_time = time.time()
         with self.lock:
-            self.data_service.set_image_list([])  
+            self.data_service.set_image_list([])
 
         def process_files_in_directory(directory):
             return self._process_files_in_directory(directory, shutdown_event, signal)
@@ -282,10 +285,10 @@ class ImageHandler:
                         image_files = future.result()
                         if image_files:
                             with self.lock:
-                                image_list = self.data_service.get_image_list()  
+                                image_list = self.data_service.get_image_list()
                                 image_list.extend(image_files)
                                 self.data_service.set_image_list(
-                                    image_list)  
+                                    image_list)
                     except Exception as e:
                         logger.error(f"[ImageHandler] Error during image list refresh: {e}")
 
@@ -294,7 +297,7 @@ class ImageHandler:
 
         self.is_refreshing.clear()
         signal.emit()
-        end_time = time.time()  
+        end_time = time.time()
         elapsed_time = end_time - start_time
         logger.info(f"[ImageHandler] Time taken to refresh image list: {elapsed_time:.4f} seconds")
 
@@ -317,9 +320,9 @@ class ImageHandler:
 
                 if len(local_files) >= batch_size:
                     with self.lock:
-                        image_list = self.data_service.get_image_list()  
+                        image_list = self.data_service.get_image_list()
                         image_list.extend(local_files)
-                        self.data_service.set_image_list(image_list)  
+                        self.data_service.set_image_list(image_list)
                     local_files = []
 
                 if shutdown_event.is_set():

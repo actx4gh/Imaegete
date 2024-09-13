@@ -1,6 +1,7 @@
 from threading import RLock, Event
+import traceback
 
-from PyQt6.QtCore import pyqtSignal, QObject, Qt
+from PyQt6.QtCore import pyqtSignal, QObject, Qt, QCoreApplication, QTimer
 
 from core import logger
 from glavnaqt.core.event_bus import create_or_get_shared_event_bus
@@ -20,7 +21,6 @@ class ImageManager(QObject):
         self.is_loading = Event()
         self.shuffled_indices = []
 
-        
         self.event_bus = create_or_get_shared_event_bus()
 
         self.image_list_updated.connect(self.on_image_list_updated, Qt.ConnectionType.BlockingQueuedConnection)
@@ -58,12 +58,12 @@ class ImageManager(QObject):
             self.image_handler.set_first_image()
             self.load_image()
         else:
-            
+
             self.image_handler.update_image_total()
 
         if not self.image_handler.is_refreshing.is_set():
             self.event_bus.emit('hide_busy')
-            self.prefetch_images()
+            self.image_handler.prefetch_images_if_needed()
 
     def move_image(self, category):
         with self.lock:
@@ -89,58 +89,55 @@ class ImageManager(QObject):
 
     def last_image(self):
         with self.lock:
-            self.image_handler.last_image()
+            self.image_handler.set_last_image()
         self.load_image()
 
     def next_image(self):
         """Delegate to ImageHandler to move to the next image."""
         with self.lock:
-            self.image_handler.set_next_image()  
+            self.image_handler.set_next_image()
         self.load_image()
 
     def previous_image(self):
         """Delegate to ImageHandler to move to the previous image."""
         with self.lock:
-            self.image_handler.set_previous_image()  
+            self.image_handler.set_previous_image()
         self.load_image()
 
     def random_image(self):
         """Delegate to ImageHandler to select a random image."""
         with self.lock:
-            self.image_handler.set_random_image()  
+            self.image_handler.set_random_image()
         self.load_image()
 
     def load_image(self, index=None):
+        logger.debug(f"Call stack for image_manager.load_image {traceback.format_stack()}")
         with self.lock:
             image_path = self.image_handler.set_current_image_by_index(index)
 
             if image_path:
-                self.thread_manager.submit_task(self._load_image_task, image_path)
+                #self.thread_manager.submit_task(self._load_image_task, image_path)
+                self._load_image_task(image_path)
             else:
                 self.image_cleared.emit()
 
     def _load_image_task(self, image_path):
         """Task to load image asynchronously."""
-        
+        logger.debug(f"Call stack for image_manager._load_image_task {traceback.format_stack()}")
+
         pixmap = self.image_handler.load_image_from_cache(image_path)
 
         with self.lock:
             if pixmap:
-                
+
                 self.image_loaded.emit(image_path, pixmap)
                 self.current_pixmap = pixmap
+                QCoreApplication.processEvents()
 
-                
-                self.image_handler.prefetch_images_if_needed()
+                # Start prefetching after the GUI is updated using a timer to delay it slightly
+                QTimer.singleShot(0, self.image_handler.prefetch_images_if_needed)
             else:
-                
+
                 self.image_cleared.emit()
 
         self.is_loading.clear()
-
-    def prefetch_images(self, depth=3, max_prefetch=10):
-        """Prefetch images around the current index and also prefetch random images."""
-        self.thread_manager.submit_task(self._prefetch_images_task, depth, max_prefetch)
-
-    def _prefetch_images_task(self, depth=3, max_prefetch=10):
-        self.image_handler.prefetch_images(depth, max_prefetch)
