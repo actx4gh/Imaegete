@@ -1,7 +1,7 @@
 import os
 import random
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from threading import RLock, Event
 
 import numpy as np
@@ -21,16 +21,20 @@ class ImageHandler:
         self.data_service = data_service
         self.dest_folders = config.dest_folders
         self.delete_folders = config.delete_folders
-        self.start_dirs = config.start_dirs
+        self._start_dirs = []
         self.shuffled_indices = []
-        self.data_service.set_current_index(0)
-        self.data_service.set_current_image_path(None)
 
         self.lock = RLock()
         self.is_refreshing = Event()
 
         self.data_service.set_image_list([])
         self.data_service.set_sorted_images([])
+
+    @property
+    def start_dirs(self):
+        if not self._start_dirs:
+            self._start_dirs = os_sorted(config.start_dirs)
+        return self._start_dirs
 
     def add_image_to_list(self, image_path, index=None):
         """Add a new image to the image list at the specified index or at the end."""
@@ -257,6 +261,7 @@ class ImageHandler:
             logger.info("[ImageHandler] Shutdown initiated, not starting new refresh task.")
             return
 
+        self.is_refreshing.set()
         logger.debug("[ImageHandler] Submitting refresh image list task.")
 
         start_time = time.time()
@@ -269,81 +274,104 @@ class ImageHandler:
         """Task to refresh the image list with respect to shutdown events and log the time taken."""
         logger.debug("[ImageHandler] Starting image list refresh.")
 
-        all_dirs = os_sorted(self.start_dirs)
-
         start_time = time.time()
         with self.lock:
             self.data_service.set_image_list([])
 
         def process_files_in_directory(directory):
-            return self._process_files_in_directory(directory, shutdown_event, signal)
+            processed_images = self._process_files_in_directory(directory, shutdown_event, signal)
+            if self.start_dirs.index(directory) == 0:
+                self.start_dirs.remove(directory)
+            return processed_images
 
         with ThreadPoolExecutor() as executor:
-            futures = {executor.submit(process_files_in_directory, d): d for d in all_dirs}
+            # Submit futures in the order of all_dirs
+            futures = [executor.submit(process_files_in_directory, d) for d in self.start_dirs]
 
             try:
-                for future in as_completed(futures):
+                # Iterate over futures in the same order
+                for future in futures:
                     try:
-                        image_files = future.result()
-                        if image_files:
-                            with self.lock:
-                                image_list = self.data_service.get_image_list()
-                                image_list.extend(image_files)
-                                self.data_service.set_image_list(
-                                    image_list)
+                        future.result()
                     except Exception as e:
                         logger.error(f"[ImageHandler] Error during image list refresh: {e}")
-
             finally:
                 executor.shutdown(wait=False)
 
-        self.is_refreshing.clear()
+        if self.is_refreshing.is_set():
+            self.is_refreshing.clear()
+        logger.info(
+            f"[ImageHandler] sending final emission with image list total {self.data_service.get_image_list_len()}")
+        import collections
+        print([item for item, count in collections.Counter(self.data_service.get_image_list()).items() if count > 1])
         signal.emit()
         end_time = time.time()
         elapsed_time = end_time - start_time
         logger.info(f"[ImageHandler] Time taken to refresh image list: {elapsed_time:.4f} seconds")
 
     def _process_files_in_directory(self, directory, shutdown_event, signal):
-        """Process image files in the directory and return the list of image paths."""
-        image_files = []
-        local_files = []
-        files_processed = 0
-        batch_size = 5
+        """Process image files in the directory with dynamic batch sizing and return the list of image paths."""
+        batch_images = []
+        initial_batch_size = 50  # Starting batch size
+        min_batch_size = 10
+        max_batch_size = 1000
+        batch_size = initial_batch_size
+        target_batch_time = 0.1  # Target time per batch in seconds
 
         for root, _, files in os.walk(directory):
-            for file in os_sorted(files):
-                if self.is_image_file(file):
-                    file_path = os.path.join(root, file)
-                    local_files.append(file_path)
-                    files_processed += 1
+            sorted_files = os_sorted(files)
+            i = 0
+            while i < len(sorted_files):
+                start_time = time.time()
+                batch_images.clear()
+                batch_count = 0
 
-                if files_processed % 100 == 0:
-                    batch_size = min(batch_size + 10, 100)
+                # Process files in the current batch
+                while batch_count < batch_size and i < len(sorted_files):
+                    file = sorted_files[i]
+                    i += 1
 
-                if len(local_files) >= batch_size:
+                    if self.is_image_file(file):
+                        file_path = os.path.join(root, file)
+                        batch_images.append(file_path)
+                        batch_count += 1  # Increment batch_count only when an image file is added
+                    else:
+                        continue
+
+                    if shutdown_event.is_set():
+                        logger.debug("[ImageHandler] Shutdown initiated, stopping after file processing.")
+                        return batch_images  # Return the images processed so far
+
+                # Update the data_service and emit signal if in start directory
+                if batch_images and self.start_dirs[0] in directory:
                     with self.lock:
                         image_list = self.data_service.get_image_list()
-                        image_list.extend(local_files)
-                        self.data_service.set_image_list(image_list)
-                    local_files = []
+                        if not image_list:
+                            self.data_service.set_image_list(batch_images.copy())
+                            self.data_service.set_current_index(0)
+                        else:
+                            image_list.extend(batch_images)
+                            self.data_service.set_image_list(image_list)
 
-                if shutdown_event.is_set():
-                    logger.debug("[ImageHandler] Shutdown initiated, stopping after file processing.")
-                    return image_files
+                    if signal:
+                        signal.emit()
 
-                if files_processed % batch_size == 0 and signal:
-                    signal.emit()
+                # Measure batch processing time
+                end_time = time.time()
+                batch_processing_time = end_time - start_time
 
-        if local_files:
-            with self.lock:
-                image_list = self.data_service.get_image_list()
-                image_list.extend(local_files)
-                self.data_service.set_image_list(image_list)
+                # Adjust batch size for next iteration
+                if batch_processing_time < target_batch_time and batch_size < max_batch_size:
+                    # Increase batch size
+                    batch_size = min(batch_size * 2, max_batch_size)
+                elif batch_processing_time > target_batch_time and batch_size > min_batch_size:
+                    # Decrease batch size
+                    batch_size = max(batch_size // 2, min_batch_size)
 
-        if signal:
-            signal.emit()
+                logger.debug(f"[ImageHandler] Batch size adjusted to: {batch_size}")
 
-        return image_files
+        # No need to update image_list at the end since it's already updated during batch processing
+        return batch_images  # Or return an appropriate value as needed
 
     def find_start_directory(self, image_path):
         """Find the start directory corresponding to the image path."""

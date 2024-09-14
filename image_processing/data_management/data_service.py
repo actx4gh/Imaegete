@@ -37,6 +37,9 @@ class ImageDataService:
     def append_sorted_images(self, sorted_tuple):
         self._sorted_images.append(sorted_tuple)
 
+    def get_image_list_len(self):
+        return len(self._image_list)
+
     def get_image_list(self):
         return self._image_list
 

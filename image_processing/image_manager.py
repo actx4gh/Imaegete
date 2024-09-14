@@ -11,7 +11,6 @@ class ImageManager(QObject):
     image_loaded = pyqtSignal(str, object)
     image_cleared = pyqtSignal()
     image_list_updated = pyqtSignal()
-    image_list_populated = pyqtSignal()
     image_data_loaded = pyqtSignal(str, object)
 
     def __init__(self, image_handler, thread_manager):
@@ -20,6 +19,7 @@ class ImageManager(QObject):
         self.thread_manager = thread_manager
         self.shutdown_event = Event()
         self.is_loading = Event()
+        self.is_loaded = Event()
         self.shuffled_indices = []
 
         self.event_bus = create_or_get_shared_event_bus()
@@ -66,20 +66,17 @@ class ImageManager(QObject):
         logger.info("[ImageManager] Shutdown complete.")
 
     def on_image_list_updated(self):
-        if not self.image_handler.has_current_image():
+        if not self.image_handler.is_refreshing.is_set():
+            self.event_bus.emit('hide_busy')
+            self.image_handler.prefetch_images_if_needed()
+        if not self.is_loaded.is_set():
             if self.is_loading.is_set():
                 return
             self.is_loading.set()
             logger.info(f'[ImageManager] No current image found, setting to first image')
-            self.image_handler.set_first_image()
             self.load_image()
         else:
-
             self.image_handler.update_image_total()
-
-        if not self.image_handler.is_refreshing.is_set():
-            self.event_bus.emit('hide_busy')
-            self.image_handler.prefetch_images_if_needed()
 
     def move_image(self, category):
         with self.lock:
@@ -155,6 +152,7 @@ class ImageManager(QObject):
             # Do not emit image_cleared here; wait for image_loaded signal
             pass
 
+        self.is_loaded.set()
         self.is_loading.clear()
 
     def on_image_data_loaded(self, image_path, image):
