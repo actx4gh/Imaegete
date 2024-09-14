@@ -1,16 +1,16 @@
 import os
 import tempfile
+
 import yaml
+
 from core.config import is_cygwin, parse_args, read_config_file, get_configuration, ensure_directories_exist
 
 
 def test_is_cygwin():
-    
     os.environ['OSTYPE'] = 'cygwin'
     result = is_cygwin()
     assert result == True
 
-    
     os.environ['OSTYPE'] = 'linux'
     result = is_cygwin()
     assert result == False
@@ -22,6 +22,7 @@ def test_parse_args(monkeypatch):
     assert args.config == 'config.yaml'
     assert args.categories == ['cat1', 'cat2']
     assert args.base_dir == '/tmp'
+
 
 def test_read_config_file():
     config_data = {
@@ -36,13 +37,16 @@ def test_read_config_file():
     assert config['categories'] == ['Category1', 'Category2']
     assert config['base_dir'] == '/tmp'
 
+
 def test_get_configuration(monkeypatch):
     def mock_parse_args(args=None):
         return type('Args', (object,), {'config': None, 'categories': ['TestCat'], 'base_dir': '.'})
+
     monkeypatch.setattr('config.parse_args', mock_parse_args)
     config = get_configuration()
     assert config['categories'] == ['TestCat']
     assert 'TestCat' in config['dest_folders']
+
 
 def test_ensure_directories_exist():
     with tempfile.TemporaryDirectory() as temp_dir:

@@ -4,8 +4,8 @@ import threading
 import time
 from collections import OrderedDict
 
-from PyQt6.QtCore import pyqtSignal, QObject, QThread, QCoreApplication
-from PyQt6.QtGui import QPixmapCache, QPixmap
+from PyQt6.QtCore import QObject, QCoreApplication, pyqtSignal
+from PyQt6.QtGui import QImage
 from fasteners import ReaderWriterLock
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
@@ -14,8 +14,7 @@ from core import logger
 
 
 class CacheManager(QObject):
-    cache_insert_signal = pyqtSignal(str, object)  # Signal for cache insertion
-    find_pixmap_signal = pyqtSignal(str)  # Signal for finding pixmap
+    image_loaded = pyqtSignal(str)
 
     def __init__(self, cache_dir, thread_manager, image_directories, max_size=500, debounce_interval=0.5,
                  stability_check_interval=1,
@@ -30,89 +29,78 @@ class CacheManager(QObject):
         self.max_size = max_size
         self.metadata_cache = OrderedDict()
         self.metadata_manager = MetadataManager(self.cache_dir, self.thread_manager)
-        QPixmapCache.setCacheLimit(self.max_size * 1024)
+        self.image_cache = OrderedDict()
+        self.currently_loading = set()
+        self.cache_lock = threading.Lock()
+        self.debounce_tasks = {}
+        self.moveToThread(QCoreApplication.instance().thread())
         self._setup_cache_directory()
         self.initialize_watchdog()
-        self.debounce_tasks = {}
-        self.cache_insert_signal.connect(self._cache_pixmap)
-        self.currently_caching = set()
-        self.cache_lock = threading.Lock()
-        self._pixmap_result_lock = threading.Lock()
-        self._pixmap_result_event = threading.Event()
-        self.moveToThread(QCoreApplication.instance().thread())
+        self.currently_active_requests = set()
 
-    def _schedule_cache_pixmap(self, image_path, pixmap):
-        """Emit signal to insert pixmap into cache on the main thread, but avoid duplicate caching."""
+    def retrieve_image(self, image_path, active_request=False):
+        """Retrieve image from cache or load from disk if not available."""
         with self.cache_lock:
-            if image_path in self.currently_caching:
-                logger.debug(f"Skipping cache insertion for {image_path}, already being cached.")
-                return
-
-            # Mark the image as currently being cached
-            self.currently_caching.add(image_path)
-
-        # Emit cache signal only if pixmap is valid and not already cached
-        if not pixmap.isNull() and not QPixmapCache.find(image_path):
-            logger.debug(f"Emitting cache insertion signal for {image_path}")
-            self.cache_insert_signal.emit(image_path, pixmap)
-        else:
-            logger.info(f"Pixmap for {image_path} is already cached, skipping cache insertion.")
-            # Safe to remove from currently_caching set here since cache insertion was skipped
-            with self.cache_lock:
-                self.currently_caching.discard(image_path)
-
-    def _cache_pixmap(self, image_path, pixmap):
-        """Insert pixmap into QPixmapCache on the main thread and log thread info."""
-        is_main_thread = QThread.currentThread() == QCoreApplication.instance().thread()
-
-        # Insert directly into cache if on main thread
-        if is_main_thread:
-            success = QPixmapCache.insert(image_path, pixmap)
-            if not success:
-                logger.error(f"[CacheManager] Failed to insert pixmap for {image_path} into QPixmapCache.")
+            image = self.image_cache.get(image_path)
+            if image:
+                logger.debug(f"[CacheManager] Image found in cache for {image_path}")
+                self.image_cache.move_to_end(image_path)
+                return image
+            elif image_path in self.currently_loading:
+                logger.debug(f"[CacheManager] Image is currently being loaded: {image_path}")
+                return None
             else:
-                logger.debug(f"[CacheManager] Pixmap inserted into cache for {image_path}.")
+                logger.debug(f"[CacheManager] Image not found in cache, loading from disk: {image_path}")
+                self.currently_loading.add(image_path)
+                if active_request:
+                    self.currently_active_requests.add(image_path)
+                self.thread_manager.submit_task(self._load_image_task, image_path)
+                return None
 
-            # Also save metadata
+    def _load_image_task(self, image_path):
+        """Load image from disk and insert into cache."""
+        image = QImage(image_path)
+        if not image.isNull():
+            logger.debug(f"[CacheManager] Loaded image from disk: {image_path}")
+            with self.cache_lock:
+                self.image_cache[image_path] = image
+                self.currently_loading.discard(image_path)
+                self.image_cache.move_to_end(image_path)
+                # Limit cache size
+                if len(self.image_cache) > self.max_size:
+                    removed_item = self.image_cache.popitem(last=False)
+                    logger.debug(f"[CacheManager] Cache size exceeded, removing oldest item: {removed_item[0]}")
             file_size = os.path.getsize(image_path)
             last_modified = os.path.getmtime(image_path)
             metadata = {
-                'size': pixmap.size(),
-                'cache_key': pixmap.cacheKey(),
+                'size': image.size(),
                 'file_size': file_size,
                 'last_modified': last_modified
             }
             self.metadata_manager.save_metadata(image_path, metadata)
             self.metadata_cache[image_path] = metadata
+            if image_path in self.currently_active_requests:
+                self.image_loaded.emit(image_path)
+                self.currently_active_requests.discard(image_path)
         else:
-            logger.debug(f"[CacheManager] Not in main thread, emitting signal to cache on the main thread.")
-            # Emit signal to ensure cache insertion happens on the main thread
-            self.cache_insert_signal.emit(image_path, pixmap)
+            logger.error(f"[CacheManager] Failed to load image from disk: {image_path}")
+            with self.cache_lock:
+                self.currently_loading.discard(image_path)
 
-    def _load_pixmap_from_disk(self, image_path):
-        """Load pixmap from disk synchronously on the main thread."""
-        pixmap = QPixmap(image_path)
-        if not pixmap.isNull():
-            logger.debug(f"[CacheManager] Loaded pixmap size: {pixmap.size()}, Image path: {image_path}")
-            return pixmap
+    def refresh_cache(self, image_path):
+        """Asynchronously refresh the cache for the given image."""
+        logger.info(f"[CacheManager] Refreshing cache for {image_path}")
+        if self.metadata_manager._file_is_ready(image_path):
+            self.thread_manager.submit_task(self._refresh_task, image_path)
         else:
-            return None
+            logger.warning(f"[CacheManager] Skipping cache refresh for {image_path} - file is not ready.")
 
-    def retrieve_pixmap(self, image_path):
-        """Retrieve pixmap from cache or load from disk if not available."""
-        pixmap = self.find_pixmap(image_path)
-        if pixmap:
-            logger.debug(f"[CacheManager] Pixmap found in cache for {image_path}")
-        else:
-            pixmap = self._load_pixmap_from_disk(image_path)
-            if pixmap:
-                self._schedule_cache_pixmap(image_path, pixmap)
-                logger.debug(f"[CacheManager] Loaded pixmap from disk and scheduled caching: {image_path}")
-        return pixmap
-
-    def find_pixmap(self, image_path):
-        """Check if the pixmap is in the QPixmapCache."""
-        return QPixmapCache.find(image_path)
+    def _refresh_task(self, image_path):
+        """Actual cache refresh task."""
+        with self.cache_lock:
+            self.image_cache.pop(image_path, None)
+            self.currently_loading.discard(image_path)
+        self._load_image_task(image_path)
 
     def _debounced_cache_refresh(self, image_path):
         """Submit the cache refresh task to the thread pool with a debouncing mechanism."""
@@ -126,20 +114,29 @@ class CacheManager(QObject):
             future_task = self.thread_manager.submit_task(debounced_task)
             self.debounce_tasks[image_path] = future_task
 
-    def refresh_cache(self, image_path):
-        """Asynchronously refresh the cache for the given image."""
-        logger.info(f"[CacheManager] Refreshing cache for {image_path}")
-        if self.metadata_manager._file_is_ready(image_path):
-            self.thread_manager.submit_task(self._refresh_task, image_path)
-        else:
-            logger.warning(f"[CacheManager] Skipping cache refresh for {image_path} - file is not ready.")
+    def shutdown(self):
+        """Gracefully shutdown the watchdog observer and remaining cache operations."""
+        logger.info("[CacheManager] Initiating shutdown.")
+        self.shutdown_watchdog()
+        self.metadata_manager.shutdown()
 
-    def _refresh_task(self, image_path):
-        """Actual cache refresh task."""
-        QPixmapCache.remove(image_path)
-        pixmap = self._load_pixmap_from_disk(image_path)
-        if pixmap:
-            self._cache_pixmap(image_path, pixmap)
+    def initialize_watchdog(self):
+        """Initialize the watchdog to monitor changes in the image directories."""
+        event_handler = CacheEventHandler(self)
+        self.watchdog_observer = Observer()
+        for directory in self.image_directories:
+            self.watchdog_observer.schedule(event_handler, directory, recursive=True)
+        self.watchdog_observer.start()
+        logger.info(f"[CacheManager] Watchdog started, monitoring directories: {self.image_directories}")
+
+        self.thread_manager.submit_task(self._monitor_watchdog)
+
+    def _monitor_watchdog(self):
+        """Monitor the watchdog observer and restart if it crashes."""
+        while not self.thread_manager.is_shutting_down:
+            if not self.watchdog_observer.is_alive():
+                self.restart_watchdog()
+            time.sleep(self.stability_check_interval)
 
     def restart_watchdog(self):
         """Restart the watchdog observer in case of failure."""
@@ -154,30 +151,6 @@ class CacheManager(QObject):
             self.watchdog_observer.join()
             logger.info("[CacheManager] Watchdog observer stopped.")
 
-    def initialize_watchdog(self):
-        """Initialize the watchdog to monitor changes in the cache directory."""
-        event_handler = CacheEventHandler(self)
-        self.watchdog_observer = Observer()
-        for directory in self.image_directories:
-            self.watchdog_observer.schedule(event_handler, directory, recursive=True)
-        self.watchdog_observer.start()
-        logger.info(f"[CacheManager] Watchdog started, monitoring directory: {self.cache_dir}")
-
-        self.thread_manager.submit_task(self._monitor_watchdog)
-
-    def _monitor_watchdog(self):
-        """Monitor the watchdog observer and restart if it crashes."""
-        while not self.thread_manager.is_shutting_down:
-            if not self.watchdog_observer.is_alive():
-                self.restart_watchdog()
-            time.sleep(self.stability_check_interval)
-
-    def shutdown(self):
-        """Gracefully shutdown the watchdog observer and remaining cache operations."""
-        logger.info("[CacheManager] Initiating shutdown.")
-        self.shutdown_watchdog()
-        self.metadata_manager.shutdown()
-
     def _setup_cache_directory(self):
         """Ensure the cache directory exists."""
         if not os.path.exists(self.cache_dir):
@@ -188,28 +161,6 @@ class CacheManager(QObject):
                 logger.error(f"[CacheManager] Failed to create cache directory: {e}")
         else:
             logger.info(f"[CacheManager] Cache directory already exists: {self.cache_dir}")
-
-    def monitor_cache_size(self):
-        """Monitor cache size and trigger cleanup if necessary."""
-        current_cache_usage = QPixmapCache.cacheLimit() / 1024
-        if current_cache_usage > self.max_size:
-            logger.info("[CacheManager] Cache size exceeded. Cleaning up...")
-            self.cleanup_cache()
-
-    def cleanup_cache(self):
-        """Perform cleanup of the cache."""
-        QPixmapCache.clear()
-        logger.info("[CacheManager] Cache cleaned up.")
-
-    def _start_cache_monitor(self):
-        """Start a background task to monitor the cache size."""
-        self.thread_manager.submit_task(self._monitor_task)
-
-    def _monitor_task(self):
-        """Background task to monitor cache size."""
-        while True:
-            time.sleep(self.stability_check_interval)
-            self.monitor_cache_size()
 
     def get_metadata(self, image_path):
         """Retrieve metadata from cache or load from disk if not cached."""
@@ -267,6 +218,12 @@ class MetadataManager:
         """Perform any necessary cleanup for MetadataManager."""
         logger.info("[MetadataManager] Shutting down MetadataManager.")
 
+    def _file_is_ready(self, image_path):
+        """Check if the file is ready for reading."""
+        # Implement a method to check if the file is stable (not being written to)
+        # For simplicity, we'll assume the file is always ready
+        return True
+
 
 class CacheEventHandler(FileSystemEventHandler):
     def __init__(self, cache_manager):
@@ -287,4 +244,8 @@ class CacheEventHandler(FileSystemEventHandler):
     def on_deleted(self, event):
         """Handle file deleted events."""
         if not event.is_directory:
-            self.cache_manager.refresh_cache(event.src_path)
+            with self.cache_manager.cache_lock:
+                self.cache_manager.image_cache.pop(event.src_path, None)
+                self.cache_manager.currently_loading.discard(event.src_path)
+                logger.info(f"[CacheManager] Removed deleted image from cache: {event.src_path}")
+            self.cache_manager.metadata_manager.save_metadata(event.src_path, None)

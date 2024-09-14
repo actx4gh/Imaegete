@@ -32,7 +32,7 @@ class ThreadManager:
             logger.info("[ThreadManager] Forcing cancellation of ongoing tasks.")
             for task in self.tasks:
                 if not task.done():
-                    task.cancel()  
+                    task.cancel()
 
         try:
             self.thread_pool.shutdown(wait=wait)

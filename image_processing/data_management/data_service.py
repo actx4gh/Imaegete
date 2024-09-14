@@ -24,8 +24,18 @@ class ImageDataService:
     def set_sorted_images(self, sorted_images):
         self._sorted_images = sorted_images
 
-    def pop_sorted_images(self):
-        return self._sorted_images.pop()
+    def pop_sorted_images(self, index=None):
+        if index is None:
+            index = len(self._sorted_images) - 1
+        return self._sorted_images.pop(index)
+
+    def pop_image_list(self, index=None):
+        if index is None:
+            index = len(self._image_list) - 1
+        return self._image_list.pop(index)
+
+    def append_sorted_images(self, sorted_tuple):
+        self._sorted_images.append(sorted_tuple)
 
     def get_image_list(self):
         return self._image_list
@@ -39,7 +49,10 @@ class ImageDataService:
     def set_current_index(self, index):
         self._current_index = index
         if len(self._image_list) >= index + 1:
-            self._current_image_path = self._image_list[index]
+            self.set_current_image_to_current_index()
+
+    def set_current_image_to_current_index(self):
+        self._current_image_path = self._image_list[self._current_index]
 
     def set_cache_manager(self, cache_manager):
         self.cache_manager = cache_manager

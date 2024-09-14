@@ -7,12 +7,11 @@ import yaml
 
 APP_NAME = 'ImageSorter'
 
-CACHE_LIMIT_KB = 204800  
-RESIZE_TIMER_INTERVAL = 300  
+CACHE_LIMIT_KB = 204800
+RESIZE_TIMER_INTERVAL = 300
 LOGGER_NAME = 'image_sorter'
 LOG_FILE_NAME = f'{LOGGER_NAME}.log'
 WINDOW_TITLE_SUFFIX = 'Image Sorter'
-
 
 NEXT_KEY = 'Right'
 PREV_KEY = 'Left'
@@ -23,13 +22,12 @@ DELETE_KEY = 'Delete'
 UNDO_KEY = 'U'
 FULLSCREEN_KEY = 'F'
 
-
 IMAGE_CACHE_MAX_SIZE = 1024
 
 
 class Config:
     def __init__(self):
-        self.platform_name = platform.system()  
+        self.platform_name = platform.system()
         self._default_config_dir = self._get_default_config_dir()
         self._config = self._initialize_configuration()
 
@@ -62,13 +60,13 @@ class Config:
         return parser.parse_args(args)
 
     def _get_default_config_dir(self):
-        system = self.platform_name  
+        system = self.platform_name
 
-        if system == 'Darwin':  
+        if system == 'Darwin':
             config_dir = os.path.expanduser(f"~/Library/Application Support/{APP_NAME}")
-        elif system == 'Linux' or 'CYGWIN' in system:  
+        elif system == 'Linux' or 'CYGWIN' in system:
             config_dir = os.path.expanduser(f"~/.config/{APP_NAME}")
-        elif system == 'Windows':  
+        elif system == 'Windows':
             config_dir = os.path.join(os.getenv('LOCALAPPDATA'), APP_NAME)
         else:
             raise RuntimeError(f"Unsupported OS: {system}")
@@ -82,9 +80,8 @@ class Config:
     def _initialize_configuration(self):
         args = self._parse_args()
 
-        
         config_dir = self._ensure_windows_path(args.config_dir)
-        
+
         config = {
             'categories': args.categories,
             'log_level': args.log_level,
@@ -94,21 +91,19 @@ class Config:
             'cache_dir': self._ensure_windows_path(args.cache_dir) if args.cache_dir else os.path.join(config_dir,
                                                                                                        'cache'),
             'sort_dir': self._ensure_windows_path(args.sort_dir) if args.sort_dir else None,
-            'start_dirs': [self._ensure_windows_path(args.start_dirs)]  
+            'start_dirs': [self._ensure_windows_path(args.start_dirs)]
         }
 
-        
         if args.config:
             file_config = self._read_config_file(args.config)
-            
+
             config.update({k: v for k, v in file_config.items() if v is not None})
 
-        
         if isinstance(config['start_dirs'], str):
-            
+
             config['start_dirs'] = [self._ensure_windows_path(config['start_dirs'])]
         elif isinstance(config['start_dirs'], list):
-            
+
             config['start_dirs'] = [self._ensure_windows_path(d.strip()) for d in config['start_dirs']]
 
         config['dest_folders'] = {}
@@ -117,13 +112,11 @@ class Config:
         for start_dir in config['start_dirs']:
             sort_dir = config['sort_dir'] if config['sort_dir'] else start_dir
 
-            
             config['dest_folders'][start_dir] = {}
 
             for category in config['categories']:
                 category_path = self._ensure_windows_path(os.path.join(sort_dir, category))
 
-                
                 config['dest_folders'][start_dir][category] = category_path
 
             delete_path = self._ensure_windows_path(os.path.join(sort_dir, 'deleted'))
@@ -137,9 +130,7 @@ class Config:
         raise AttributeError(f"'Config' object has no attribute '{name}'")
 
 
-
 config_instance = Config()
-
 
 categories = config_instance.categories
 dest_folders = config_instance.dest_folders
@@ -151,4 +142,4 @@ log_dir = config_instance.log_dir
 cache_dir = config_instance.cache_dir
 config_dir = config_instance.config_dir
 start_dirs = config_instance.start_dirs
-platform_name = config_instance.platform_name  
+platform_name = config_instance.platform_name

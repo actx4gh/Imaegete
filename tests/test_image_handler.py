@@ -1,5 +1,5 @@
 import os
-import pytest
+
 
 def test_get_image_list(image_handler):
     handler = image_handler
@@ -8,6 +8,7 @@ def test_get_image_list(image_handler):
         f.write("test image")
     assert handler.get_image_list() == ['test.jpg']
 
+
 def test_load_image(image_handler, test_jpg):
     handler = image_handler
     test_image_path = os.path.join(handler.source_folder, 'test.jpg')
@@ -15,7 +16,8 @@ def test_load_image(image_handler, test_jpg):
     handler.image_list = handler.get_image_list()
     image = handler.load_image(0)
     assert image is not None
-    image.close()  
+    image.close()
+
 
 def test_move_file(image_handler):
     handler = image_handler
@@ -26,6 +28,7 @@ def test_move_file(image_handler):
     handler.move_file(src, dest)
     assert os.path.isfile(dest)
 
+
 def test_delete_image(image_handler):
     handler = image_handler
     with open(os.path.join(handler.source_folder, 'test.jpg'), 'w') as f:
@@ -33,6 +36,7 @@ def test_delete_image(image_handler):
     handler.image_list = handler.get_image_list()
     handler.delete_image()
     assert not handler.image_list
+
 
 def test_undo_last_action(image_handler):
     handler = image_handler

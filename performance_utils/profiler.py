@@ -7,8 +7,10 @@ from functools import wraps
 from core import logger
 from core.main import main
 
+
 def profile_function(func):
     """Decorator to profile a function."""
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         pr = cProfile.Profile()
@@ -22,10 +24,11 @@ def profile_function(func):
         with open(f"{func.__name__}_profile.txt", "w") as f:
             f.write(s.getvalue())
         return result
+
     return wrapper
 
-pr = cProfile.Profile()
 
+pr = cProfile.Profile()
 
 
 def start_profiling():

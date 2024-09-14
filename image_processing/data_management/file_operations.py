@@ -20,19 +20,15 @@ def move_image_and_cleanup(image_path, source_dir, dest_dir):
 
 
 def move_related_files(filename, src_folder, dest_folder):
-    
     base, _ = os.path.splitext(os.path.basename(filename))
 
-    
     src_files = os.listdir(src_folder)
     related_files = []
 
-    
     for f in src_files:
         if os.path.splitext(f)[0] == base:
             related_files.append(f)
 
-    
     for f in related_files:
         src_path = os.path.join(src_folder, f)
         dest_path = os.path.join(dest_folder, f)
@@ -57,7 +53,7 @@ def scan_directory(directory):
                 if entry.is_dir(follow_symlinks=False):
                     subdirs.append(entry.path)
     except PermissionError:
-        pass  
+        pass
     return subdirs
 
 
@@ -73,19 +69,18 @@ def list_all_directories_concurrent(start_dir):
 
     with ThreadPoolExecutor() as executor:
         while dirs_to_process:
-            
+
             future_to_dir = {}
             for d in dirs_to_process:
-                if not executor._shutdown:  
+                if not executor._shutdown:
                     future = executor.submit(scan_directory, d)
                     future_to_dir[future] = d
                 else:
                     logger.warning("[FileOperations] Attempted to submit task after executor shutdown.")
                     break
 
-            dirs_to_process = []  
+            dirs_to_process = []
 
-            
             for future in future_to_dir:
                 try:
                     subdirs = future.result()
@@ -100,30 +95,3 @@ def list_all_directories_concurrent(start_dir):
                         dirs_to_process.append(subdir)
 
     return directories
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

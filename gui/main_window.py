@@ -54,7 +54,7 @@ class ImageSorterGUI(MainWindow):
     def resizeEvent(self, event):
         """Override resizeEvent to add additional behavior while preserving base functionality."""
         if self.data_service.get_current_image_path():
-            self.image_display.update_image_label()  
+            self.image_display.update_image_label()
             self.resize_emission_args['zoom_percentage'] = self.image_display.get_zoom_percentage()
         super().resizeEvent(event)
 
@@ -139,7 +139,7 @@ class ImageSorterGUI(MainWindow):
             os.startfile(folder_path)
 
     def adjust_zoom_level(self):
-        
+
         pass
 
     def open_file_properties(self):
@@ -151,10 +151,8 @@ class ImageSorterGUI(MainWindow):
         """Handle the window close event to disconnect signals and perform cleanup."""
         logger.debug("[ImageSorterGUI] Closing ImageSorterGUI...")
 
-        
         self._disconnect_signals()
 
-        
         self.image_manager.shutdown()
 
         logger.debug("[ImageSorterGUI] Exiting application.")

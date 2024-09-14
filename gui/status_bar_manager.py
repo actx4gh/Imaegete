@@ -8,12 +8,11 @@ from glavnaqt.ui.status_bar_manager import StatusBarManager as BaseStatusBarMana
 class ImageSorterStatusBarManager(BaseStatusBarManager):
 
     def __init__(self, thread_manager, data_service):
-        super().__init__()  
+        super().__init__()
         self.thread_manager = thread_manager
         self.data_service = data_service
         self.bar_data = {}
 
-        
         self.event_bus.subscribe('image_loaded', self.update_status_bar)
         self.event_bus.subscribe('metadata_changed', self.update_status_bar)
         self.event_bus.subscribe('update_image_total', self.update_image_total)
@@ -49,18 +48,15 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
 
     def start_worker(self, *args, **kwargs):
         """Submit the status update task to ThreadManager with custom logic."""
-        
+
         if self.worker and self.worker.isRunning():
-            
             return
 
-        
         self.thread_manager.submit_task(self._process_status_update, *args, **kwargs)
 
     def _process_status_update(self, file_path=None, zoom_percentage=None):
         """Fetch data and perform status update in the main thread after worker processing."""
 
-        
         if zoom_percentage is not None:
             self.bar_data['zoom_percentage'] = zoom_percentage
 
@@ -73,7 +69,6 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
                 super().update_status_bar("No metadata available")
                 return
 
-            
             self.bar_data['filename'] = self.get_filename(file_path)
             self.bar_data['dimensions'] = self.get_image_dimensions(metadata)
             self.bar_data['file_size'] = self.get_file_size(metadata)
@@ -81,7 +76,6 @@ class ImageSorterStatusBarManager(BaseStatusBarManager):
             self.bar_data['image_index'] = self.data_service.get_current_index()
             self.bar_data['total_images'] = len(self.data_service.get_image_list())
 
-        
         self.status_label.setText(self.status_text)
         self.status_label.setToolTip(self.tooltip_text)
 

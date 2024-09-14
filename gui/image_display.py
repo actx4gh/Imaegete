@@ -1,5 +1,5 @@
 from PyQt6.QtCore import Qt, QObject
-from PyQt6.QtWidgets import QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QLabel, QSizePolicy
 
 from core import logger
 
@@ -14,7 +14,6 @@ class ImageDisplay(QObject):
         self.image_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.image_label.setMinimumSize(1, 1)
 
-        
         self.image_label.setContentsMargins(0, 0, 0, 0)
         self.current_pixmap = None
         self.is_fullscreen = False
@@ -65,7 +64,7 @@ class ImageDisplay(QObject):
             main.toggle_fullscreen_layout()
             main.showFullScreen()
 
-        self.image_label.resize(main.size())  
+        self.image_label.resize(main.size())
         self.update_image_label()
         self.is_fullscreen = not self.is_fullscreen
         logger.debug(f"[ImageDisplay] Full-screen mode toggled: {self.is_fullscreen}")

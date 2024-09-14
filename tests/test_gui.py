@@ -1,5 +1,7 @@
-import pytest
 import os
+
+import pytest
+
 
 @pytest.mark.not_logging
 def test_format_category_keys(gui):
@@ -8,12 +10,10 @@ def test_format_category_keys(gui):
     assert '1: Cat1' in formatted_keys
     assert '2: Cat2' in formatted_keys
 
-    
     logger = gui_instance.logger
     for handler in logger.handlers:
         handler.flush()
 
-    
     print(f"Reading log file from: {log_file_path}")
     if not os.path.exists(log_file_path):
         print(f"Log file does not exist: {log_file_path}")

@@ -1,7 +1,7 @@
 from threading import RLock, Event
-import traceback
 
-from PyQt6.QtCore import pyqtSignal, QObject, Qt, QCoreApplication, QTimer
+from PyQt6.QtCore import pyqtSignal, QObject, Qt, QTimer
+from PyQt6.QtGui import QPixmap
 
 from core import logger
 from glavnaqt.core.event_bus import create_or_get_shared_event_bus
@@ -12,6 +12,7 @@ class ImageManager(QObject):
     image_cleared = pyqtSignal()
     image_list_updated = pyqtSignal()
     image_list_populated = pyqtSignal()
+    image_data_loaded = pyqtSignal(str, object)
 
     def __init__(self, image_handler, thread_manager):
         super().__init__()
@@ -24,7 +25,22 @@ class ImageManager(QObject):
         self.event_bus = create_or_get_shared_event_bus()
 
         self.image_list_updated.connect(self.on_image_list_updated, Qt.ConnectionType.BlockingQueuedConnection)
+        self.image_data_loaded.connect(self.on_image_data_loaded)
         self.lock = RLock()
+        self.image_handler.data_service.cache_manager.image_loaded.connect(self.on_image_loaded_from_cache)
+
+    def on_image_loaded_from_cache(self, image_path):
+        """Handle the image_loaded signal from CacheManager."""
+        with self.lock:
+            current_image_path = self.image_handler.data_service.get_current_image_path()
+            if image_path != current_image_path:
+                # The loaded image is not the one currently displayed; ignore it
+                return
+        image = self.image_handler.data_service.cache_manager.retrieve_image(image_path)
+        if image:
+            self.image_data_loaded.emit(image_path, image)
+        else:
+            logger.error(f"[ImageManager] Image {image_path} is not in cache despite 'image_loaded' signal.")
 
     def refresh_image_list(self):
         """Trigger image list refresh with correct shutdown_event."""
@@ -68,10 +84,12 @@ class ImageManager(QObject):
     def move_image(self, category):
         with self.lock:
             self.image_handler.move_current_image(category)
+        self.load_image()
 
     def delete_image(self):
         with self.lock:
             self.image_handler.delete_current_image()
+        self.load_image()
 
     def undo_last_action(self):
         with self.lock:
@@ -111,33 +129,36 @@ class ImageManager(QObject):
         self.load_image()
 
     def load_image(self, index=None):
-        logger.debug(f"Call stack for image_manager.load_image {traceback.format_stack()}")
         with self.lock:
             image_path = self.image_handler.set_current_image_by_index(index)
 
             if image_path:
-                #self.thread_manager.submit_task(self._load_image_task, image_path)
-                self._load_image_task(image_path)
+                # Submit the image loading task to the thread manager
+                self.thread_manager.submit_task(self._load_image_task, image_path)
             else:
                 self.image_cleared.emit()
 
     def _load_image_task(self, image_path):
         """Task to load image asynchronously."""
-        logger.debug(f"Call stack for image_manager._load_image_task {traceback.format_stack()}")
-
-        pixmap = self.image_handler.load_image_from_cache(image_path)
-
         with self.lock:
-            if pixmap:
+            current_image_path = self.image_handler.data_service.get_current_image_path()
+            if image_path != current_image_path:
+                # The loaded image is not the one currently displayed; ignore it
+                return
 
-                self.image_loaded.emit(image_path, pixmap)
-                self.current_pixmap = pixmap
-                QCoreApplication.processEvents()
-
-                # Start prefetching after the GUI is updated using a timer to delay it slightly
-                QTimer.singleShot(0, self.image_handler.prefetch_images_if_needed)
-            else:
-
-                self.image_cleared.emit()
+        # Load the image data in the background thread
+        image = self.image_handler.load_image_from_cache(image_path)
+        if image:
+            # Emit a signal with the image data
+            self.image_data_loaded.emit(image_path, image)
+        else:
+            # Do not emit image_cleared here; wait for image_loaded signal
+            pass
 
         self.is_loading.clear()
+
+    def on_image_data_loaded(self, image_path, image):
+        """Slot to process the image data in the main thread."""
+        pixmap = QPixmap.fromImage(image)
+        self.image_loaded.emit(image_path, pixmap)
+        QTimer.singleShot(0, self.image_handler.prefetch_images_if_needed)

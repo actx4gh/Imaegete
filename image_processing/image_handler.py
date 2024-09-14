@@ -1,7 +1,6 @@
 import os
 import random
 import time
-import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import RLock, Event
 
@@ -15,6 +14,7 @@ from image_processing.data_management.file_operations import move_image_and_clea
 
 
 class ImageHandler:
+
     def __init__(self, thread_manager, data_service):
         self.thread_manager = thread_manager
         self.event_bus = create_or_get_shared_event_bus()
@@ -30,6 +30,7 @@ class ImageHandler:
         self.is_refreshing = Event()
 
         self.data_service.set_image_list([])
+        self.data_service.set_sorted_images([])
 
     def add_image_to_list(self, image_path, index=None):
         """Add a new image to the image list at the specified index or at the end."""
@@ -63,6 +64,17 @@ class ImageHandler:
             if len(image_list) > 0:
                 last_index = len(image_list) - 1
                 self.set_current_image_by_index(last_index)
+
+    def pop_image(self):
+        with self.lock:
+            image_list = self.data_service.get_image_list()
+            original_index = self.data_service.get_current_index()
+            image_path = self.data_service.pop_image_list(original_index)
+            if original_index == len(image_list):
+                self.data_service.set_current_index(len(image_list) - 1)
+            else:
+                self.data_service.set_current_image_to_current_index()
+            return original_index, image_path
 
     def set_next_image(self):
         """Set the index to the next image in the list."""
@@ -138,30 +150,19 @@ class ImageHandler:
         for index in prefetch_indices:
             image_path = self.data_service.get_image_path(index)
             if image_path:
-                pixmap = self.data_service.cache_manager.find_pixmap(image_path)
-                if pixmap:
+                image = self.data_service.cache_manager.retrieve_image(image_path)
+                if image:
                     logger.debug(f"[ImageManager] Skipping already cached image: {image_path}")
                 else:
                     logger.info(f"[ImageManager] Prefetching uncached image: {image_path}")
-                    self.data_service.cache_manager.retrieve_pixmap(image_path)
+                    # No need to set active_request=True here
+                    self.data_service.cache_manager.retrieve_image(image_path)
                     self.data_service.cache_manager.get_metadata(image_path)
 
-    #        random_indices = random.sample(range(total_images), min(depth, total_images))
-    #        logger.debug(f"[ImageManager] Prefetching {depth} random images with indices {random_indices}")
-    #
-    #        for index in random_indices:
-    #            image_path = self.data_service.get_image_path(index)
-    #            if image_path:
-    #                pixmap = self.data_service.cache_manager.retrieve_pixmap(image_path)
-    #                metadata = self.data_service.cache_manager.get_metadata(image_path)
-
     def load_image_from_cache(self, image_path):
-        """Retrieve the image pixmap from the cache and ensure insertion on the main thread."""
-        logger.debug(f"Call stack for image_handler.load_image_from_cache {traceback.format_stack()}")
-
         logger.debug(f"Loading image from cache or disk: {image_path}")
-        pixmap = self.data_service.cache_manager.retrieve_pixmap(image_path)
-        return pixmap
+        image = self.data_service.cache_manager.retrieve_image(image_path, active_request=True)
+        return image
 
     def prefetch_images_if_needed(self):
         """Check if prefetching is needed and perform prefetching."""
@@ -170,8 +171,8 @@ class ImageHandler:
 
     def delete_current_image(self):
         """Move image to the delete folder and remove from the list."""
-        original_index = self.data_service.get_current_index
-        image_path = self.data_service.get_current_image_path
+
+        original_index, image_path = self.pop_image()
         start_dir = self.find_start_directory(image_path)
         if not start_dir:
             logger.error(f"[ImageHandler] Start directory for image {image_path} not found.")
@@ -184,12 +185,10 @@ class ImageHandler:
         else:
             logger.error(f"[ImageHandler] Delete folder not configured for start directory {start_dir}")
         self.data_service.append_sorted_images(('delete', image_path, original_index))
-        self.set_next_image()
 
     def move_current_image(self, category):
         """Move an image to the specified category folder asynchronously."""
-        original_index = self.data_service.get_current_index
-        image_path = self.data_service.get_current_image_path
+        original_index, image_path = self.pop_image()
         start_dir = self.find_start_directory(image_path)
         if not start_dir:
             logger.error(f"[ImageHandler] Start directory for image {image_path} not found.")
@@ -204,8 +203,7 @@ class ImageHandler:
             return
 
         self.thread_manager.submit_task(self._move_image_task, image_path, start_dir, dest_folder)
-        self.data_service.append_sorted_images(('move', image_path, original_index))
-        self.set_next_image()
+        self.data_service.append_sorted_images(('move', image_path, category, original_index))
 
     def _move_image_task(self, image_path, source_dir, dest_dir):
         with self.lock:
@@ -222,13 +220,17 @@ class ImageHandler:
 
     def undo_last_action(self):
         """Undo the last move or delete action."""
-        if not self.data_service.sorted_images:
+        if not self.data_service.get_sorted_images():
             logger.warning("[ImageHandler] No actions to undo.")
             return
 
-        last_action = self.data_service.sorted_images.pop()
+        last_action = self.data_service.pop_sorted_images()
         action_type, image_path, *rest = last_action
+        original_index = rest[-1]
         self.thread_manager.submit_task(self._undo_action_task, image_path, action_type, rest)
+        self.add_image_to_list(image_path, original_index)
+        self.data_service.set_current_index(original_index)
+        return last_action
 
     def _undo_action_task(self, image_path, action_type, rest):
         """Task to undo the last action."""
@@ -342,11 +344,6 @@ class ImageHandler:
             signal.emit()
 
         return image_files
-
-    def shutdown(self):
-        """Handle shutdown for ImageHandler."""
-        logger.info("[ImageHandler] Initiating shutdown.")
-        self.thread_manager.shutdown(wait=False)
 
     def find_start_directory(self, image_path):
         """Find the start directory corresponding to the image path."""

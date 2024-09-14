@@ -8,8 +8,8 @@ import pytest
 from PIL import Image
 from image_handler import ImageHandler
 
-from gui import ImageSorterGUI
 from core.logger import setup_logging
+from gui import ImageSorterGUI
 
 
 @pytest.fixture(scope='session', autouse=True)
@@ -44,7 +44,6 @@ def gui():
                 yield gui_instance, log_file_path
                 root.destroy()
 
-        
         logger = logging.getLogger('image_sorter')
         for handler in logger.handlers:
             handler.close()

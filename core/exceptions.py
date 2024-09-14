@@ -1,5 +1,6 @@
-import traceback
 import logging
+import traceback
+
 
 class ImageSorterError(Exception):
     def __init__(self, message, context=None):
@@ -7,7 +8,6 @@ class ImageSorterError(Exception):
         self.context = context or self._get_context()
 
     def _get_context(self):
-        
         return traceback.format_stack()
 
     def log(self, logger=None):
