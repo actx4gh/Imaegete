@@ -117,16 +117,19 @@ class ImageManager(QObject):
                 self.is_prefetched.set()
 
     def move_image(self, category):
+        self.is_prefetched.clear()
         with self.lock:
             self.image_handler.move_current_image(category)
         self.display_image()
 
     def delete_image(self):
+        self.is_prefetched.clear()
         with self.lock:
             self.image_handler.delete_current_image()
         self.display_image()
 
     def undo_last_action(self):
+        self.is_prefetched.clear()
         with self.lock:
             last_action = self.image_handler.undo_last_action()
             if last_action:
@@ -136,26 +139,31 @@ class ImageManager(QObject):
                 logger.warning("[ImageManager] No action to undo.")
 
     def first_image(self):
+        self.is_prefetched.clear()
         with self.lock:
             self.image_handler.set_first_image()
         self.display_image()
 
     def last_image(self):
+        self.is_prefetched.clear()
         with self.lock:
             self.image_handler.set_last_image()
         self.display_image()
 
     def next_image(self):
+        self.is_prefetched.clear()
         with self.lock:
             self.image_handler.set_next_image()
         self.display_image()
 
     def previous_image(self):
+        self.is_prefetched.clear()
         with self.lock:
             self.image_handler.set_previous_image()
         self.display_image()
 
     def random_image(self):
+        self.is_prefetched.clear()
         with self.lock:
             self.image_handler.set_random_image()
         self.display_image()
