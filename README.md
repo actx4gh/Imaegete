@@ -1,6 +1,6 @@
 
 
-Imaegeon is a desktop application designed for efficiently organizing and managing large collections of images. The project uses PyQt6 for the GUI and leverages multithreading for performing file operations, caching, and image handling to ensure a responsive user experience.
+Imaegete is a desktop application designed for efficiently organizing and managing large collections of images. The project uses PyQt6 for the GUI and leverages multithreading for performing file operations, caching, and image handling to ensure a responsive user experience.
 
 
 
@@ -33,7 +33,7 @@ Imaegeon is a desktop application designed for efficiently organizing and managi
 1. Clone the repository:
 
     ```bash
-    git clone https://github.com/actx4gh/imaegeon.git
+    git clone https://github.com/actx4gh/imaegete.git
     ```
 
 2. Install the dependencies:

@@ -8,7 +8,7 @@ import numpy as np
 from natsort import os_sorted
 
 from core import config, logger
-from core.exceptions import ImaegeonError
+from core.exceptions import ImaegeteError
 from glavnaqt.core.event_bus import create_or_get_shared_event_bus
 from image_processing.data_management.file_operations import move_image_and_cleanup
 
@@ -251,7 +251,7 @@ class ImageHandler:
             source_dir = self.dest_folders[start_dir].get(category)
             dest_dir = start_dir
         else:
-            raise ImaegeonError(f"Action type {action_type} unrecognized")
+            raise ImaegeteError(f"Action type {action_type} unrecognized")
 
         self._move_image_task(image_path, source_dir, dest_dir)
 

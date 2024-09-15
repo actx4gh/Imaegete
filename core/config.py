@@ -5,13 +5,13 @@ import subprocess
 
 import yaml
 
-APP_NAME = 'Imaegeon'
+APP_NAME = 'Imaegete'
 
 CACHE_LIMIT_KB = 204800
 RESIZE_TIMER_INTERVAL = 300
-LOGGER_NAME = 'imaegeon'
+LOGGER_NAME = 'imaegete'
 LOG_FILE_NAME = f'{LOGGER_NAME}.log'
-WINDOW_TITLE_SUFFIX = 'Imageon'
+WINDOW_TITLE_SUFFIX = 'Imaegete'
 
 NEXT_KEY = 'Right'
 PREV_KEY = 'Left'

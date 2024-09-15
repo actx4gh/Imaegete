@@ -43,7 +43,7 @@ def stop_profiling():
     sortby = 'cumulative'
     ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
     ps.print_stats()
-    with open("imaegeon_profile.txt", "w") as f:
+    with open("imaegete_profile.txt", "w") as f:
         f.write(s.getvalue())
 
 

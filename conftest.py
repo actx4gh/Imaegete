@@ -9,13 +9,13 @@ from PIL import Image
 from image_processing.image_handler import ImageHandler
 
 from core.logger import setup_logging
-from gui.main_window import ImaegeonGUI
+from gui.main_window import ImaegeteGUI
 
 
 @pytest.fixture(scope='session', autouse=True)
 def configure_logging():
-    setup_logging('test_imaegeon.log')
-    logger = logging.getLogger('imaegeon')
+    setup_logging('test_imaegete.log')
+    logger = logging.getLogger('imaegete')
     logger.setLevel(logging.DEBUG)
     yield
     handlers = logger.handlers[:]
@@ -27,7 +27,7 @@ def configure_logging():
 @pytest.fixture
 def gui():
     with tempfile.TemporaryDirectory() as temp_source_dir, tempfile.TemporaryDirectory() as temp_dest_dir, tempfile.TemporaryDirectory() as temp_delete_dir:
-        log_file_path = os.path.join(temp_source_dir, 'imaegeon.log')
+        log_file_path = os.path.join(temp_source_dir, 'imaegete.log')
 
         mock_config = {
             'source_folder': temp_source_dir,
@@ -39,11 +39,11 @@ def gui():
         with patch('config.get_configuration', return_value=mock_config):
             with patch('config.ensure_directories_exist'):
                 root = Tk()
-                gui_instance = ImaegeonGUI(root, mock_config, log_file_path=log_file_path)
+                gui_instance = ImaegeteGUI(root, mock_config, log_file_path=log_file_path)
                 yield gui_instance, log_file_path
                 root.destroy()
 
-        logger = logging.getLogger('imaegeon')
+        logger = logging.getLogger('imaegete')
         for handler in logger.handlers:
             handler.close()
             logger.removeHandler(handler)

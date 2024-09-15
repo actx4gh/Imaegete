@@ -2,7 +2,7 @@ import logging
 import traceback
 
 
-class ImaegeonError(Exception):
+class ImaegeteError(Exception):
     def __init__(self, message, context=None):
         super().__init__(message)
         self.context = context or self._get_context()

@@ -8,7 +8,7 @@ from core.logger import setup_logging
 
 @mark.logging
 def test_setup_logging():
-    log_file_path = 'imaegeon.log'
+    log_file_path = 'imaegete.log'
     print(f"Testing log file creation in: {os.getcwd()}")
 
     if os.path.exists(log_file_path):
