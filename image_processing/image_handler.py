@@ -143,22 +143,22 @@ class ImageHandler:
         ahead = np.arange(next_index, next_index + depth) % total_images
 
         logger.debug(
-            f"[ImageManager] Starting prefetch of indexes {list(behind)} and {list(ahead)} from index {self.data_service.get_current_index()} with a total of {total_images} images")
+            f"[ImageHandler] Starting prefetch of indexes {list(behind)} and {list(ahead)} from index {self.data_service.get_current_index()} with a total of {total_images} images")
 
         prefetch_indices = [item for pair in zip(ahead, behind) for item in pair]
 
         if len(prefetch_indices) > max_prefetch:
             prefetch_indices = prefetch_indices[:max_prefetch]
-            logger.warn(f"[ImageManager] Reduced number of prefetch items to max_prefetch {max_prefetch}")
+            logger.warn(f"[ImageHandler] Reduced number of prefetch items to max_prefetch {max_prefetch}")
 
         for index in prefetch_indices:
             image_path = self.data_service.get_image_path(index)
             if image_path:
                 image = self.data_service.cache_manager.retrieve_image(image_path)
                 if image:
-                    logger.debug(f"[ImageManager] Skipping already cached image: {image_path}")
+                    logger.info(f"[ImageHandler] Skipping already cached image: {image_path}")
                 else:
-                    logger.info(f"[ImageManager] Prefetching uncached image: {image_path}")
+                    logger.info(f"[ImageHandler] Prefetching uncached image: {image_path}")
                     # No need to set active_request=True here
                     self.data_service.cache_manager.retrieve_image(image_path)
                     self.data_service.cache_manager.get_metadata(image_path)
@@ -302,8 +302,6 @@ class ImageHandler:
             self.is_refreshing.clear()
         logger.info(
             f"[ImageHandler] sending final emission with image list total {self.data_service.get_image_list_len()}")
-        import collections
-        print([item for item, count in collections.Counter(self.data_service.get_image_list()).items() if count > 1])
         signal.emit()
         end_time = time.time()
         elapsed_time = end_time - start_time
