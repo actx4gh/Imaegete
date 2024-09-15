@@ -8,7 +8,7 @@ import numpy as np
 from natsort import os_sorted
 
 from core import config, logger
-from core.exceptions import ImageSorterError
+from core.exceptions import ImaegeonError
 from glavnaqt.core.event_bus import create_or_get_shared_event_bus
 from image_processing.data_management.file_operations import move_image_and_cleanup
 
@@ -159,7 +159,7 @@ class ImageHandler:
                     logger.info(f"[ImageHandler] Skipping already cached image: {image_path}")
                 else:
                     logger.info(f"[ImageHandler] Prefetching uncached image: {image_path}")
-                    # No need to set active_request=True here
+                    
                     self.data_service.cache_manager.retrieve_image(image_path)
                     self.data_service.cache_manager.get_metadata(image_path)
 
@@ -251,7 +251,7 @@ class ImageHandler:
             source_dir = self.dest_folders[start_dir].get(category)
             dest_dir = start_dir
         else:
-            raise ImageSorterError(f"Action type {action_type} unrecognized")
+            raise ImaegeonError(f"Action type {action_type} unrecognized")
 
         self._move_image_task(image_path, source_dir, dest_dir)
 
@@ -285,11 +285,11 @@ class ImageHandler:
             return processed_images
 
         with ThreadPoolExecutor() as executor:
-            # Submit futures in the order of all_dirs
+            
             futures = [executor.submit(process_files_in_directory, d) for d in self.start_dirs]
 
             try:
-                # Iterate over futures in the same order
+                
                 for future in futures:
                     try:
                         future.result()
@@ -310,11 +310,11 @@ class ImageHandler:
     def _process_files_in_directory(self, directory, shutdown_event, signal):
         """Process image files in the directory with dynamic batch sizing and return the list of image paths."""
         batch_images = []
-        initial_batch_size = 50  # Starting batch size
+        initial_batch_size = 50  
         min_batch_size = 10
         max_batch_size = 1000
         batch_size = initial_batch_size
-        target_batch_time = 0.1  # Target time per batch in seconds
+        target_batch_time = 0.1  
 
         for root, _, files in os.walk(directory):
             sorted_files = os_sorted(files)
@@ -324,7 +324,7 @@ class ImageHandler:
                 batch_images.clear()
                 batch_count = 0
 
-                # Process files in the current batch
+                
                 while batch_count < batch_size and i < len(sorted_files):
                     file = sorted_files[i]
                     i += 1
@@ -332,15 +332,15 @@ class ImageHandler:
                     if self.is_image_file(file):
                         file_path = os.path.join(root, file)
                         batch_images.append(file_path)
-                        batch_count += 1  # Increment batch_count only when an image file is added
+                        batch_count += 1  
                     else:
                         continue
 
                     if shutdown_event.is_set():
                         logger.debug("[ImageHandler] Shutdown initiated, stopping after file processing.")
-                        return batch_images  # Return the images processed so far
+                        return batch_images  
 
-                # Update the data_service and emit signal if in start directory
+                
                 if batch_images and self.start_dirs[0] in directory:
                     with self.lock:
                         image_list = self.data_service.get_image_list()
@@ -354,22 +354,22 @@ class ImageHandler:
                     if signal:
                         signal.emit()
 
-                # Measure batch processing time
+                
                 end_time = time.time()
                 batch_processing_time = end_time - start_time
 
-                # Adjust batch size for next iteration
+                
                 if batch_processing_time < target_batch_time and batch_size < max_batch_size:
-                    # Increase batch size
+                    
                     batch_size = min(batch_size * 2, max_batch_size)
                 elif batch_processing_time > target_batch_time and batch_size > min_batch_size:
-                    # Decrease batch size
+                    
                     batch_size = max(batch_size // 2, min_batch_size)
 
                 logger.debug(f"[ImageHandler] Batch size adjusted to: {batch_size}")
 
-        # No need to update image_list at the end since it's already updated during batch processing
-        return batch_images  # Or return an appropriate value as needed
+        
+        return batch_images  
 
     def find_start_directory(self, image_path):
         """Find the start directory corresponding to the image path."""

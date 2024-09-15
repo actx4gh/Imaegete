@@ -6,16 +6,16 @@ from unittest.mock import patch
 
 import pytest
 from PIL import Image
-from image_handler import ImageHandler
+from image_processing.image_handler import ImageHandler
 
 from core.logger import setup_logging
-from gui import ImageSorterGUI
+from gui.main_window import ImaegeonGUI
 
 
 @pytest.fixture(scope='session', autouse=True)
 def configure_logging():
-    setup_logging('test_image_sorter.log')
-    logger = logging.getLogger('image_sorter')
+    setup_logging('test_imaegeon.log')
+    logger = logging.getLogger('imaegeon')
     logger.setLevel(logging.DEBUG)
     yield
     handlers = logger.handlers[:]
@@ -26,9 +26,8 @@ def configure_logging():
 
 @pytest.fixture
 def gui():
-    """Fixture to set up the ImageSorterGUI with mocked configuration."""
     with tempfile.TemporaryDirectory() as temp_source_dir, tempfile.TemporaryDirectory() as temp_dest_dir, tempfile.TemporaryDirectory() as temp_delete_dir:
-        log_file_path = os.path.join(temp_source_dir, 'image_sorter.log')
+        log_file_path = os.path.join(temp_source_dir, 'imaegeon.log')
 
         mock_config = {
             'source_folder': temp_source_dir,
@@ -40,11 +39,11 @@ def gui():
         with patch('config.get_configuration', return_value=mock_config):
             with patch('config.ensure_directories_exist'):
                 root = Tk()
-                gui_instance = ImageSorterGUI(root, mock_config, log_file_path=log_file_path)
+                gui_instance = ImaegeonGUI(root, mock_config, log_file_path=log_file_path)
                 yield gui_instance, log_file_path
                 root.destroy()
 
-        logger = logging.getLogger('image_sorter')
+        logger = logging.getLogger('imaegeon')
         for handler in logger.handlers:
             handler.close()
             logger.removeHandler(handler)

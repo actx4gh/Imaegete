@@ -5,7 +5,7 @@ from core import logger
 from glavnaqt.ui.status_bar_manager import StatusBarManager as BaseStatusBarManager
 
 
-class ImageSorterStatusBarManager(BaseStatusBarManager):
+class ImaegeonStatusBarManager(BaseStatusBarManager):
 
     def __init__(self, thread_manager, data_service):
         super().__init__()

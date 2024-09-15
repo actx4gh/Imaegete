@@ -5,13 +5,13 @@ import subprocess
 
 import yaml
 
-APP_NAME = 'ImageSorter'
+APP_NAME = 'Imaegeon'
 
 CACHE_LIMIT_KB = 204800
 RESIZE_TIMER_INTERVAL = 300
-LOGGER_NAME = 'image_sorter'
+LOGGER_NAME = 'imaegeon'
 LOG_FILE_NAME = f'{LOGGER_NAME}.log'
-WINDOW_TITLE_SUFFIX = 'Image Sorter'
+WINDOW_TITLE_SUFFIX = 'Imageon'
 
 NEXT_KEY = 'Right'
 PREV_KEY = 'Left'
@@ -46,7 +46,7 @@ class Config:
             return os.path.abspath(path)
 
     def _parse_args(self, args=None):
-        parser = argparse.ArgumentParser(description="Image Sorter Configuration")
+        parser = argparse.ArgumentParser(description=f"{APP_NAME} Configuration")
         parser.add_argument('--config', type=str, help="Path to the YAML configuration file")
         parser.add_argument('--categories', type=str, nargs='*', default=['Sorted'], help="List of categories")
         parser.add_argument('--sort_dir', type=str, help="Base directory to put sorting folders. Defaults to START_DIR")

@@ -66,7 +66,7 @@ class CacheManager(QObject):
                 self.image_cache[image_path] = image
                 self.currently_loading.discard(image_path)
                 self.image_cache.move_to_end(image_path)
-                # Limit cache size
+                
                 if len(self.image_cache) > self.max_size:
                     removed_item = self.image_cache.popitem(last=False)
                     logger.debug(f"[CacheManager] Cache size exceeded, removing oldest item: {removed_item[0]}")
@@ -220,8 +220,8 @@ class MetadataManager:
 
     def _file_is_ready(self, image_path):
         """Check if the file is ready for reading."""
-        # Implement a method to check if the file is stable (not being written to)
-        # For simplicity, we'll assume the file is always ready
+        
+        
         return True
 
 

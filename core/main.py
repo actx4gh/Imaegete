@@ -7,8 +7,8 @@ from PyQt6.QtWidgets import QWidget, QSplitter, QLabel
 from core import config, logger
 from core.thread_manager import ThreadManager
 from gui.image_display import ImageDisplay
-from gui.main_window import ImageSorterGUI
-from gui.status_bar_manager import ImageSorterStatusBarManager
+from gui.main_window import ImaegeonGUI
+from gui.status_bar_manager import ImaegeonStatusBarManager
 from image_processing.data_management.cache_manager import CacheManager
 from image_processing.data_management.data_service import ImageDataService
 from image_processing.image_handler import ImageHandler
@@ -113,14 +113,14 @@ def main():
     thread_manager = ThreadManager()
 
     data_service = ImageDataService()
-    _ = ImageSorterStatusBarManager(thread_manager=thread_manager, data_service=data_service)
+    _ = ImaegeonStatusBarManager(thread_manager=thread_manager, data_service=data_service)
     cache_manager = CacheManager(config.cache_dir, thread_manager, image_directories=config.start_dirs)
     data_service.set_cache_manager(cache_manager)
     image_handler = ImageHandler(thread_manager, data_service)
     image_manager = ImageManager(image_handler, thread_manager)
 
     image_display = ImageDisplay()
-    sorter_gui = ImageSorterGUI(image_display=image_display, image_manager=image_manager, data_service=data_service)
+    sorter_gui = ImaegeonGUI(image_display=image_display, image_manager=image_manager, data_service=data_service)
 
     sorter_gui.show()
 

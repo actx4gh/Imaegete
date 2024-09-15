@@ -34,7 +34,7 @@ class ImageManager(QObject):
             image_path = self.image_handler.set_current_image_by_index(index)
 
             if image_path:
-                # Submit the image loading task to the thread manager
+                
                 self.thread_manager.submit_task(self._display_image_task, image_path)
             else:
                 self.image_cleared.emit()
@@ -44,16 +44,16 @@ class ImageManager(QObject):
         with self.lock:
             current_image_path = self.image_handler.data_service.get_current_image_path()
             if image_path != current_image_path:
-                # The loaded image is not the one currently displayed; ignore it
+                
                 return
 
-        # Load the image data in the background thread
+        
         image = self.image_handler.load_image_from_cache(image_path)
         if image:
-            # Schedule processing of the image data in the main thread
+            
             QTimer.singleShot(0, partial(self.process_image_data, image_path, image))
         else:
-            pass  # Handle the case where the image is not available
+            pass  
 
     def on_image_loaded_from_cache(self, image_path):
         """Handle the image_loaded signal from CacheManager."""
@@ -63,7 +63,7 @@ class ImageManager(QObject):
                 return
         image = self.image_handler.data_service.cache_manager.retrieve_image(image_path)
         if image:
-            # Schedule processing of the image data in the main thread
+            
             QTimer.singleShot(0, partial(self.process_image_data, image_path, image))
         else:
             logger.error(f"[ImageManager] Image {image_path} is not in cache despite 'image_loaded' signal.")

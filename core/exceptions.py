@@ -2,7 +2,7 @@ import logging
 import traceback
 
 
-class ImageSorterError(Exception):
+class ImaegeonError(Exception):
     def __init__(self, message, context=None):
         super().__init__(message)
         self.context = context or self._get_context()

@@ -10,9 +10,9 @@ from glavnaqt.ui.main_window import MainWindow
 from key_binding.key_binder import bind_keys
 
 
-class ImageSorterGUI(MainWindow):
-    def __init__(self, image_display, image_manager, data_service, app_name='ImageSorter', *args, **kwargs):
-        logger.debug("[ImageSorterGUI] Initializing ImageSorterGUI.")
+class ImaegeonGUI(MainWindow):
+    def __init__(self, image_display, image_manager, data_service, app_name=config.APP_NAME, *args, **kwargs):
+        logger.debug("[ImaegeonGUI] Initializing ImaegeonGUI.")
         self.signals_connected = False
         self.cleanup_thread = None
         self.image_display = image_display
@@ -20,25 +20,25 @@ class ImageSorterGUI(MainWindow):
         self.image_manager = image_manager
         self.data_service = data_service
 
-        logger.debug(f"[ImageSorterGUI] Creating main GUI window {config.WINDOW_TITLE_SUFFIX}.")
+        logger.debug(f"[ImaegeonGUI] Creating main GUI window {config.WINDOW_TITLE_SUFFIX}.")
         self._initialize_ui_components()
         super().__init__(*args, **kwargs)
         self.setWindowTitle(f"{self.app_name} - No image loaded")
         self.setup_interactive_status_bar()
-        logger.debug("[ImageSorterGUI] UI configuration set up.")
+        logger.debug("[ImaegeonGUI] UI configuration set up.")
 
         self._connect_signals()
         bind_keys(self, self.image_manager)
         self.image_manager.refresh_image_list()
 
-        logger.debug("[ImageSorterGUI] Status bar manager configured and signals connected.")
+        logger.debug("[ImaegeonGUI] Status bar manager configured and signals connected.")
         self.show()
-        logger.debug("[ImageSorterGUI] Main window shown.")
-        logger.debug("[ImageSorterGUI] Initial image load triggered.")
+        logger.debug("[ImaegeonGUI] Main window shown.")
+        logger.debug("[ImaegeonGUI] Initial image load triggered.")
 
     def _initialize_ui_components(self):
         """Initialize UI components and configure settings."""
-        logger.debug("[ImageSorterGUI] UI configuration set up.")
+        logger.debug("[ImaegeonGUI] UI configuration set up.")
         glavnaqt_config.config.font_size = "Helvetica"
         glavnaqt_config.config.font_size = 13
         glavnaqt_config.config.splitter_handle_width = 3
@@ -64,7 +64,7 @@ class ImageSorterGUI(MainWindow):
         self.image_manager.image_cleared.connect(self.update_ui_on_image_cleared)
         self.customContextMenuRequested.connect(self.show_context_menu)
         self.signals_connected = True
-        logger.debug("[ImageSorterGUI] Signals connected for image display.")
+        logger.debug("[ImaegeonGUI] Signals connected for image display.")
 
     def _disconnect_signals(self):
         """Disconnect signals to avoid memory leaks."""
@@ -72,9 +72,9 @@ class ImageSorterGUI(MainWindow):
             self.image_manager.image_cleared.disconnect(self.update_ui_on_image_cleared)
             self.customContextMenuRequested.disconnect(self.show_context_menu)
             self.image_manager.image_loaded.disconnect(self.update_ui_on_image_loaded)
-            logger.debug("[ImageSorterGUI] Signals disconnected.")
+            logger.debug("[ImaegeonGUI] Signals disconnected.")
         except TypeError:
-            logger.debug("[ImageSorterGUI] No signals were connected or already disconnected.")
+            logger.debug("[ImaegeonGUI] No signals were connected or already disconnected.")
 
     def update_ui_on_image_loaded(self, file_path, pixmap):
         """UI update after image is loaded."""
@@ -103,7 +103,7 @@ class ImageSorterGUI(MainWindow):
         super()._initialize_ui(collapsible_sections)
 
     def log_resize_event(self):
-        logger.info(f"[ImageSorterGUI] Window resized to {self.width()}x{self.height()}")
+        logger.info(f"[ImaegeonGUI] Window resized to {self.width()}x{self.height()}")
 
     def format_category_keys(self, categories):
         key_mapping = {str(i + 1): cat for i, cat in enumerate(categories)}
@@ -149,11 +149,11 @@ class ImageSorterGUI(MainWindow):
 
     def closeEvent(self, event):
         """Handle the window close event to disconnect signals and perform cleanup."""
-        logger.debug("[ImageSorterGUI] Closing ImageSorterGUI...")
+        logger.debug("[ImaegeonGUI] Closing ImaegeonGUI...")
 
         self._disconnect_signals()
 
         self.image_manager.shutdown()
 
-        logger.debug("[ImageSorterGUI] Exiting application.")
+        logger.debug("[ImaegeonGUI] Exiting application.")
         event.accept()
