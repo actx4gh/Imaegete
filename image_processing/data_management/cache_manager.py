@@ -10,6 +10,7 @@ from fasteners import ReaderWriterLock
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
+from core import config
 from core import logger
 
 
@@ -23,6 +24,8 @@ class CacheManager(QObject):
                  stability_check_interval=1,
                  stability_check_retries=3):
         super().__init__()
+        self.dest_folders = config.dest_folders
+        self.delete_folders = config.delete_folders
         self.debounce_interval = debounce_interval
         self.stability_check_interval = stability_check_interval
         self.stability_check_retries = stability_check_retries
@@ -85,7 +88,7 @@ class CacheManager(QObject):
                 self.image_cache[image_path] = image
                 self.currently_loading.discard(image_path)
                 self.image_cache.move_to_end(image_path)
-                
+
                 if len(self.image_cache) > self.max_size:
                     removed_item = self.image_cache.popitem(last=False)
                     logger.debug(f"[CacheManager] Cache size exceeded, removing oldest item: {removed_item[0]}")
@@ -159,16 +162,35 @@ class CacheManager(QObject):
 
     def initialize_watchdog(self):
         """
-        Initialize the watchdog observer to monitor changes in the image directories.
+        Initialize the watchdog observer to monitor changes in the image directories, excluding
+        specific subdirectories that match `dest_folders` or `delete_folders`.
         """
-        """Initialize the watchdog to monitor changes in the image directories."""
         event_handler = CacheEventHandler(self)
         self.watchdog_observer = Observer()
-        for directory in self.image_directories:
-            self.watchdog_observer.schedule(event_handler, directory, recursive=True)
-        self.watchdog_observer.start()
-        logger.info(f"[CacheManager] Watchdog started, monitoring directories: {self.image_directories}")
 
+        # Set to store directories that should be excluded
+        directories_to_exclude = set()
+
+        # Loop through each start directory and find corresponding subdirectories to exclude
+        for start_dir in self.image_directories:
+            # Exclude subdirectories from dest_folders
+            if start_dir in self.dest_folders:
+                # dest_folders contains a dictionary mapping category names to folder paths
+                for dest_subfolder in self.dest_folders[start_dir].values():
+                    directories_to_exclude.add(os.path.normpath(dest_subfolder))
+
+            # Exclude the folder listed in delete_folders for this start_dir
+            if start_dir in self.delete_folders:
+                delete_folder = self.delete_folders[start_dir]
+                directories_to_exclude.add(os.path.normpath(delete_folder))
+
+        # Schedule the observer for each start directory, but exclude directories in directories_to_exclude
+        for directory in self.image_directories:
+            if os.path.normpath(directory) not in directories_to_exclude:
+                self.watchdog_observer.schedule(event_handler, directory, recursive=True)
+
+        self.watchdog_observer.start()
+        logger.info(f"[CacheManager] Watchdog started, monitoring directories excluding: {directories_to_exclude}")
         self.thread_manager.submit_task(self._monitor_watchdog)
 
     def _monitor_watchdog(self):
@@ -240,6 +262,7 @@ class MetadataManager:
     """
     A class to manage the metadata of images, including saving and loading metadata.
     """
+
     def __init__(self, cache_dir, thread_manager):
         """Initialize MetadataManager with the cache directory and ThreadManager."""
         self.cache_dir = cache_dir
@@ -255,6 +278,7 @@ class MetadataManager:
         :param metadata: The metadata to save.
         :type metadata: dict
         """
+
         def async_save():
             cache_path = self.get_cache_path(image_path)
             current_metadata = self.load_metadata(image_path)
@@ -313,8 +337,7 @@ class MetadataManager:
 
     def _file_is_ready(self, image_path):
         """Check if the file is ready for reading."""
-        
-        
+
         return True
 
 
@@ -322,6 +345,7 @@ class CacheEventHandler(FileSystemEventHandler):
     """
     A class to handle filesystem events related to the image cache, such as file creation, modification, and deletion.
     """
+
     def __init__(self, cache_manager):
         """Initialize event handler with reference to CacheManager."""
         super().__init__()
