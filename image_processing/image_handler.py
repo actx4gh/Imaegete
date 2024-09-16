@@ -211,7 +211,7 @@ class ImageHandler:
                     logger.info(f"[ImageHandler] Skipping already cached image: {image_path}")
                 else:
                     logger.info(f"[ImageHandler] Prefetching uncached image: {image_path}")
-                    
+
                     self.data_service.cache_manager.retrieve_image(image_path)
                     self.data_service.cache_manager.get_metadata(image_path)
 
@@ -367,17 +367,30 @@ class ImageHandler:
             self.data_service.set_image_list([])
 
         def process_files_in_directory(directory):
-            processed_images = self._process_files_in_directory(directory, shutdown_event, signal)
+            folders_to_skip = []
+
+            # For self.dest_folders, extract the subfolder paths for each start_dir
+            for start_dir, subfolders in self.dest_folders.items():
+                if os.path.normpath(start_dir) == os.path.normpath(directory):
+                    # Add each subfolder path to the skip list
+                    folders_to_skip.extend(subfolders.values())
+
+            # For self.delete_folders, extract the folder paths directly
+            for start_dir, delete_folder in self.delete_folders.items():
+                if os.path.normpath(start_dir) == os.path.normpath(directory):
+                    # Add the delete folder to the skip list
+                    folders_to_skip.append(delete_folder)
+            processed_images = self._process_files_in_directory(directory, shutdown_event, signal, folders_to_skip=folders_to_skip)
             if self.start_dirs.index(directory) == 0:
                 self.start_dirs.remove(directory)
             return processed_images
 
         with ThreadPoolExecutor() as executor:
-            
+
             futures = [executor.submit(process_files_in_directory, d) for d in self.start_dirs]
 
             try:
-                
+
                 for future in futures:
                     try:
                         future.result()
@@ -395,16 +408,19 @@ class ImageHandler:
         elapsed_time = end_time - start_time
         logger.info(f"[ImageHandler] Time taken to refresh image list: {elapsed_time:.4f} seconds")
 
-    def _process_files_in_directory(self, directory, shutdown_event, signal):
+    def _process_files_in_directory(self, directory, shutdown_event, signal, folders_to_skip):
         """Process image files in the directory with dynamic batch sizing and return the list of image paths."""
         batch_images = []
-        initial_batch_size = 50  
+        initial_batch_size = 50
         min_batch_size = 10
         max_batch_size = 1000
         batch_size = initial_batch_size
-        target_batch_time = 0.1  
+        target_batch_time = 0.1
 
         for root, _, files in os.walk(directory):
+            if os.path.normpath(root) in map(os.path.normpath, folders_to_skip):
+                logger.debug(f"[ImageHandler] Skipping directory: {root}")
+                continue  # Skip this directory
             sorted_files = os_sorted(files)
             i = 0
             while i < len(sorted_files):
@@ -412,7 +428,6 @@ class ImageHandler:
                 batch_images.clear()
                 batch_count = 0
 
-                
                 while batch_count < batch_size and i < len(sorted_files):
                     file = sorted_files[i]
                     i += 1
@@ -420,15 +435,14 @@ class ImageHandler:
                     if self.is_image_file(file):
                         file_path = os.path.join(root, file)
                         batch_images.append(file_path)
-                        batch_count += 1  
+                        batch_count += 1
                     else:
                         continue
 
                     if shutdown_event.is_set():
                         logger.debug("[ImageHandler] Shutdown initiated, stopping after file processing.")
-                        return batch_images  
+                        return batch_images
 
-                
                 if batch_images and self.start_dirs[0] in directory:
                     with self.lock:
                         image_list = self.data_service.get_image_list()
@@ -442,22 +456,19 @@ class ImageHandler:
                     if signal:
                         signal.emit()
 
-                
                 end_time = time.time()
                 batch_processing_time = end_time - start_time
 
-                
                 if batch_processing_time < target_batch_time and batch_size < max_batch_size:
-                    
+
                     batch_size = min(batch_size * 2, max_batch_size)
                 elif batch_processing_time > target_batch_time and batch_size > min_batch_size:
-                    
+
                     batch_size = max(batch_size // 2, min_batch_size)
 
                 logger.debug(f"[ImageHandler] Batch size adjusted to: {batch_size}")
 
-        
-        return batch_images  
+        return batch_images
 
     def find_start_directory(self, image_path):
         """
