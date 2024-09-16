@@ -14,6 +14,9 @@ from core import logger
 
 
 class CacheManager(QObject):
+    """
+    A class to manage the caching of images, including loading, refreshing, and handling metadata.
+    """
     image_loaded = pyqtSignal(str)
 
     def __init__(self, cache_dir, thread_manager, image_directories, max_size=500, debounce_interval=0.5,
@@ -39,6 +42,16 @@ class CacheManager(QObject):
         self.currently_active_requests = set()
 
     def retrieve_image(self, image_path, active_request=False):
+        """
+        Retrieve an image from the cache, or load it from disk if not present in the cache.
+
+        :param image_path: The path to the image file.
+        :type image_path: str
+        :param active_request: A flag indicating if this is an active request that requires the image.
+        :type active_request: bool
+        :return: The cached image or None if loading is in progress.
+        :rtype: QImage or None
+        """
         """Retrieve image from cache or load from disk if not available."""
         with self.cache_lock:
             image = self.image_cache.get(image_path)
@@ -58,6 +71,12 @@ class CacheManager(QObject):
                 return None
 
     def _load_image_task(self, image_path):
+        """
+        Load an image from the disk and store it in the cache.
+
+        :param image_path: The path of the image to load.
+        :type image_path: str
+        """
         """Load image from disk and insert into cache."""
         image = QImage(image_path)
         if not image.isNull():
@@ -88,6 +107,12 @@ class CacheManager(QObject):
                 self.currently_loading.discard(image_path)
 
     def refresh_cache(self, image_path):
+        """
+        Refresh the cache for a specific image asynchronously.
+
+        :param image_path: The path of the image to refresh in the cache.
+        :type image_path: str
+        """
         """Asynchronously refresh the cache for the given image."""
         logger.info(f"[CacheManager] Refreshing cache for {image_path}")
         if self.metadata_manager._file_is_ready(image_path):
@@ -96,6 +121,12 @@ class CacheManager(QObject):
             logger.warning(f"[CacheManager] Skipping cache refresh for {image_path} - file is not ready.")
 
     def _refresh_task(self, image_path):
+        """
+        Internal task to refresh the cache for an image.
+
+        :param image_path: The path of the image to refresh.
+        :type image_path: str
+        """
         """Actual cache refresh task."""
         with self.cache_lock:
             self.image_cache.pop(image_path, None)
@@ -115,12 +146,21 @@ class CacheManager(QObject):
             self.debounce_tasks[image_path] = future_task
 
     def shutdown(self):
+        """
+        Gracefully shut down the CacheManager, including the watchdog observer and metadata manager.
+        """
+        """
+        Perform necessary cleanup for the MetadataManager.
+        """
         """Gracefully shutdown the watchdog observer and remaining cache operations."""
         logger.info("[CacheManager] Initiating shutdown.")
         self.shutdown_watchdog()
         self.metadata_manager.shutdown()
 
     def initialize_watchdog(self):
+        """
+        Initialize the watchdog observer to monitor changes in the image directories.
+        """
         """Initialize the watchdog to monitor changes in the image directories."""
         event_handler = CacheEventHandler(self)
         self.watchdog_observer = Observer()
@@ -139,12 +179,21 @@ class CacheManager(QObject):
             time.sleep(self.stability_check_interval)
 
     def restart_watchdog(self):
+        """
+        Restart the watchdog observer if it crashes.
+        """
         """Restart the watchdog observer in case of failure."""
         logger.warning("[CacheManager] Watchdog observer crashed. Restarting...")
         self.shutdown_watchdog()
         self.initialize_watchdog()
 
     def shutdown_watchdog(self):
+        """
+        Gracefully shut down the CacheManager, including the watchdog observer and metadata manager.
+        """
+        """
+        Perform necessary cleanup for the MetadataManager.
+        """
         """Stop the watchdog observer."""
         if hasattr(self, 'watchdog_observer') and self.watchdog_observer.is_alive():
             self.watchdog_observer.stop()
@@ -152,6 +201,9 @@ class CacheManager(QObject):
             logger.info("[CacheManager] Watchdog observer stopped.")
 
     def _setup_cache_directory(self):
+        """
+        Set up the cache directory by creating it if it does not exist.
+        """
         """Ensure the cache directory exists."""
         if not os.path.exists(self.cache_dir):
             try:
@@ -163,6 +215,14 @@ class CacheManager(QObject):
             logger.info(f"[CacheManager] Cache directory already exists: {self.cache_dir}")
 
     def get_metadata(self, image_path):
+        """
+        Retrieve metadata for an image from the cache or load it from disk if not available.
+
+        :param image_path: The path of the image to retrieve metadata for.
+        :type image_path: str
+        :return: The metadata of the image or None if not found.
+        :rtype: dict or None
+        """
         """Retrieve metadata from cache or load from disk if not cached."""
         if image_path in self.metadata_cache:
             self.metadata_cache.move_to_end(image_path)
@@ -177,6 +237,9 @@ class CacheManager(QObject):
 
 
 class MetadataManager:
+    """
+    A class to manage the metadata of images, including saving and loading metadata.
+    """
     def __init__(self, cache_dir, thread_manager):
         """Initialize MetadataManager with the cache directory and ThreadManager."""
         self.cache_dir = cache_dir
@@ -184,6 +247,14 @@ class MetadataManager:
         self.lock = ReaderWriterLock()
 
     def save_metadata(self, image_path, metadata):
+        """
+        Save metadata for an image asynchronously.
+
+        :param image_path: The path of the image.
+        :type image_path: str
+        :param metadata: The metadata to save.
+        :type metadata: dict
+        """
         def async_save():
             cache_path = self.get_cache_path(image_path)
             current_metadata = self.load_metadata(image_path)
@@ -197,6 +268,14 @@ class MetadataManager:
         self.thread_manager.submit_task(async_save)
 
     def load_metadata(self, image_path):
+        """
+        Load metadata from the disk in a thread-safe manner.
+
+        :param image_path: The path of the image to load metadata for.
+        :type image_path: str
+        :return: The loaded metadata or None if not found.
+        :rtype: dict or None
+        """
         """Load metadata from disk with thread-safe reading."""
         cache_path = self.get_cache_path(image_path)
         if os.path.exists(cache_path):
@@ -210,11 +289,25 @@ class MetadataManager:
         return None
 
     def get_cache_path(self, image_path):
+        """
+        Generate the file path for the metadata cache of an image.
+
+        :param image_path: The path of the image.
+        :type image_path: str
+        :return: The cache file path for the image.
+        :rtype: str
+        """
         """Generate the file path for the metadata cache."""
         filename = os.path.basename(image_path)
         return os.path.join(self.cache_dir, f"{filename}.cache")
 
     def shutdown(self):
+        """
+        Gracefully shut down the CacheManager, including the watchdog observer and metadata manager.
+        """
+        """
+        Perform necessary cleanup for the MetadataManager.
+        """
         """Perform any necessary cleanup for MetadataManager."""
         logger.info("[MetadataManager] Shutting down MetadataManager.")
 
@@ -226,22 +319,43 @@ class MetadataManager:
 
 
 class CacheEventHandler(FileSystemEventHandler):
+    """
+    A class to handle filesystem events related to the image cache, such as file creation, modification, and deletion.
+    """
     def __init__(self, cache_manager):
         """Initialize event handler with reference to CacheManager."""
         super().__init__()
         self.cache_manager = cache_manager
 
     def on_modified(self, event):
+        """
+        Handle file modification events to refresh the cache.
+
+        :param event: The filesystem event that triggered the modification.
+        :type event: FileSystemEvent
+        """
         """Handle file modified events."""
         if not event.is_directory:
             self.cache_manager._debounced_cache_refresh(event.src_path)
 
     def on_created(self, event):
+        """
+        Handle file creation events to refresh the cache.
+
+        :param event: The filesystem event that triggered the creation.
+        :type event: FileSystemEvent
+        """
         """Handle file created events."""
         if not event.is_directory:
             self.cache_manager._debounced_cache_refresh(event.src_path)
 
     def on_deleted(self, event):
+        """
+        Handle file deletion events by removing the image from the cache.
+
+        :param event: The filesystem event that triggered the deletion.
+        :type event: FileSystemEvent
+        """
         """Handle file deleted events."""
         if not event.is_directory:
             with self.cache_manager.cache_lock:

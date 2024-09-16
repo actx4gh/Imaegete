@@ -45,7 +45,7 @@ Imaegete is a desktop application designed for efficiently organizing and managi
 3. Run the application:
 
     ```bash
-    python main.py
+    python imaegete.py
     ```
 
 

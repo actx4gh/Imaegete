@@ -26,26 +26,63 @@ IMAGE_CACHE_MAX_SIZE = 1024
 
 
 class Config:
+    """
+    A class to handle the configuration setup for the application, including parsing command line arguments and reading YAML files.
+    """
+
     def __init__(self):
+        """
+        Initialize the configuration by setting up platform-specific directories and loading the configuration.
+        """
         self.platform_name = platform.system()
         self._default_config_dir = self._get_default_config_dir()
         self._config = self._initialize_configuration()
 
     def _is_cygwin(self):
+        """
+        Check if the current environment is Cygwin.
+
+        :return: True if Cygwin is detected, False otherwise.
+        :rtype: bool
+        """
         ostype = os.getenv('OSTYPE', '').lower()
         return 'cygwin' in ostype
 
     def _cygwin_to_windows_path(self, cygwin_path):
+        """
+        Convert a Cygwin path to a Windows path.
+
+        :param cygwin_path: The Cygwin file path to convert.
+        :type cygwin_path: str
+        :return: The converted Windows file path.
+        :rtype: str
+        """
         result = subprocess.run(['cygpath', '-w', cygwin_path], capture_output=True, text=True)
         return result.stdout.strip()
 
     def _ensure_windows_path(self, path):
+        """
+        Ensure the given path is in Windows format if running on Cygwin, otherwise return the absolute path.
+
+        :param path: The file path to ensure.
+        :type path: str
+        :return: The ensured Windows or absolute file path.
+        :rtype: str
+        """
         if self._is_cygwin():
             return self._cygwin_to_windows_path(path)
         else:
             return os.path.abspath(path)
 
     def _parse_args(self, args=None):
+        """
+        Parse command line arguments for the configuration.
+
+        :param args: Command line arguments to parse. If None, parse sys.argv.
+        :type args: list or None
+        :return: Parsed arguments as an argparse.Namespace object.
+        :rtype: argparse.Namespace
+        """
         parser = argparse.ArgumentParser(description=f"{APP_NAME} Configuration")
         parser.add_argument('--config', type=str, help="Path to the YAML configuration file")
         parser.add_argument('--categories', type=str, nargs='*', default=['Sorted'], help="List of categories")
@@ -60,6 +97,12 @@ class Config:
         return parser.parse_args(args)
 
     def _get_default_config_dir(self):
+        """
+        Get the default configuration directory based on the platform.
+
+        :return: The default configuration directory.
+        :rtype: str
+        """
         system = self.platform_name
 
         if system == 'Darwin':
@@ -73,11 +116,24 @@ class Config:
         return config_dir
 
     def _read_config_file(self, config_path):
+        """
+        Read and load the YAML configuration file.
+
+        :param config_path: The path to the YAML configuration file.
+        :type config_path: str
+        :return: The configuration as a dictionary.
+        :rtype: dict
+        """
         with open(config_path, 'r') as file:
             config = yaml.safe_load(file)
         return config
 
     def _initialize_configuration(self):
+        """
+        Initialize the application configuration by combining command line arguments and YAML file settings.
+        :return: The initialized configuration as a dictionary.
+        :rtype: dict
+        """
         args = self._parse_args()
 
         config_dir = self._ensure_windows_path(args.config_dir)
@@ -125,6 +181,15 @@ class Config:
         return config
 
     def __getattr__(self, name):
+        """
+        Override the attribute getter to retrieve values from the configuration dictionary.
+
+        :param name: The name of the attribute to retrieve.
+        :type name: str
+        :return: The value of the attribute from the configuration.
+        :rtype: Any
+        :raises AttributeError: If the attribute does not exist in the configuration.
+        """
         if name in self._config:
             return self._config[name]
         raise AttributeError(f"'Config' object has no attribute '{name}'")

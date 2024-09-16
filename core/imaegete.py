@@ -17,12 +17,14 @@ from image_processing.image_manager import ImageManager
 
 def log_widget_hierarchy(widget, level=0, visited=None):
     """
-    Logs the hierarchy and properties of widgets starting from the given widget.
+    Log the widget hierarchy starting from the given widget, along with their properties.
 
-    Args:
-        widget (QWidget): The root widget to start logging from.
-        level (int, optional): The indentation level for nested widgets. Defaults to 0.
-        visited (set, optional): Set of widget IDs that have already been logged. Defaults to None.
+    :param widget: The root widget to log from.
+    :type widget: QWidget
+    :param level: The current level of indentation for nested widgets.
+    :type level: int
+    :param visited: A set of widget IDs that have already been visited. Defaults to None.
+    :type visited: set, optional
     """
     if visited is None:
         visited = set()
@@ -85,7 +87,12 @@ def log_widget_hierarchy(widget, level=0, visited=None):
 
 def alignment_to_string(alignment):
     """
-    Converts the alignment flag to a human-readable string.
+    Convert the alignment flag to a human-readable string.
+
+    :param alignment: The alignment flag to convert.
+    :type alignment: Qt.AlignmentFlag
+    :return: A human-readable string representing the alignment.
+    :rtype: str
     """
     alignments = []
     if alignment & Qt.AlignmentFlag.AlignLeft:
@@ -107,6 +114,9 @@ def alignment_to_string(alignment):
 
 
 def main():
+    """
+    Main entry point for the Imaegete application. Initializes the GUI and manages application shutdown.
+    """
     logger.info("[Main] Starting application.")
     app = QApplication(sys.argv)
 

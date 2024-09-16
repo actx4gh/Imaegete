@@ -6,6 +6,14 @@ from core import logger
 
 
 def move_file(src, dest):
+    """
+    Move a file from the source to the destination directory.
+
+    :param src: The source file path.
+    :type src: str
+    :param dest: The destination file path.
+    :type dest: str
+    """
     try:
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.move(src, dest)
@@ -15,11 +23,31 @@ def move_file(src, dest):
 
 
 def move_image_and_cleanup(image_path, source_dir, dest_dir):
+    """
+    Move related image files from source to destination and remove the source directory if empty.
+
+    :param image_path: The path of the image file to move.
+    :type image_path: str
+    :param source_dir: The source directory.
+    :type source_dir: str
+    :param dest_dir: The destination directory.
+    :type dest_dir: str
+    """
     move_related_files(image_path, source_dir, dest_dir)
     check_and_remove_empty_dir(source_dir)
 
 
 def move_related_files(filename, src_folder, dest_folder):
+    """
+    Move all related files (with the same basename) from the source to the destination directory.
+
+    :param filename: The name of the file to move related files for.
+    :type filename: str
+    :param src_folder: The source folder.
+    :type src_folder: str
+    :param dest_folder: The destination folder.
+    :type dest_folder: str
+    """
     base, _ = os.path.splitext(os.path.basename(filename))
 
     src_files = os.listdir(src_folder)
@@ -36,6 +64,12 @@ def move_related_files(filename, src_folder, dest_folder):
 
 
 def check_and_remove_empty_dir(dir_path):
+    """
+    Check if a directory is empty and remove it if it is.
+
+    :param dir_path: The directory path to check.
+    :type dir_path: str
+    """
     if os.path.isdir(dir_path) and not os.listdir(dir_path):
         try:
             os.rmdir(dir_path)
@@ -45,6 +79,14 @@ def check_and_remove_empty_dir(dir_path):
 
 
 def scan_directory(directory):
+    """
+    List all subdirectories within a given directory.
+
+    :param directory: The directory to scan.
+    :type directory: str
+    :return: A list of subdirectories.
+    :rtype: list
+    """
     """Helper function to list all directories within a given directory."""
     subdirs = [directory]
     try:
@@ -58,6 +100,14 @@ def scan_directory(directory):
 
 
 def list_all_directories_concurrent(start_dir):
+    """
+    List all directories recursively using concurrent threads.
+
+    :param start_dir: The starting directory or list of directories to scan.
+    :type start_dir: str or list
+    :return: A list of all directories found.
+    :rtype: list
+    """
     """List all directories recursively using concurrent threads."""
     directories = []
     seen_directories = set()

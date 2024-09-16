@@ -14,6 +14,9 @@ from image_processing.data_management.file_operations import move_image_and_clea
 
 
 class ImageHandler:
+    """
+    A class to manage image handling operations, including image list management, prefetching, moving, and deleting images.
+    """
 
     def __init__(self, thread_manager, data_service):
         self.thread_manager = thread_manager
@@ -37,6 +40,14 @@ class ImageHandler:
         return self._start_dirs
 
     def add_image_to_list(self, image_path, index=None):
+        """
+        Add a new image to the image list at the specified index or at the end.
+
+        :param image_path: Path to the image file.
+        :type image_path: str
+        :param index: The position to insert the image. If None, append to the end.
+        :type index: int, optional
+        """
         """Add a new image to the image list at the specified index or at the end."""
         image_list = self.data_service.get_image_list()
         if self.is_image_file(image_path) and image_path not in image_list:
@@ -48,6 +59,12 @@ class ImageHandler:
             self.data_service.set_image_list(image_list)
 
     def remove_image_from_list(self, image_path):
+        """
+        Remove an image from the image list.
+
+        :param image_path: Path to the image file to be removed.
+        :type image_path: str
+        """
         """Remove an image from the image list."""
         with self.lock:
             image_list = self.data_service.get_image_list()
@@ -56,12 +73,18 @@ class ImageHandler:
             self.data_service.set_image_list(image_list)
 
     def set_first_image(self):
+        """
+        Set the first image in the list as the current image.
+        """
         """Navigate to the first image (index 0) and update the data service."""
         with self.lock:
             if len(self.data_service.get_image_list()) > 0:
                 self.set_current_image_by_index(0)
 
     def set_last_image(self):
+        """
+        Set the last image in the list as the current image.
+        """
         """Navigate to the last image in the list and update the data service."""
         with self.lock:
             image_list = self.data_service.get_image_list()
@@ -81,6 +104,9 @@ class ImageHandler:
             return original_index, image_path
 
     def set_next_image(self):
+        """
+        Set the next image in the list as the current image.
+        """
         """Set the index to the next image in the list."""
         with self.lock:
             image_list = self.data_service.get_image_list()
@@ -89,6 +115,9 @@ class ImageHandler:
                 self.set_current_image_by_index(next_index)
 
     def set_previous_image(self):
+        """
+        Set the previous image in the list as the current image.
+        """
         """Set the index to the previous image in the list."""
         with self.lock:
             image_list = self.data_service.get_image_list()
@@ -97,6 +126,12 @@ class ImageHandler:
                 self.set_current_image_by_index(previous_index)
 
     def set_current_image_by_index(self, index=None):
+        """
+        Set the image at a specified index as the current image.
+
+        :param index: The index of the image to set as current. If None, the first image is set.
+        :type index: int, optional
+        """
         """Set the current image index and return the current image path."""
         with self.lock:
 
@@ -115,6 +150,9 @@ class ImageHandler:
             return None
 
     def set_random_image(self):
+        """
+        Set a random image from the list as the current image, avoiding repeats until all images have been shown.
+        """
         """Set the index to a random image, avoiding repeats until all have been shown."""
         with self.lock:
             image_list = self.data_service.get_image_list()
@@ -128,10 +166,24 @@ class ImageHandler:
                 self.set_current_image_by_index(random_index)
 
     def has_current_image(self):
+        """
+        Check if there is a valid current image.
+
+        :return: True if there is a current image, False otherwise.
+        :rtype: bool
+        """
         """Check if a valid current image exists."""
         return bool(self.data_service.get_current_image_path())
 
     def prefetch_images(self, depth=3, max_prefetch=10):
+        """
+        Prefetch images around the current image for faster loading.
+
+        :param depth: Number of images ahead and behind the current image to prefetch.
+        :type depth: int
+        :param max_prefetch: Maximum number of images to prefetch.
+        :type max_prefetch: int
+        """
         """Handle prefetching of images."""
         total_images = len(self.data_service.get_image_list())
         if total_images == 0:
@@ -169,11 +221,22 @@ class ImageHandler:
         return image
 
     def prefetch_images_if_needed(self):
+        """
+        Prefetch images around the current image for faster loading.
+
+        :param depth: Number of images ahead and behind the current image to prefetch.
+        :type depth: int
+        :param max_prefetch: Maximum number of images to prefetch.
+        :type max_prefetch: int
+        """
         """Check if prefetching is needed and perform prefetching."""
         if not self.is_refreshing.is_set():
             self.prefetch_images()
 
     def delete_current_image(self):
+        """
+        Delete the current image by moving it to the delete folder and removing it from the list.
+        """
         """Move image to the delete folder and remove from the list."""
 
         original_index, image_path = self.pop_image()
@@ -191,6 +254,12 @@ class ImageHandler:
         self.data_service.append_sorted_images(('delete', image_path, original_index))
 
     def move_current_image(self, category):
+        """
+        Move the current image to a specific category folder.
+
+        :param category: The category to move the image to.
+        :type category: str
+        """
         """Move an image to the specified category folder asynchronously."""
         original_index, image_path = self.pop_image()
         start_dir = self.find_start_directory(image_path)
@@ -223,6 +292,9 @@ class ImageHandler:
             self.event_bus.emit('update_image_total')
 
     def undo_last_action(self):
+        """
+        Undo the last action (either move or delete).
+        """
         """Undo the last move or delete action."""
         if not self.data_service.get_sorted_images():
             logger.warning("[ImageHandler] No actions to undo.")
@@ -256,6 +328,14 @@ class ImageHandler:
         self._move_image_task(image_path, source_dir, dest_dir)
 
     def refresh_image_list(self, signal=None, shutdown_event=None):
+        """
+        Refresh the image list by scanning the directories for images.
+
+        :param signal: A signal to emit when the refresh is complete.
+        :type signal: Signal
+        :param shutdown_event: Event to signal if the operation should be stopped.
+        :type shutdown_event: Event
+        """
         """Submit task to refresh the image list asynchronously and log the time taken."""
         if shutdown_event and shutdown_event.is_set():
             logger.info("[ImageHandler] Shutdown initiated, not starting new refresh task.")
@@ -271,6 +351,14 @@ class ImageHandler:
         logger.debug(f"[ImageHandler] Time taken to submit the image list refresh task: {elapsed_time:.4f} seconds")
 
     def _refresh_image_list_task(self, signal=None, shutdown_event=None):
+        """
+        Refresh the image list by scanning the directories for images.
+
+        :param signal: A signal to emit when the refresh is complete.
+        :type signal: Signal
+        :param shutdown_event: Event to signal if the operation should be stopped.
+        :type shutdown_event: Event
+        """
         """Task to refresh the image list with respect to shutdown events and log the time taken."""
         logger.debug("[ImageHandler] Starting image list refresh.")
 
@@ -372,10 +460,26 @@ class ImageHandler:
         return batch_images  
 
     def find_start_directory(self, image_path):
+        """
+        Find the start directory for the given image.
+
+        :param image_path: The path to the image.
+        :type image_path: str
+        :return: The start directory corresponding to the image.
+        :rtype: str
+        """
         """Find the start directory corresponding to the image path."""
         return next((d for d in self.start_dirs if os.path.abspath(image_path).startswith(os.path.abspath(d))), None)
 
     def is_image_file(self, filename):
+        """
+        Check if a given file is a valid image format.
+
+        :param filename: The name of the file to check.
+        :type filename: str
+        :return: True if the file is a valid image format, False otherwise.
+        :rtype: bool
+        """
         """Check if the file is a valid image format."""
         valid_extensions = ['.webp', '.jpg', '.jpeg', '.png', '.bmp', '.gif']
         return any(filename.lower().endswith(ext) for ext in valid_extensions)

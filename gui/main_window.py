@@ -12,6 +12,18 @@ from key_binding.key_binder import bind_keys
 
 class ImaegeteGUI(MainWindow):
     def __init__(self, image_display, image_manager, data_service, app_name=config.APP_NAME, *args, **kwargs):
+
+        """
+        Initialize the ImaegeteGUI class with the provided parameters.
+
+        :param image_display: Object responsible for displaying images.
+        :param image_manager: Manager handling image operations like loading and clearing.
+        :param data_service: Service managing data related to images.
+        :param app_name: The name of the application (default: config.APP_NAME).
+        :param args: Additional arguments passed to the parent class.
+        :param kwargs: Keyword arguments passed to the parent class.
+        """
+
         logger.debug("[ImaegeteGUI] Initializing ImaegeteGUI.")
         self.signals_connected = False
         self.cleanup_thread = None
@@ -37,6 +49,14 @@ class ImaegeteGUI(MainWindow):
         logger.debug("[ImaegeteGUI] Initial image load triggered.")
 
     def _initialize_ui_components(self):
+
+        """
+        Initialize the UI components and apply necessary configuration settings.
+
+        This method sets up various aspects of the user interface, including
+        fonts, splitter handle width, status bar configuration, and collapsible sections.
+        """
+
         """Initialize UI components and configure settings."""
         logger.debug("[ImaegeteGUI] UI configuration set up.")
         glavnaqt_config.config.font_size = "Helvetica"
@@ -52,6 +72,13 @@ class ImaegeteGUI(MainWindow):
                                                           alignment=glavnaqt_config.ALIGN_CENTER)
 
     def resizeEvent(self, event):
+
+        """
+        Handle the window resize event and apply custom behavior for the ImaegeteGUI.
+
+        :param event: The resize event containing information about the new window size.
+        """
+
         """Override resizeEvent to add additional behavior while preserving base functionality."""
         if self.data_service.get_current_image_path():
             self.image_display.update_image_label()
@@ -59,6 +86,11 @@ class ImaegeteGUI(MainWindow):
         super().resizeEvent(event)
 
     def _connect_signals(self):
+
+        """
+        Connect signals to their respective slots. Ensures signals are connected only once.
+        """
+
         """Connect signals. Ensures signals are connected only once."""
         self.image_manager.image_loaded.connect(self.update_ui_on_image_loaded)
         self.image_manager.image_cleared.connect(self.update_ui_on_image_cleared)
@@ -67,6 +99,11 @@ class ImaegeteGUI(MainWindow):
         logger.debug("[ImaegeteGUI] Signals connected for image display.")
 
     def _disconnect_signals(self):
+
+        """
+        Disconnect signals to avoid memory leaks when the window is closed or signals need to be reset.
+        """
+
         """Disconnect signals to avoid memory leaks."""
         try:
             self.image_manager.image_cleared.disconnect(self.update_ui_on_image_cleared)
@@ -77,6 +114,14 @@ class ImaegeteGUI(MainWindow):
             logger.debug("[ImaegeteGUI] No signals were connected or already disconnected.")
 
     def update_ui_on_image_loaded(self, file_path, pixmap):
+
+        """
+        Update the UI when a new image is loaded.
+
+        :param file_path: The path to the loaded image file.
+        :param pixmap: The QPixmap representation of the loaded image.
+        """
+
         """UI update after image is loaded."""
         if self.image_display:
             self.image_display.display_image(file_path, pixmap)
@@ -85,14 +130,29 @@ class ImaegeteGUI(MainWindow):
         self.setWindowTitle(f"{self.app_name} - {os.path.basename(file_path)}")
 
     def update_ui_on_image_cleared(self):
+
+        """
+        Update the UI when the currently displayed image is cleared from the screen.
+        """
+
         """Update the UI when the image is cleared."""
         if self.image_display:
             self.image_display.clear_image()
 
     def on_resize(self):
+
+        """
+        Log and handle the resize event. Triggered when the window size changes.
+        """
+
         self.log_resize_event()
 
     def setup_interactive_status_bar(self):
+
+        """
+        Setup the status bar to allow interaction with the user, such as clicking events.
+        """
+
         """Setup status bar interaction after it is fully configured."""
         if self.status_label:
             self.status_label.mousePressEvent = self.status_bar_clicked
@@ -103,13 +163,33 @@ class ImaegeteGUI(MainWindow):
         super()._initialize_ui(collapsible_sections)
 
     def log_resize_event(self):
+
+        """
+        Log information about the window resize event, including the new width and height.
+        """
+
         logger.info(f"[ImaegeteGUI] Window resized to {self.width()}x{self.height()}")
 
     def format_category_keys(self, categories):
+
+        """
+        Format the category keys for display in the UI.
+
+        :param categories: A list of category names.
+        :return: A formatted string representing the category keys.
+        """
+
         key_mapping = {str(i + 1): cat for i, cat in enumerate(categories)}
         return " | ".join([f"{key}: {cat}" for key, cat in key_mapping.items()])
 
     def status_bar_clicked(self, event):
+
+        """
+        Handle clicks on the status bar to trigger actions like opening file location or adjusting zoom.
+
+        :param event: The mouse click event with position information.
+        """
+
         if event.button() == Qt.MouseButton.LeftButton:
             segment = self.identify_segment(event.pos())
             if segment == "filename":
@@ -120,6 +200,13 @@ class ImaegeteGUI(MainWindow):
                 self.open_file_properties()
 
     def show_context_menu(self, pos):
+
+        """
+        Display a context menu based on the user's right-click position in the UI.
+
+        :param pos: The position where the context menu should be shown.
+        """
+
         context_menu = QMenu(self)
         if self.identify_segment(pos) == "filename":
             context_menu.addAction(QAction("Open File Location", self, triggered=self.open_file_location))
@@ -130,9 +217,22 @@ class ImaegeteGUI(MainWindow):
         context_menu.exec(self.mapToGlobal(pos))
 
     def identify_segment(self, pos):
+
+        """
+        Identify the UI segment (filename, zoom, or date) based on the mouse click position.
+
+        :param pos: The position of the mouse click.
+        :return: The identified segment ("filename", "zoom", or "date").
+        """
+
         return "filename" if pos.x() < 100 else "zoom" if pos.x() < 200 else "date"
 
     def open_file_location(self):
+
+        """
+        Open the file explorer at the location of the currently loaded image.
+        """
+
         current_image_path = self.data_service.get_current_image_path()
         if current_image_path:
             folder_path = os.path.dirname(current_image_path)
@@ -140,14 +240,31 @@ class ImaegeteGUI(MainWindow):
 
     def adjust_zoom_level(self):
 
+        """
+        Adjust the zoom level of the displayed image. (Functionality not yet implemented)
+        """
+
         pass
 
     def open_file_properties(self):
+
+        """
+        Open the file properties for the currently loaded image.
+        """
+
         current_image_path = self.data_service.get_current_image_path()
         if current_image_path:
             os.system(f'explorer /select,\"{current_image_path}\"')
 
     def closeEvent(self, event):
+
+        """
+        Handle the window close event. This method ensures that signals are disconnected
+        and any necessary cleanup is performed before the application exits.
+
+        :param event: The close event triggering the shutdown.
+        """
+
         """Handle the window close event to disconnect signals and perform cleanup."""
         logger.debug("[ImaegeteGUI] Closing ImaegeteGUI...")
 

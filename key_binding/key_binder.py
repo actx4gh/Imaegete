@@ -5,6 +5,17 @@ from core.config import NEXT_KEY, PREV_KEY, FIRST_KEY, LAST_KEY, UNDO_KEY, DELET
 
 
 def bind_keys(gui, image_manager):
+    """
+    Bind keyboard shortcuts to actions in the GUI.
+
+    This function creates QShortcuts for various key sequences, such as navigation between images,
+    deletion of images, toggling fullscreen, and other image management functions. The shortcuts are
+    connected to methods within the image_manager and gui.
+
+    :param gui: The main GUI window where shortcuts will be applied.
+    :param image_manager: The image manager responsible for handling image-related operations.
+    """
+
     key_mapping = {str(i + 1): cat for i, cat in enumerate(config.categories)}
     for key, category in key_mapping.items():
         shortcut = QShortcut(QKeySequence(key), gui)

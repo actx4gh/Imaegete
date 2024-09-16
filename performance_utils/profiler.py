@@ -5,7 +5,7 @@ import pstats
 from functools import wraps
 
 from core import logger
-from core.main import main
+from core.imaegete import main
 
 
 def profile_function(func):
@@ -49,7 +49,7 @@ def stop_profiling():
 
 def on_exit():
     stop_profiling()
-    logger.info("[main] Application exit triggered")
+    logger.info("[profiler] Application exit triggered")
 
 
 atexit.register(on_exit)
