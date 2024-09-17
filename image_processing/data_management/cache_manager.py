@@ -36,7 +36,6 @@ class CacheManager(QObject):
         self.metadata_cache = OrderedDict()
         self.metadata_manager = MetadataManager(self.cache_dir, self.thread_manager)
         self.image_cache = OrderedDict()
-        self.currently_loading = set()
         self.cache_lock = threading.Lock()
         self.debounce_tasks = {}
         self.moveToThread(QCoreApplication.instance().thread())
@@ -49,65 +48,69 @@ class CacheManager(QObject):
         Retrieve an image from the cache, or load it from disk if not present in the cache.
 
         :param image_path: The path to the image file.
-        :type image_path: str
         :param active_request: A flag indicating if this is an active request that requires the image.
-        :type active_request: bool
         :return: The cached image or None if loading is in progress.
-        :rtype: QImage or None
         """
-        """Retrieve image from cache or load from disk if not available."""
         with self.cache_lock:
+            # Check if image is already cached
             image = self.image_cache.get(image_path)
             if image:
                 logger.debug(f"[CacheManager] Image found in cache for {image_path}")
                 self.image_cache.move_to_end(image_path)
                 return image
-            elif image_path in self.currently_loading:
-                logger.debug(f"[CacheManager] Image is currently being loaded: {image_path}")
-                return None
             else:
-                logger.debug(f"[CacheManager] Image not found in cache, loading from disk: {image_path}")
-                self.currently_loading.add(image_path)
-                if active_request:
-                    self.currently_active_requests.add(image_path)
-                self.thread_manager.submit_task(self._load_image_task, image_path)
+                logger.debug(f"[CacheManager] Image was not found in cache for {image_path}")
+
+            # Check if image is currently being loaded
+            if image_path in self.currently_active_requests and active_request:
+                logger.warning(
+                    f"[CacheManager] Duplicate request: Image {image_path} is already being loaded, skipping.")
                 return None
+
+            # Mark image as being loaded to prevent parallel loading
+            logger.info(f"[CacheManager] Marking image {image_path} as being actively requested.")
+            self.currently_active_requests.add(image_path)
+
+            # Start background task to load the image from disk
+            logger.info(f"[CacheManager] Submitting load task for image {image_path}")
+            self.thread_manager.submit_task(self._load_image_task, image_path)
+        return None
 
     def _load_image_task(self, image_path):
         """
         Load an image from the disk and store it in the cache.
 
-        :param image_path: The path of the image to load.
-        :type image_path: str
+        :param str image_path: The path of the image to load.
         """
-        """Load image from disk and insert into cache."""
+        thread_id = threading.get_ident()
         image = QImage(image_path)
         if not image.isNull():
-            logger.debug(f"[CacheManager] Loaded image from disk: {image_path}")
+            logger.debug(f"[CacheManager thread {thread_id}] Loaded image from disk: {image_path}")
             with self.cache_lock:
                 self.image_cache[image_path] = image
-                self.currently_loading.discard(image_path)
                 self.image_cache.move_to_end(image_path)
 
                 if len(self.image_cache) > self.max_size:
                     removed_item = self.image_cache.popitem(last=False)
-                    logger.debug(f"[CacheManager] Cache size exceeded, removing oldest item: {removed_item[0]}")
-            file_size = os.path.getsize(image_path)
-            last_modified = os.path.getmtime(image_path)
-            metadata = {
-                'size': image.size(),
-                'file_size': file_size,
-                'last_modified': last_modified
-            }
-            self.metadata_manager.save_metadata(image_path, metadata)
-            self.metadata_cache[image_path] = metadata
-            if image_path in self.currently_active_requests:
-                self.image_loaded.emit(image_path)
-                self.currently_active_requests.discard(image_path)
+                    logger.debug(
+                        f"[CacheManager thread {thread_id}] Cache size exceeded while loading {image_path}, removing oldest item: {removed_item[0]}")
+                file_size = os.path.getsize(image_path)
+                last_modified = os.path.getmtime(image_path)
+                metadata = {
+                    'size': image.size(),
+                    'file_size': file_size,
+                    'last_modified': last_modified
+                }
+                self.metadata_manager.save_metadata(image_path, metadata)
+                self.metadata_cache[image_path] = metadata
+                if image_path in self.currently_active_requests:
+                    logger.info(f"[CacheManager thread {thread_id}] Marking image {image_path} as loaded.")
+                    self.image_loaded.emit(image_path)
+                    self.currently_active_requests.discard(image_path)
         else:
-            logger.error(f"[CacheManager] Failed to load image from disk: {image_path}")
+            logger.error(f"[CacheManager thread {thread_id}] Failed to load image from disk: {image_path}")
             with self.cache_lock:
-                self.currently_loading.discard(image_path)
+                self.currently_active_requests.discard(image_path)
 
     def refresh_cache(self, image_path):
         """
@@ -118,7 +121,7 @@ class CacheManager(QObject):
         """
         """Asynchronously refresh the cache for the given image."""
         logger.info(f"[CacheManager] Refreshing cache for {image_path}")
-        if self.metadata_manager._file_is_ready(image_path):
+        if self.metadata_manager.file_is_ready(image_path):
             self.thread_manager.submit_task(self._refresh_task, image_path)
         else:
             logger.warning(f"[CacheManager] Skipping cache refresh for {image_path} - file is not ready.")
@@ -133,10 +136,10 @@ class CacheManager(QObject):
         """Actual cache refresh task."""
         with self.cache_lock:
             self.image_cache.pop(image_path, None)
-            self.currently_loading.discard(image_path)
+            self.currently_active_requests.discard(image_path)
         self._load_image_task(image_path)
 
-    def _debounced_cache_refresh(self, image_path):
+    def debounced_cache_refresh(self, image_path):
         """Submit the cache refresh task to the thread pool with a debouncing mechanism."""
 
         def debounced_task():
@@ -335,7 +338,7 @@ class MetadataManager:
         """Perform any necessary cleanup for MetadataManager."""
         logger.info("[MetadataManager] Shutting down MetadataManager.")
 
-    def _file_is_ready(self, image_path):
+    def file_is_ready(self, image_path):
         """Check if the file is ready for reading."""
 
         return True
@@ -353,14 +356,41 @@ class CacheEventHandler(FileSystemEventHandler):
 
     def on_modified(self, event):
         """
-        Handle file modification events to refresh the cache.
+        Handle file modification events and refresh the cache only if the modification time has changed.
 
-        :param event: The filesystem event that triggered the modification.
-        :type event: FileSystemEvent
+        :param FileSystemEvent event: The filesystem event that triggered the modification.
         """
-        """Handle file modified events."""
         if not event.is_directory:
-            self.cache_manager._debounced_cache_refresh(event.src_path)
+            if event.src_path in self.cache_manager.currently_active_requests:
+                logger.debug(
+                    f'[CacheEventHandler] returning without further processing {event.src_path}. Already active in the cache.')
+                return None
+            try:
+                # Get the current modification time of the file from the file system
+                current_mod_time = os.path.getmtime(event.src_path)
+
+                # Retrieve the cached metadata for the file, if available
+                cached_metadata = self.cache_manager.metadata_cache.get(event.src_path)
+
+                # Check if the modification time in the metadata cache is different from the current one
+                if cached_metadata:
+                    cached_mod_time = cached_metadata.get('last_modified')
+
+                    if cached_mod_time != current_mod_time:
+                        logger.debug(
+                            f'[CacheEventHandler] Modification time changed for {event.src_path}. Refreshing cache.')
+                        # Trigger cache refresh since the modification time has changed
+                        self.cache_manager.debounced_cache_refresh(event.src_path)
+                    else:
+                        logger.debug(
+                            f'[CacheEventHandler] Modification time unchanged for {event.src_path}. No refresh needed.')
+                else:
+                    # If no metadata is cached, refresh the cache and add metadata
+                    logger.debug(f'[CacheEventHandler] No metadata cached for {event.src_path}. Refreshing cache.')
+                    self.cache_manager.debounced_cache_refresh(event.src_path)
+
+            except Exception as e:
+                logger.error(f'[CacheEventHandler] Error while handling modified event for {event.src_path}: {e}')
 
     def on_created(self, event):
         """
@@ -371,7 +401,8 @@ class CacheEventHandler(FileSystemEventHandler):
         """
         """Handle file created events."""
         if not event.is_directory:
-            self.cache_manager._debounced_cache_refresh(event.src_path)
+            logger.debug(f'[CacheEventHandler] file creation event triggered for {event.src_path}, refreshing cache')
+            self.cache_manager.debounced_cache_refresh(event.src_path)
 
     def on_deleted(self, event):
         """
@@ -382,8 +413,9 @@ class CacheEventHandler(FileSystemEventHandler):
         """
         """Handle file deleted events."""
         if not event.is_directory:
+            logger.debug(f'[CacheEventHandler] file deletion event triggered for {event.src_path}, purging from cache')
             with self.cache_manager.cache_lock:
                 self.cache_manager.image_cache.pop(event.src_path, None)
-                self.cache_manager.currently_loading.discard(event.src_path)
+                self.cache_manager.currently_active_requests.discard(event.src_path)
                 logger.info(f"[CacheManager] Removed deleted image from cache: {event.src_path}")
             self.cache_manager.metadata_manager.save_metadata(event.src_path, None)

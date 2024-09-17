@@ -1,5 +1,7 @@
+import threading
 from functools import partial
 from threading import RLock, Event
+from time import sleep
 
 from PyQt6.QtCore import pyqtSignal, QObject, Qt, QTimer
 from PyQt6.QtGui import QPixmap
@@ -36,14 +38,13 @@ class ImageManager(QObject):
         """
         Display the image at the specified index.
 
-        :param index: The index of the image to display. If None, the current image is displayed.
-        :type index: int, optional
+        :param int index: The index of the image to display. If None, the current image is displayed.
         """
         with self.lock:
             image_path = self.image_handler.set_current_image_by_index(index)
 
             if image_path:
-                
+
                 self.thread_manager.submit_task(self._display_image_task, image_path)
             else:
                 self.image_cleared.emit()
@@ -52,40 +53,43 @@ class ImageManager(QObject):
         """
         Display the image at the specified index.
 
-        :param index: The index of the image to display. If None, the current image is displayed.
-        :type index: int, optional
+        :param int index: The index of the image to display. If None, the current image is displayed.
         """
-        """Task to load image asynchronously."""
+        thread_id = threading.get_ident()
         with self.lock:
             current_image_path = self.image_handler.data_service.get_current_image_path()
             if image_path != current_image_path:
-                
                 return
 
-        
-        image = self.image_handler.load_image_from_cache(image_path)
-        if image:
-            
-            QTimer.singleShot(0, partial(self.process_image_data, image_path, image))
-        else:
-            pass  
+            logger.info(f"[ImageManager thread {thread_id}] Loading {image_path} from cache or disk")
+            image = self.image_handler.load_image_from_cache(image_path)
+            if image:
 
-    def on_image_loaded_from_cache(self, image_path):
+                QTimer.singleShot(0, partial(self.process_image_data, image_path, image))
+            else:
+                pass
+
+    def on_image_loaded_from_cache(self, image_path, retries=3):
         """
         Handle the event when an image is loaded from cache.
-
-        :param image_path: The path of the image loaded from cache.
-        :type image_path: str
         """
-        """Handle the image_loaded signal from CacheManager."""
         with self.lock:
             current_image_path = self.image_handler.data_service.get_current_image_path()
             if image_path != current_image_path:
+                logger.warning(f"[ImageManager] Notified image {image_path} has been cached.")
                 return
-        image = self.image_handler.data_service.cache_manager.retrieve_image(image_path)
+        logger.warning(f"[ImageManager] Notified current image {image_path} has been cached, attempting to retrieve")
+        image = self.image_handler.data_service.cache_manager.retrieve_image(image_path, active_request=True)
         if image:
-            
+            logger.info(f"[ImageManager] {image_path} retrieved successfully and has been cached. Sending to display")
             QTimer.singleShot(0, partial(self.process_image_data, image_path, image))
+        elif retries:
+            retries -= 1
+            delay = (3 - retries) * 0.5  # Exponential backoff
+            logger.error(
+                f"[ImageManager] Retrying image load for {image_path} in {delay} seconds. Retries left: {retries}.")
+            sleep(delay)
+            self.on_image_loaded_from_cache(image_path, retries=retries)
         else:
             logger.error(f"[ImageManager] Image {image_path} is not in cache despite 'image_loaded' signal.")
 
@@ -93,12 +97,9 @@ class ImageManager(QObject):
         """
         Process the loaded image data and emit the signal to display it.
 
-        :param image_path: The path of the image being processed.
-        :type image_path: str
-        :param image: The image data to process.
-        :type image: QImage
+        :param str image_path: The path of the image being processed.
+        :param Qimage image: The image data to process.
         """
-        """Process the image data in the main thread."""
         pixmap = QPixmap.fromImage(image)
         self.image_loaded.emit(image_path, pixmap)
         self.is_loaded.set()
@@ -112,7 +113,6 @@ class ImageManager(QObject):
         """
         Refresh the image list and ensure the shutdown event is respected.
         """
-        """Trigger image list refresh with correct shutdown_event."""
         if self.shutdown_event.is_set():
             logger.info("[ImageManager] Shutdown initiated, not starting new refresh task.")
             return
@@ -127,14 +127,12 @@ class ImageManager(QObject):
         """
         Refresh the image list and ensure the shutdown event is respected.
         """
-        """Pass the same shutdown_event to the image handler."""
         self.image_handler.refresh_image_list(signal=signal, shutdown_event=shutdown_event)
 
     def shutdown(self):
         """
         Shutdown the ImageManager, ThreadManager, and CacheManager safely.
         """
-        """Shutdown the ImageManager, ThreadManager, and CacheManager."""
         logger.info("[ImageManager] Initiating shutdown.")
         self.shutdown_event.set()
         self.thread_manager.shutdown()
@@ -161,8 +159,7 @@ class ImageManager(QObject):
         """
         Move the current image to a specific category.
 
-        :param category: The category to which the image will be moved.
-        :type category: str
+        :param str category: The category to which the image will be moved.
         """
         self.is_prefetched.clear()
         with self.lock:

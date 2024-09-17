@@ -239,8 +239,7 @@ class ImageHandler:
         :return: The loaded image.
         :rtype: object
         """
-
-        logger.debug(f"Loading image from cache or disk: {image_path}")
+        logger.debug(f"[ImageHandler] Loading image from cache or disk: {image_path}")
         image = self.data_service.cache_manager.retrieve_image(image_path, active_request=True)
         return image
 

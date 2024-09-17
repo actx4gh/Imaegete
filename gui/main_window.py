@@ -63,8 +63,9 @@ class ImaegeteGUI(MainWindow):
         glavnaqt_config.config.font_size = 13
         glavnaqt_config.config.splitter_handle_width = 3
         glavnaqt_config.config.enable_status_bar_manager = True
-        glavnaqt_config.config.update_collapsible_section('top', self.format_category_keys(config.categories),
-                                                          glavnaqt_config.ALIGN_CENTER)
+        if config.categories:
+            glavnaqt_config.config.update_collapsible_section('top', self.format_category_keys(config.categories),
+                                                              glavnaqt_config.ALIGN_CENTER)
         glavnaqt_config.config.update_collapsible_section('main_content', 'test main content',
                                                           alignment=glavnaqt_config.ALIGN_CENTER,
                                                           widget=self.image_display.image_label)
@@ -121,13 +122,12 @@ class ImaegeteGUI(MainWindow):
         :param file_path: The path to the loaded image file.
         :param pixmap: The QPixmap representation of the loaded image.
         """
-
-        """UI update after image is loaded."""
         if self.image_display:
             self.image_display.display_image(file_path, pixmap)
         if self.status_bar:
             self.event_bus.emit('status_update', file_path, self.image_display.get_zoom_percentage())
         self.setWindowTitle(f"{self.app_name} - {os.path.basename(file_path)}")
+        logger.info(f'[ImaegeteGUI] UI updated for loaded image {file_path}')
 
     def update_ui_on_image_cleared(self):
 

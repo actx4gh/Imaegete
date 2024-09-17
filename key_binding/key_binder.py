@@ -16,10 +16,11 @@ def bind_keys(gui, image_manager):
     :param image_manager: The image manager responsible for handling image-related operations.
     """
 
-    key_mapping = {str(i + 1): cat for i, cat in enumerate(config.categories)}
-    for key, category in key_mapping.items():
-        shortcut = QShortcut(QKeySequence(key), gui)
-        shortcut.activated.connect(lambda c=category: image_manager.move_image(c))
+    if config.categories:
+        key_mapping = {str(i + 1): cat for i, cat in enumerate(config.categories)}
+        for key, category in key_mapping.items():
+            shortcut = QShortcut(QKeySequence(key), gui)
+            shortcut.activated.connect(lambda c=category: image_manager.move_image(c))
     delete_shortcut = QShortcut(QKeySequence(DELETE_KEY), gui)
     delete_shortcut.activated.connect(image_manager.delete_image)
     next_shortcut = QShortcut(QKeySequence(NEXT_KEY), gui)

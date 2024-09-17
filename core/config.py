@@ -7,7 +7,6 @@ import yaml
 
 APP_NAME = 'Imaegete'
 
-CACHE_LIMIT_KB = 204800
 RESIZE_TIMER_INTERVAL = 300
 LOGGER_NAME = 'imaegete'
 LOG_FILE_NAME = f'{LOGGER_NAME}.log'
@@ -22,7 +21,7 @@ DELETE_KEY = 'Delete'
 UNDO_KEY = 'U'
 FULLSCREEN_KEY = 'F'
 
-IMAGE_CACHE_MAX_SIZE = 1024
+IMAGE_CACHE_MAX_SIZE_KB = 102400
 
 
 class Config:
@@ -85,7 +84,7 @@ class Config:
         """
         parser = argparse.ArgumentParser(description=f"{APP_NAME} Configuration")
         parser.add_argument('--config', type=str, help="Path to the YAML configuration file")
-        parser.add_argument('--categories', type=str, nargs='*', default=['Sorted'], help="List of categories")
+        parser.add_argument('--categories', type=str, nargs='*', help="List of categories")
         parser.add_argument('--sort_dir', type=str, help="Base directory to put sorting folders. Defaults to START_DIR")
         parser.add_argument('--start_dirs', type=str, default='.', help="Base image dirs. Defaults to CWD")
         parser.add_argument('--log_dir', type=str, help="Where to store logs. Defaults to CONFIG_DIR/logs")
@@ -168,12 +167,13 @@ class Config:
         for start_dir in config['start_dirs']:
             sort_dir = config['sort_dir'] if config['sort_dir'] else start_dir
 
-            config['dest_folders'][start_dir] = {}
+            if config.get('categories'):
+                config['dest_folders'][start_dir] = {}
 
-            for category in config['categories']:
-                category_path = self._ensure_windows_path(os.path.join(sort_dir, category))
+                for category in config['categories']:
+                    category_path = self._ensure_windows_path(os.path.join(sort_dir, category))
 
-                config['dest_folders'][start_dir][category] = category_path
+                    config['dest_folders'][start_dir][category] = category_path
 
             delete_path = self._ensure_windows_path(os.path.join(sort_dir, 'deleted'))
             config['delete_folders'][start_dir] = delete_path
