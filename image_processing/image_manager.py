@@ -56,12 +56,13 @@ class ImageManager(QObject):
         :param int index: The index of the image to display. If None, the current image is displayed.
         """
         thread_id = threading.get_ident()
+        self.event_bus.emit('show_busy')
         with self.lock:
             current_image_path = self.image_handler.data_service.get_current_image_path()
             if image_path != current_image_path:
                 return
 
-            logger.info(f"[ImageManager thread {thread_id}] Loading {image_path} from cache or disk")
+            logger.debug(f"[ImageManager thread {thread_id}] Loading {image_path} from cache or disk")
             image = self.image_handler.load_image_from_cache(image_path)
             if image:
 
@@ -76,12 +77,12 @@ class ImageManager(QObject):
         with self.lock:
             current_image_path = self.image_handler.data_service.get_current_image_path()
             if image_path != current_image_path:
-                logger.warning(f"[ImageManager] Notified image {image_path} has been cached.")
+                logger.debug(f"[ImageManager] Notified image {image_path} has been cached.")
                 return
-        logger.warning(f"[ImageManager] Notified current image {image_path} has been cached, attempting to retrieve")
+        logger.debug(f"[ImageManager] Notified current image {image_path} has been cached, attempting to retrieve")
         image = self.image_handler.data_service.cache_manager.retrieve_image(image_path, active_request=True)
         if image:
-            logger.info(f"[ImageManager] {image_path} retrieved successfully and has been cached. Sending to display")
+            logger.debug(f"[ImageManager] {image_path} retrieved successfully and has been cached. Sending to display")
             QTimer.singleShot(0, partial(self.process_image_data, image_path, image))
         elif retries:
             retries -= 1
@@ -104,6 +105,8 @@ class ImageManager(QObject):
         self.image_loaded.emit(image_path, pixmap)
         self.is_loaded.set()
         self.is_loading.clear()
+        if not self.image_handler.is_refreshing.is_set():
+            self.event_bus.emit('hide_busy')
         if not any((self.image_handler.is_refreshing.is_set(), self.is_prefetched.is_set())):
             logger.debug(f'ImageManager prefetching after image data loaded for {image_path}')
             QTimer.singleShot(0, self.image_handler.prefetch_images_if_needed)

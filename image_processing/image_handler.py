@@ -178,7 +178,7 @@ class ImageHandler:
                 if not hasattr(self, 'shuffled_indices') or not self.shuffled_indices:
                     self.shuffled_indices = list(range(len(image_list)))
                     random.shuffle(self.shuffled_indices)
-                    logger.info("[ImageHandler] All images shown, reshuffling the list.")
+                    logger.info("[ImageHandler] shuffling the list.")
 
                 random_index = self.shuffled_indices.pop(0)
                 self.set_current_image_by_index(random_index)
@@ -222,9 +222,9 @@ class ImageHandler:
             if image_path:
                 image = self.data_service.cache_manager.retrieve_image(image_path)
                 if image:
-                    logger.info(f"[ImageHandler] Skipping already cached image: {image_path}")
+                    logger.debug(f"[ImageHandler] Skipping already cached image: {image_path}")
                 else:
-                    logger.info(f"[ImageHandler] Prefetching uncached image: {image_path}")
+                    logger.debug(f"[ImageHandler] Prefetching uncached image: {image_path}")
 
                     self.data_service.cache_manager.retrieve_image(image_path)
                     self.data_service.cache_manager.get_metadata(image_path)
@@ -263,7 +263,6 @@ class ImageHandler:
 
         delete_folder = self.delete_folders.get(start_dir)
         if delete_folder:
-            logger.info(f"[ImageHandler] Moving {image_path} to delete folder.")
             self.thread_manager.submit_task(self._move_image_task, image_path, start_dir, delete_folder)
         else:
             logger.error(f"[ImageHandler] Delete folder not configured for start directory {start_dir}")
@@ -280,8 +279,6 @@ class ImageHandler:
         if not start_dir:
             logger.error(f"[ImageHandler] Start directory for image {image_path} not found.")
             return
-
-        logger.info(f"[ImageHandler] Moving image: {image_path}")
 
         dest_folder = self.dest_folders[start_dir].get(category)
         if not dest_folder:
@@ -439,7 +436,7 @@ class ImageHandler:
 
         if self.is_refreshing.is_set():
             self.is_refreshing.clear()
-        logger.info(
+        logger.debug(
             f"[ImageHandler] sending final emission with image list total {self.data_service.get_image_list_len()}")
         signal.emit()
         end_time = time.time()
@@ -498,7 +495,7 @@ class ImageHandler:
                 # This is where the execution needs to wait if this directory isn't the first in start_dirs
                 with self.image_list_open_condition:
                     while batch_images and self.start_dirs[0] != directory:
-                        logger.info(f"Thread {threading.get_ident()} waiting to add images from {directory}")
+                        logger.debug(f"Thread {threading.get_ident()} waiting to add images from {directory}")
                         self.image_list_open_condition.wait()  # Wait for a signal that the directory is first
 
                 # Process the batch when it's eligible

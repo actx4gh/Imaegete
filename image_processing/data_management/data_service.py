@@ -13,12 +13,10 @@ class ImageDataService:
         """
         Get the image path at the specified index.
 
-        :param index: The index of the image.
-        :type index: int
+        :param int index: The index of the image.
         :return: The image path at the given index or None if out of bounds.
         :rtype: str or None
         """
-        """Return the image path at the given index."""
         if 0 <= index < len(self._image_list):
             return self._image_list[index]
         return None
@@ -36,8 +34,7 @@ class ImageDataService:
         """
         Set the current image path.
 
-        :param image_path: The path of the current image.
-        :type image_path: str
+        :param str image_path: The path of the current image.
         """
         self._current_image_path = image_path
 
@@ -54,8 +51,7 @@ class ImageDataService:
         """
         Set the list of sorted images.
 
-        :param sorted_images: The list of sorted images.
-        :type sorted_images: list
+        :param list sorted_images: The list of sorted images.
         """
         self._sorted_images = sorted_images
 
@@ -63,8 +59,7 @@ class ImageDataService:
         """
         Remove and return the last item from the sorted images list, or the item at the given index.
 
-        :param index: The index of the image to pop. If None, pop the last image.
-        :type index: int, optional
+        :param int index: The index of the image to pop. If None, pop the last image.
         :return: The popped sorted image.
         :rtype: tuple
         """
@@ -76,8 +71,7 @@ class ImageDataService:
         """
         Remove and return the last item from the image list, or the item at the given index.
 
-        :param index: The index of the image to pop. If None, pop the last image.
-        :type index: int, optional
+        :param int index: The index of the image to pop. If None, pop the last image.
         :return: The popped image.
         :rtype: str
         """
@@ -89,8 +83,7 @@ class ImageDataService:
         """
         Append a tuple to the sorted images list.
 
-        :param sorted_tuple: The tuple to append to the sorted images list.
-        :type sorted_tuple: tuple
+        :param tuple sorted_tuple: The tuple to append to the sorted images list.
         """
         self._sorted_images.append(sorted_tuple)
 
@@ -116,8 +109,7 @@ class ImageDataService:
         """
         Set the image list.
 
-        :param image_list: The list of images.
-        :type image_list: list
+        :param list image_list: The list of images.
         """
         self._image_list = image_list
 
@@ -134,8 +126,7 @@ class ImageDataService:
         """
         Set the current index and update the current image path accordingly.
 
-        :param index: The index to set as current.
-        :type index: int
+        :param int index: The index to set as current.
         """
         self._current_index = index
         if len(self._image_list) >= index + 1:
@@ -151,8 +142,7 @@ class ImageDataService:
         """
         Set the cache manager for managing image caching.
 
-        :param cache_manager: The cache manager to set.
-        :type cache_manager: CacheManager
+        :param CacheManager cache_manager: The cache manager to set.
         """
         self.cache_manager = cache_manager
 

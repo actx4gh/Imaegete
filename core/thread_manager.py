@@ -7,16 +7,14 @@ class ThreadManager:
     """
     A class to manage the submission and execution of tasks using a thread pool.
 
-    :param max_workers: The maximum number of worker threads to use in the pool.
-    :type max_workers: int
+    :param int max_workers: The maximum number of worker threads to use in the pool.
     """
 
     def __init__(self, max_workers=4):
         """
         Initialize the ThreadManager with a thread pool and setup task tracking.
 
-        :param max_workers: Maximum number of worker threads.
-        :type max_workers: int
+        :param int max_workers: Maximum number of worker threads.
         """
         self.thread_pool = ThreadPoolExecutor(max_workers=max_workers)
         self.is_shutting_down = False
@@ -26,14 +24,12 @@ class ThreadManager:
         """
         Submit a task to the thread pool for execution.
 
-        :param task: The task function to execute.
-        :type task: callable
+        :param callable task: The task function to execute.
         :param args: Positional arguments for the task function.
         :param kwargs: Keyword arguments for the task function.
         :return: A future representing the task execution or None if the task could not be submitted.
         :rtype: Future or None
         """
-        """Submit a task to the thread pool, unless shutting down."""
         if not self.is_shutting_down:
             try:
                 future = self.thread_pool.submit(task, *args, **kwargs)
@@ -50,10 +46,8 @@ class ThreadManager:
         """
         Gracefully shut down the thread pool, allowing ongoing tasks to complete.
 
-        :param wait: Whether to wait for tasks to complete before shutting down.
-        :type wait: bool
+        :param bool wait: Whether to wait for tasks to complete before shutting down.
         """
-        """Gracefully shut down the thread pool, allowing ongoing tasks to complete, unless wait=False."""
         self.is_shutting_down = True
         logger.info("[ThreadManager] Initiating shutdown of thread pool.")
 

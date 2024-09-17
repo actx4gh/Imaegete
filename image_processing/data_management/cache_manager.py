@@ -68,11 +68,11 @@ class CacheManager(QObject):
                 return None
 
             # Mark image as being loaded to prevent parallel loading
-            logger.info(f"[CacheManager] Marking image {image_path} as being actively requested.")
+            logger.debug(f"[CacheManager] Marking image {image_path} as being actively requested.")
             self.currently_active_requests.add(image_path)
 
             # Start background task to load the image from disk
-            logger.info(f"[CacheManager] Submitting load task for image {image_path}")
+            logger.debug(f"[CacheManager] Submitting load task for image {image_path}")
             self.thread_manager.submit_task(self._load_image_task, image_path)
         return None
 
@@ -104,7 +104,7 @@ class CacheManager(QObject):
                 self.metadata_manager.save_metadata(image_path, metadata)
                 self.metadata_cache[image_path] = metadata
                 if image_path in self.currently_active_requests:
-                    logger.info(f"[CacheManager thread {thread_id}] Marking image {image_path} as loaded.")
+                    logger.debug(f"[CacheManager thread {thread_id}] Marking image {image_path} as loaded.")
                     self.image_loaded.emit(image_path)
                     self.currently_active_requests.discard(image_path)
         else:
@@ -116,10 +116,8 @@ class CacheManager(QObject):
         """
         Refresh the cache for a specific image asynchronously.
 
-        :param image_path: The path of the image to refresh in the cache.
-        :type image_path: str
+        :param str image_path: The path of the image to refresh in the cache.
         """
-        """Asynchronously refresh the cache for the given image."""
         logger.info(f"[CacheManager] Refreshing cache for {image_path}")
         if self.metadata_manager.file_is_ready(image_path):
             self.thread_manager.submit_task(self._refresh_task, image_path)
@@ -130,8 +128,7 @@ class CacheManager(QObject):
         """
         Internal task to refresh the cache for an image.
 
-        :param image_path: The path of the image to refresh.
-        :type image_path: str
+        :param str image_path: The path of the image to refresh.
         """
         """Actual cache refresh task."""
         with self.cache_lock:
@@ -155,10 +152,6 @@ class CacheManager(QObject):
         """
         Gracefully shut down the CacheManager, including the watchdog observer and metadata manager.
         """
-        """
-        Perform necessary cleanup for the MetadataManager.
-        """
-        """Gracefully shutdown the watchdog observer and remaining cache operations."""
         logger.info("[CacheManager] Initiating shutdown.")
         self.shutdown_watchdog()
         self.metadata_manager.shutdown()
@@ -207,7 +200,6 @@ class CacheManager(QObject):
         """
         Restart the watchdog observer if it crashes.
         """
-        """Restart the watchdog observer in case of failure."""
         logger.warning("[CacheManager] Watchdog observer crashed. Restarting...")
         self.shutdown_watchdog()
         self.initialize_watchdog()
@@ -216,10 +208,6 @@ class CacheManager(QObject):
         """
         Gracefully shut down the CacheManager, including the watchdog observer and metadata manager.
         """
-        """
-        Perform necessary cleanup for the MetadataManager.
-        """
-        """Stop the watchdog observer."""
         if hasattr(self, 'watchdog_observer') and self.watchdog_observer.is_alive():
             self.watchdog_observer.stop()
             self.watchdog_observer.join()
@@ -229,7 +217,6 @@ class CacheManager(QObject):
         """
         Set up the cache directory by creating it if it does not exist.
         """
-        """Ensure the cache directory exists."""
         if not os.path.exists(self.cache_dir):
             try:
                 os.makedirs(self.cache_dir)
@@ -243,12 +230,10 @@ class CacheManager(QObject):
         """
         Retrieve metadata for an image from the cache or load it from disk if not available.
 
-        :param image_path: The path of the image to retrieve metadata for.
-        :type image_path: str
+        :param str image_path: The path of the image to retrieve metadata for.
         :return: The metadata of the image or None if not found.
         :rtype: dict or None
         """
-        """Retrieve metadata from cache or load from disk if not cached."""
         if image_path in self.metadata_cache:
             self.metadata_cache.move_to_end(image_path)
             return self.metadata_cache[image_path]
@@ -276,10 +261,8 @@ class MetadataManager:
         """
         Save metadata for an image asynchronously.
 
-        :param image_path: The path of the image.
-        :type image_path: str
-        :param metadata: The metadata to save.
-        :type metadata: dict
+        :param str image_path: The path of the image.
+        :param dict metadata: The metadata to save.
         """
 
         def async_save():
@@ -298,12 +281,10 @@ class MetadataManager:
         """
         Load metadata from the disk in a thread-safe manner.
 
-        :param image_path: The path of the image to load metadata for.
-        :type image_path: str
+        :param str image_path: The path of the image to load metadata for.
         :return: The loaded metadata or None if not found.
         :rtype: dict or None
         """
-        """Load metadata from disk with thread-safe reading."""
         cache_path = self.get_cache_path(image_path)
         if os.path.exists(cache_path):
             with self.lock.read_lock():
@@ -319,12 +300,10 @@ class MetadataManager:
         """
         Generate the file path for the metadata cache of an image.
 
-        :param image_path: The path of the image.
-        :type image_path: str
+        :param str image_path: The path of the image.
         :return: The cache file path for the image.
         :rtype: str
         """
-        """Generate the file path for the metadata cache."""
         filename = os.path.basename(image_path)
         return os.path.join(self.cache_dir, f"{filename}.cache")
 
@@ -332,10 +311,6 @@ class MetadataManager:
         """
         Gracefully shut down the CacheManager, including the watchdog observer and metadata manager.
         """
-        """
-        Perform necessary cleanup for the MetadataManager.
-        """
-        """Perform any necessary cleanup for MetadataManager."""
         logger.info("[MetadataManager] Shutting down MetadataManager.")
 
     def file_is_ready(self, image_path):
@@ -396,10 +371,8 @@ class CacheEventHandler(FileSystemEventHandler):
         """
         Handle file creation events to refresh the cache.
 
-        :param event: The filesystem event that triggered the creation.
-        :type event: FileSystemEvent
+        :param FileSystemEvent event: The filesystem event that triggered the creation.
         """
-        """Handle file created events."""
         if not event.is_directory:
             logger.debug(f'[CacheEventHandler] file creation event triggered for {event.src_path}, refreshing cache')
             self.cache_manager.debounced_cache_refresh(event.src_path)
@@ -408,10 +381,8 @@ class CacheEventHandler(FileSystemEventHandler):
         """
         Handle file deletion events by removing the image from the cache.
 
-        :param event: The filesystem event that triggered the deletion.
-        :type event: FileSystemEvent
+        :param FileSystemEvent event: The filesystem event that triggered the deletion.
         """
-        """Handle file deleted events."""
         if not event.is_directory:
             logger.debug(f'[CacheEventHandler] file deletion event triggered for {event.src_path}, purging from cache')
             with self.cache_manager.cache_lock:

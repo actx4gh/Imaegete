@@ -127,7 +127,7 @@ class ImaegeteGUI(MainWindow):
         if self.status_bar:
             self.event_bus.emit('status_update', file_path, self.image_display.get_zoom_percentage())
         self.setWindowTitle(f"{self.app_name} - {os.path.basename(file_path)}")
-        logger.info(f'[ImaegeteGUI] UI updated for loaded image {file_path}')
+        logger.debug(f'[ImaegeteGUI] UI updated for loaded image {file_path}')
 
     def update_ui_on_image_cleared(self):
 
@@ -168,7 +168,7 @@ class ImaegeteGUI(MainWindow):
         Log information about the window resize event, including the new width and height.
         """
 
-        logger.info(f"[ImaegeteGUI] Window resized to {self.width()}x{self.height()}")
+        logger.debug(f"[ImaegeteGUI] Window resized to {self.width()}x{self.height()}")
 
     def format_category_keys(self, categories):
 

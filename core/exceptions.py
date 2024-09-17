@@ -6,20 +6,16 @@ class ImaegeteError(Exception):
     """
     A custom exception class for handling errors within the Imaegete application.
 
-    :param message: The error message to display.
-    :type message: str
-    :param context: Optional context information, such as stack trace details.
-    :type context: list or None
+    :param str message: The error message to display.
+    :param list context: Optional context information, such as stack trace details.
     """
 
     def __init__(self, message, context=None):
         """
         Initialize the ImaegeteError with a message and optional context.
 
-        :param message: The error message.
-        :type message: str
-        :param context: Optional context for additional error details.
-        :type context: list or None
+        :param str message: The error message.
+        :param list context: Optional context for additional error details.
         """
         super().__init__(message)
         self.context = context or self._get_context()
@@ -37,9 +33,7 @@ class ImaegeteError(Exception):
         """
         Log the error message along with its context using the specified logger.
 
-        :param logger: The logger instance to use for logging the error. If None, a default logger is used.
-        :type logger: logging.Logger or None
+        :param logging.Logger logger: The logger instance to use for logging the error. If None, a default logger is used.
         """
-        """Log the error with its context using the provided logger."""
         logger = logger or logging.getLogger(__name__)
         logger.error(f"Error: {self}, Context: {self.context}")

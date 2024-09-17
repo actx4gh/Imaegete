@@ -51,8 +51,7 @@ class Config:
         """
         Convert a Cygwin path to a Windows path.
 
-        :param cygwin_path: The Cygwin file path to convert.
-        :type cygwin_path: str
+        :param str cygwin_path: The Cygwin file path to convert.
         :return: The converted Windows file path.
         :rtype: str
         """
@@ -63,8 +62,7 @@ class Config:
         """
         Ensure the given path is in Windows format if running on Cygwin, otherwise return the absolute path.
 
-        :param path: The file path to ensure.
-        :type path: str
+        :param str path: The file path to ensure.
         :return: The ensured Windows or absolute file path.
         :rtype: str
         """
@@ -77,8 +75,7 @@ class Config:
         """
         Parse command line arguments for the configuration.
 
-        :param args: Command line arguments to parse. If None, parse sys.argv.
-        :type args: list or None
+        :param list args: Command line arguments to parse. If None, parse sys.argv.
         :return: Parsed arguments as an argparse.Namespace object.
         :rtype: argparse.Namespace
         """
@@ -118,8 +115,7 @@ class Config:
         """
         Read and load the YAML configuration file.
 
-        :param config_path: The path to the YAML configuration file.
-        :type config_path: str
+        :param str config_path: The path to the YAML configuration file.
         :return: The configuration as a dictionary.
         :rtype: dict
         """
@@ -184,8 +180,7 @@ class Config:
         """
         Override the attribute getter to retrieve values from the configuration dictionary.
 
-        :param name: The name of the attribute to retrieve.
-        :type name: str
+        :param str name: The name of the attribute to retrieve.
         :return: The value of the attribute from the configuration.
         :rtype: Any
         :raises AttributeError: If the attribute does not exist in the configuration.

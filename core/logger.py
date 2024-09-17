@@ -31,10 +31,8 @@ def configure_logger(logger, module_name):
     """
     Configure a logger with both file and console handlers.
 
-    :param logger: The logger instance to configure.
-    :type logger: logging.Logger
-    :param module_name: The name of the module for which the logger is being configured.
-    :type module_name: str
+    :param logging.Logger logger: The logger instance to configure.
+    :param str module_name: The name of the module for which the logger is being configured.
     """
     log_dir = config.log_dir
     log_file_path = os.path.join(log_dir, config.LOG_FILE_NAME)
@@ -63,8 +61,7 @@ def __getattr__(name):
     """
     Dynamically retrieve attributes from the logger instance.
 
-    :param name: The name of the attribute to retrieve.
-    :type name: str
+    :param str name: The name of the attribute to retrieve.
     :return: The attribute of the logger.
     :rtype: Any
     """
