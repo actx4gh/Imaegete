@@ -39,8 +39,7 @@ class ThreadManager:
         if not self.is_shutting_down:
             try:
                 future = self.thread_pool.submit(task, *args, **kwargs)
-                # Commenting out the task tracking unless it's specifically required
-                # self.tasks.append(future)
+
                 return future
             except Exception as e:
                 logger.error(f"Error submitting task to thread pool: {e}")
@@ -56,12 +55,10 @@ class ThreadManager:
         logger.info("[ThreadManager] Initiating shutdown of thread pool.")
         self.is_shutting_down = True
 
-        # Set the shutdown event to stop all ongoing tasks
         for task in self.tasks:
             if not task.done():
                 task.cancel()
 
-        # Forcefully stop the thread pool
         logger.info("[ThreadManager] Forcing cancellation of ongoing tasks.")
         self.thread_pool.shutdown(wait=False)
 

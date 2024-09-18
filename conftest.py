@@ -6,10 +6,10 @@ from unittest.mock import patch
 
 import pytest
 from PIL import Image
-from image_processing.image_handler import ImageHandler
 
 from core.logger import setup_logging
 from gui.main_window import ImaegeteGUI
+from image_processing.image_handler import ImageHandler
 
 
 @pytest.fixture(scope='session', autouse=True)

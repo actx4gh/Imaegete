@@ -46,7 +46,7 @@ class ImageManager(QObject):
             if image_path:
 
                 self._display_image_task(image_path)
-                # self.thread_manager.submit_task(self._display_image_task, image_path)
+
             else:
                 self.image_cleared.emit()
 
@@ -87,7 +87,7 @@ class ImageManager(QObject):
             QTimer.singleShot(0, partial(self.process_image_data, image_path, image))
         elif retries:
             retries -= 1
-            delay = (3 - retries) * 0.5  # Exponential backoff
+            delay = (3 - retries) * 0.5
             logger.error(
                 f"[ImageManager] Retrying image load for {image_path} in {delay} seconds. Retries left: {retries}.")
             sleep(delay)

@@ -52,7 +52,7 @@ class CacheManager(QObject):
         :return: The cached image or None if loading is in progress.
         """
         with self.cache_lock:
-            # Check if image is already cached
+
             image = self.image_cache.get(image_path)
             if image:
                 logger.debug(f"[CacheManager] Image found in cache for {image_path}")
@@ -61,17 +61,14 @@ class CacheManager(QObject):
             else:
                 logger.debug(f"[CacheManager] Image was not found in cache for {image_path}")
 
-            # Check if image is currently being loaded
             if image_path in self.currently_active_requests and active_request:
                 logger.warning(
                     f"[CacheManager] Duplicate request: Image {image_path} is already being loaded, skipping.")
                 return None
 
-            # Mark image as being loaded to prevent parallel loading
             logger.debug(f"[CacheManager] Marking image {image_path} as being actively requested.")
             self.currently_active_requests.add(image_path)
 
-            # Start background task to load the image from disk
             logger.debug(f"[CacheManager] Submitting load task for image {image_path}")
             self.thread_manager.submit_task(self._load_image_task, image_path)
         return None
@@ -166,23 +163,19 @@ class CacheManager(QObject):
         event_handler = CacheEventHandler(self)
         self.watchdog_observer = Observer()
 
-        # Set to store directories that should be excluded
         directories_to_exclude = set()
 
-        # Loop through each start directory and find corresponding subdirectories to exclude
         for start_dir in self.image_directories:
-            # Exclude subdirectories from dest_folders
+
             if start_dir in self.dest_folders:
-                # dest_folders contains a dictionary mapping category names to folder paths
+
                 for dest_subfolder in self.dest_folders[start_dir].values():
                     directories_to_exclude.add(os.path.normpath(dest_subfolder))
 
-            # Exclude the folder listed in delete_folders for this start_dir
             if start_dir in self.delete_folders:
                 delete_folder = self.delete_folders[start_dir]
                 directories_to_exclude.add(os.path.normpath(delete_folder))
 
-        # Schedule the observer for each start directory, but exclude directories in directories_to_exclude
         for directory in self.image_directories:
             if os.path.normpath(directory) not in directories_to_exclude:
                 self.watchdog_observer.schedule(event_handler, directory, recursive=True)
@@ -212,7 +205,7 @@ class CacheManager(QObject):
         """
         if hasattr(self, 'watchdog_observer') and self.watchdog_observer.is_alive():
             self.watchdog_observer.stop()
-            self.watchdog_observer.join()  # Ensure it joins before shutdown proceeds
+            self.watchdog_observer.join()
             logger.info("[CacheManager] Watchdog observer stopped.")
 
     def _setup_cache_directory(self):
@@ -337,26 +330,24 @@ class CacheEventHandler(FileSystemEventHandler):
                     f'[CacheEventHandler] returning without further processing {event.src_path}. Already active in the cache.')
                 return None
             try:
-                # Get the current modification time of the file from the file system
+
                 current_mod_time = os.path.getmtime(event.src_path)
 
-                # Retrieve the cached metadata for the file, if available
                 cached_metadata = self.cache_manager.metadata_cache.get(event.src_path)
 
-                # Check if the modification time in the metadata cache is different from the current one
                 if cached_metadata:
                     cached_mod_time = cached_metadata.get('last_modified')
 
                     if cached_mod_time != current_mod_time:
                         logger.debug(
                             f'[CacheEventHandler] Modification time changed for {event.src_path}. Refreshing cache.')
-                        # Trigger cache refresh since the modification time has changed
+
                         self.cache_manager.debounced_cache_refresh(event.src_path)
                     else:
                         logger.debug(
                             f'[CacheEventHandler] Modification time unchanged for {event.src_path}. No refresh needed.')
                 else:
-                    # If no metadata is cached, refresh the cache and add metadata
+
                     logger.debug(f'[CacheEventHandler] No metadata cached for {event.src_path}. Refreshing cache.')
                     self.cache_manager.debounced_cache_refresh(event.src_path)
 

@@ -409,21 +409,17 @@ class ImageHandler:
             logger.debug(f'[ImageHandler thread {thread_id} thread {thread_id}] processing {directory}')
             folders_to_skip = []
 
-            # For self.dest_folders, extract the subfolder paths for each start_dir
             for start_dir, subfolders in self.dest_folders.items():
 
                 if os.path.normpath(start_dir) == os.path.normpath(directory):
-                    # Add each subfolder path to the skip list
                     folders_to_skip.extend(subfolders.values())
 
-            # For self.delete_folders, extract the folder paths directly
             for start_dir, delete_folder in self.delete_folders.items():
                 if shutdown_event.is_set():
                     logger.debug(
                         f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing while generating skip folders.")
                     return
                 if os.path.normpath(start_dir) == os.path.normpath(directory):
-                    # Add the delete folder to the skip list
                     folders_to_skip.append(delete_folder)
             logger.debug(f'[ImageHandler thread {thread_id} thread {thread_id}] skipping {folders_to_skip}')
             processed_images = self._process_files_in_directory(directory, shutdown_event, signal,
@@ -499,7 +495,7 @@ class ImageHandler:
                 return batch_images
             if os.path.normpath(root) in map(os.path.normpath, folders_to_skip):
                 logger.debug(f"[ImageHandler thread {thread_id}] Skipping directory: {root}")
-                continue  # Skip this directory
+                continue
 
             sorted_files = os_sorted(files)
             i = 0
@@ -528,7 +524,6 @@ class ImageHandler:
                     else:
                         continue
 
-                # This is where the execution needs to wait if this directory isn't the first in start_dirs
                 with self.image_list_open_condition:
                     if shutdown_event.is_set():
                         logger.debug(f"[ImageHandler thread {thread_id}] Shutdown during image list open condition")
@@ -550,7 +545,6 @@ class ImageHandler:
                                 return batch_images
                             self.image_list_open_condition.wait(timeout=0.1)
 
-                            # Process the batch when it's eligible
                 if shutdown_event.is_set():
                     logger.debug(f"[ImageHandler thread {thread_id}] Shutdown during file processing in {directory}")
                     return batch_images
@@ -615,10 +609,8 @@ class ImageHandler:
             logger.debug("[ImageHandler] Notifying all threads waiting on image_list_open_condition condition.")
             self.image_list_open_condition.notify_all()
 
-        # Ensure the thread manager shuts down and cancels tasks
         self.thread_manager.shutdown()
 
-        # Shutdown the cache manager
         self.data_service.cache_manager.shutdown()
 
         logger.info("[ImageHandler] Shutdown complete.")

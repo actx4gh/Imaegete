@@ -2,6 +2,7 @@ class ImageDataService:
     """
     A class to manage image data, including the image list, current image path, and cache manager.
     """
+
     def __init__(self):
         self._current_image_path = None
         self._image_list = []
