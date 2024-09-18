@@ -7,7 +7,6 @@ import yaml
 
 APP_NAME = 'Imaegete'
 
-RESIZE_TIMER_INTERVAL = 300
 LOGGER_NAME = 'imaegete'
 LOG_FILE_NAME = f'{LOGGER_NAME}.log'
 WINDOW_TITLE_SUFFIX = 'Imaegete'
@@ -20,6 +19,7 @@ RANDOM_KEY = 'R'
 DELETE_KEY = 'Delete'
 UNDO_KEY = 'U'
 FULLSCREEN_KEY = 'F'
+QUIT_KEY = 'Q'
 
 IMAGE_CACHE_MAX_SIZE_KB = 102400
 

@@ -45,7 +45,8 @@ class ImageManager(QObject):
 
             if image_path:
 
-                self.thread_manager.submit_task(self._display_image_task, image_path)
+                self._display_image_task(image_path)
+                # self.thread_manager.submit_task(self._display_image_task, image_path)
             else:
                 self.image_cleared.emit()
 
@@ -124,13 +125,7 @@ class ImageManager(QObject):
         self.is_prefetched.clear()
 
         logger.info("[ImageManager] Triggering image list refresh.")
-        self.thread_manager.submit_task(self._refresh_image_list_task, self.image_list_updated, self.shutdown_event)
-
-    def _refresh_image_list_task(self, signal, shutdown_event):
-        """
-        Refresh the image list and ensure the shutdown event is respected.
-        """
-        self.image_handler.refresh_image_list(signal=signal, shutdown_event=shutdown_event)
+        self.image_handler.refresh_image_list(signal=self.image_list_updated, shutdown_event=self.shutdown_event)
 
     def shutdown(self):
         """
@@ -138,7 +133,6 @@ class ImageManager(QObject):
         """
         logger.info("[ImageManager] Initiating shutdown.")
         self.shutdown_event.set()
-        self.thread_manager.shutdown()
         self.image_handler.shutdown()
         logger.info("[ImageManager] Shutdown complete.")
 

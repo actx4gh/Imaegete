@@ -1,6 +1,12 @@
+import threading
 from concurrent.futures import ThreadPoolExecutor
 
 from core import logger
+
+
+def log_active_threads():
+    active_threads = threading.enumerate()
+    logger.debug(f"[ThreadManager] Active threads: {active_threads}")
 
 
 class ThreadManager:
@@ -10,7 +16,7 @@ class ThreadManager:
     :param int max_workers: The maximum number of worker threads to use in the pool.
     """
 
-    def __init__(self, max_workers=4):
+    def __init__(self, max_workers=16):
         """
         Initialize the ThreadManager with a thread pool and setup task tracking.
 
@@ -33,7 +39,8 @@ class ThreadManager:
         if not self.is_shutting_down:
             try:
                 future = self.thread_pool.submit(task, *args, **kwargs)
-                self.tasks.append(future)
+                # Commenting out the task tracking unless it's specifically required
+                # self.tasks.append(future)
                 return future
             except Exception as e:
                 logger.error(f"Error submitting task to thread pool: {e}")
@@ -42,23 +49,20 @@ class ThreadManager:
             logger.warning("[ThreadManager] Cannot submit new tasks, shutting down.")
             return None
 
-    def shutdown(self, wait=False):
+    def shutdown(self):
         """
-        Gracefully shut down the thread pool, allowing ongoing tasks to complete.
-
-        :param bool wait: Whether to wait for tasks to complete before shutting down.
+        Shuts down the thread pool and cancels all ongoing tasks.
         """
-        self.is_shutting_down = True
         logger.info("[ThreadManager] Initiating shutdown of thread pool.")
+        self.is_shutting_down = True
 
-        if not wait:
-            logger.info("[ThreadManager] Forcing cancellation of ongoing tasks.")
-            for task in self.tasks:
-                if not task.done():
-                    task.cancel()
+        # Set the shutdown event to stop all ongoing tasks
+        for task in self.tasks:
+            if not task.done():
+                task.cancel()
 
-        try:
-            self.thread_pool.shutdown(wait=wait)
-            logger.info("[ThreadManager] Thread pool shutdown complete.")
-        except Exception as e:
-            logger.error(f"[ThreadManager] Error during thread pool shutdown: {e}")
+        # Forcefully stop the thread pool
+        logger.info("[ThreadManager] Forcing cancellation of ongoing tasks.")
+        self.thread_pool.shutdown(wait=False)
+
+        logger.info("[ThreadManager] Thread pool shutdown complete.")

@@ -1,6 +1,5 @@
 import os
 import shutil
-from concurrent.futures import ThreadPoolExecutor
 
 from core import logger
 
@@ -67,68 +66,3 @@ def check_and_remove_empty_dir(dir_path):
             logger.info(f"[FileOperations] Removed empty directory: {dir_path}")
         except Exception as e:
             logger.error(f"[FileOperations] Failed to remove directory {dir_path}: {e}")
-
-
-def scan_directory(directory):
-    """
-    List all subdirectories within a given directory.
-
-    :param str directory: The directory to scan.
-    :return: A list of subdirectories.
-    :rtype: list
-    """
-    subdirs = [directory]
-    try:
-        with os.scandir(directory) as it:
-            for entry in it:
-                if entry.is_dir(follow_symlinks=False):
-                    subdirs.append(entry.path)
-    except PermissionError:
-        pass
-    return subdirs
-
-
-def list_all_directories_concurrent(start_dir):
-    """
-    List all directories recursively using concurrent threads.
-
-    :param list start_dir: The starting directory or list of directories to scan.
-    :return: A list of all directories found.
-    :rtype: list
-    """
-    directories = []
-    seen_directories = set()
-
-    if isinstance(start_dir, str):
-        dirs_to_process = [start_dir]
-    else:
-        dirs_to_process = list(start_dir)
-
-    with ThreadPoolExecutor() as executor:
-        while dirs_to_process:
-
-            future_to_dir = {}
-            for d in dirs_to_process:
-                if not executor._shutdown:
-                    future = executor.submit(scan_directory, d)
-                    future_to_dir[future] = d
-                else:
-                    logger.warning("[FileOperations] Attempted to submit task after executor shutdown.")
-                    break
-
-            dirs_to_process = []
-
-            for future in future_to_dir:
-                try:
-                    subdirs = future.result()
-                except Exception as e:
-                    logger.error(f"[FileOperations] Exception while scanning directory: {e}")
-                    continue
-
-                for subdir in subdirs:
-                    if subdir not in seen_directories:
-                        seen_directories.add(subdir)
-                        directories.append(subdir)
-                        dirs_to_process.append(subdir)
-
-    return directories

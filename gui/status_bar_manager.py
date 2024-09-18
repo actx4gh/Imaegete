@@ -1,4 +1,5 @@
 import os
+import threading
 from datetime import datetime
 
 from core import logger
@@ -101,9 +102,8 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
         :param file_path: Path of the image file.
         :param zoom_percentage: Zoom percentage of the displayed image.
         """
-
-        """Fetch data and perform status update in the main thread after worker processing."""
-
+        thread_id = threading.get_ident()
+        f"[StatusBarManager thread {thread_id}] processing status bar update"
         if zoom_percentage is not None:
             self.bar_data['zoom_percentage'] = zoom_percentage
 
@@ -111,7 +111,7 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
             metadata = self.data_service.cache_manager.get_metadata(file_path)
             if not metadata:
                 logger.warning(
-                    f"[StatusBarManager] Metadata not found for {file_path}. Status bar information may be incomplete."
+                    f"[StatusBarManager thread {thread_id}] Metadata not found for {file_path}. Status bar information may be incomplete."
                 )
                 super().update_status_bar("No metadata available")
                 return
@@ -136,7 +136,6 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
         :return: The value corresponding to the key or the default value.
         """
 
-        """Helper method to retrieve bar data values with default fallback."""
         value = self.bar_data.get(key, default)
         return value if value is not None else default
 

@@ -2,7 +2,6 @@ import os
 import random
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 from natsort import os_sorted
@@ -11,6 +10,11 @@ from core import config, logger
 from core.exceptions import ImaegeteError
 from glavnaqt.core.event_bus import create_or_get_shared_event_bus
 from image_processing.data_management.file_operations import move_image_and_cleanup
+
+
+def log_active_threads():
+    active_threads = threading.enumerate()
+    logger.debug(f"[ImageHandler] Active threads: {active_threads}")
 
 
 class ImageHandler:
@@ -389,29 +393,39 @@ class ImageHandler:
         :param Signal signal: A signal to emit when the refresh is complete.
         :param Event shutdown_event: Event to signal if the operation should be stopped.
         """
-        logger.debug("[ImageHandler] Starting image list refresh.")
+        thread_id = threading.get_ident()
+        logger.debug(f"[ImageHandler thread {thread_id}] Starting image list refresh.")
 
         start_time = time.time()
         with self.lock:
+            if shutdown_event.is_set():
+                logger.debug(
+                    f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing before taking any steps.")
+                return
             self.data_service.set_image_list([])
 
         def process_files_in_directory(directory):
             thread_id = threading.get_ident()
-            logger.debug(f'[ImageHandler thread {thread_id}] processing {directory}')
+            logger.debug(f'[ImageHandler thread {thread_id} thread {thread_id}] processing {directory}')
             folders_to_skip = []
 
             # For self.dest_folders, extract the subfolder paths for each start_dir
             for start_dir, subfolders in self.dest_folders.items():
+
                 if os.path.normpath(start_dir) == os.path.normpath(directory):
                     # Add each subfolder path to the skip list
                     folders_to_skip.extend(subfolders.values())
 
             # For self.delete_folders, extract the folder paths directly
             for start_dir, delete_folder in self.delete_folders.items():
+                if shutdown_event.is_set():
+                    logger.debug(
+                        f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing while generating skip folders.")
+                    return
                 if os.path.normpath(start_dir) == os.path.normpath(directory):
                     # Add the delete folder to the skip list
                     folders_to_skip.append(delete_folder)
-            logger.debug(f'[ImageHandler thread {thread_id}] skipping {folders_to_skip}')
+            logger.debug(f'[ImageHandler thread {thread_id} thread {thread_id}] skipping {folders_to_skip}')
             processed_images = self._process_files_in_directory(directory, shutdown_event, signal,
                                                                 folders_to_skip=folders_to_skip)
             if self.start_dirs.index(directory) == 0:
@@ -420,30 +434,42 @@ class ImageHandler:
                     self.image_list_open_condition.notify_all()
             return processed_images
 
-        with ThreadPoolExecutor() as executor:
-
-            futures = [executor.submit(process_files_in_directory, d) for d in self.start_dirs]
-
-            try:
-
-                for future in futures:
-                    try:
-                        future.result()
-                    except Exception as e:
-                        logger.error(f"[ImageHandler] Error during image list refresh: {e}")
-            finally:
-                executor.shutdown(wait=False)
+        futures = [self.thread_manager.submit_task(process_files_in_directory, d) for d in self.start_dirs]
+        if shutdown_event.is_set():
+            logger.debug(
+                f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing before iterating over futures.")
+            return
+        try:
+            for future in futures:
+                try:
+                    future.result()
+                except Exception as e:
+                    logger.error(f"[ImageHandler thread {thread_id}] Error during image list refresh: {e}")
+                if shutdown_event.is_set():
+                    logger.debug(
+                        f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing while iterating over futures.")
+                    return
+        finally:
+            logger.debug(f"[ImageHandler thread {thread_id}] All directory processing tasks completed.")
 
         if self.is_refreshing.is_set():
             self.is_refreshing.clear()
+        if shutdown_event.is_set():
+            logger.debug(
+                f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing prior to final emission.")
+            return
         logger.debug(
-            f"[ImageHandler] sending final emission with image list total {self.data_service.get_image_list_len()}")
+            f"[ImageHandler thread {thread_id}] sending final emission with image list total {self.data_service.get_image_list_len()}")
         signal.emit()
+        if shutdown_event.is_set():
+            logger.debug(
+                f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing after final emission.")
+            return
         end_time = time.time()
         elapsed_time = end_time - start_time
-        logger.info(f"[ImageHandler] Time taken to refresh image list: {elapsed_time:.4f} seconds")
+        logger.info(f"[ImageHandler thread {thread_id}] Time taken to refresh image list: {elapsed_time:.4f} seconds")
 
-    def _process_files_in_directory(self, directory, shutdown_event, signal, folders_to_skip):
+    def _process_files_in_directory(self, directory, shutdown_event, signal, folders_to_skip, thread_id=""):
         """
         Process image files in the given directory with dynamic batch sizing.
 
@@ -463,21 +489,35 @@ class ImageHandler:
         max_batch_size = 1000
         batch_size = initial_batch_size
         target_batch_time = 0.1
+        if not thread_id:
+            thread_id = threading.get_ident()
 
         for root, _, files in os.walk(directory):
+            if shutdown_event.is_set():
+                logger.debug(
+                    f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing while about to process {root}.")
+                return batch_images
             if os.path.normpath(root) in map(os.path.normpath, folders_to_skip):
-                logger.debug(f"[ImageHandler] Skipping directory: {root}")
+                logger.debug(f"[ImageHandler thread {thread_id}] Skipping directory: {root}")
                 continue  # Skip this directory
 
             sorted_files = os_sorted(files)
             i = 0
 
             while i < len(sorted_files):
+                if shutdown_event.is_set():
+                    logger.debug(
+                        f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing while iterating over files for {root}.")
+                    return batch_images
                 start_time = time.time()
                 batch_images.clear()
                 batch_count = 0
 
                 while batch_count < batch_size and i < len(sorted_files):
+                    if shutdown_event.is_set():
+                        logger.debug(
+                            f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing while building batch for {root}")
+                        return batch_images
                     file = sorted_files[i]
                     i += 1
 
@@ -488,19 +528,38 @@ class ImageHandler:
                     else:
                         continue
 
-                    if shutdown_event.is_set():
-                        logger.debug("[ImageHandler] Shutdown initiated, stopping after file processing.")
-                        return batch_images
-
                 # This is where the execution needs to wait if this directory isn't the first in start_dirs
                 with self.image_list_open_condition:
+                    if shutdown_event.is_set():
+                        logger.debug(f"[ImageHandler thread {thread_id}] Shutdown during image list open condition")
+                        return batch_images
                     while batch_images and self.start_dirs[0] != directory:
-                        logger.debug(f"Thread {threading.get_ident()} waiting to add images from {directory}")
-                        self.image_list_open_condition.wait()  # Wait for a signal that the directory is first
+                        while batch_images and self.start_dirs[0] != directory:
+                            if shutdown_event.is_set():
+                                logger.debug(
+                                    f"[ImageHandler thread {thread_id}] Shutdown during image list open condition, stopping.")
+                                return batch_images
+                            logger.debug(f"[ImageHandler] thread {thread_id} waiting to add images from {directory}")
+                            if shutdown_event.is_set():
+                                logger.debug(
+                                    f"[ImageHandler thread {thread_id}] Shutdown during image list open condition, stopping.")
+                                return batch_images
+                            if shutdown_event.is_set():
+                                logger.debug(
+                                    f"[ImageHandler thread {thread_id}] Shutdown list before waiting to add files for {directory} to image list")
+                                return batch_images
+                            self.image_list_open_condition.wait(timeout=0.1)
 
-                # Process the batch when it's eligible
+                            # Process the batch when it's eligible
+                if shutdown_event.is_set():
+                    logger.debug(f"[ImageHandler thread {thread_id}] Shutdown during file processing in {directory}")
+                    return batch_images
                 if batch_images and self.start_dirs[0] == directory:
                     with self.lock:
+                        if shutdown_event.is_set():
+                            logger.debug(
+                                f"[ImageHandler thread {thread_id}] Shutdown before extending image list during file processing")
+                            return batch_images
                         image_list = self.data_service.get_image_list()
                         if not image_list:
                             self.data_service.set_image_list(batch_images.copy())
@@ -509,6 +568,10 @@ class ImageHandler:
                             image_list.extend(batch_images)
                             self.data_service.set_image_list(image_list)
 
+                    if shutdown_event.is_set():
+                        logger.debug(
+                            f"[ImageHandler thread {thread_id}] Shutdown before emitting signal list during file processing")
+                        return batch_images
                     if signal:
                         signal.emit()
 
@@ -520,84 +583,9 @@ class ImageHandler:
                 elif batch_processing_time > target_batch_time and batch_size > min_batch_size:
                     batch_size = max(batch_size // 2, min_batch_size)
 
-                logger.debug(f"[ImageHandler] Batch size adjusted to: {batch_size}")
+                logger.debug(f"[ImageHandler thread {thread_id}] Batch size adjusted to: {batch_size}")
 
         return batch_images
-
-    #
-    #    def _process_files_in_directory(self, directory, shutdown_event, signal, folders_to_skip):
-    #        """
-    #        Process image files in the given directory with dynamic batch sizing.
-    #
-    #        Walks through the directory, processes images in batches, and adjusts batch size based on processing time.
-    #        Skips directories in `folders_to_skip` and handles a shutdown event if triggered.
-    #
-    #        :param str directory: Directory path to process.
-    #        :param threading.Event shutdown_event: Event to signal when to stop processing.
-    #        :param signal: Signal object to emit when a batch is processed.
-    #        :param list folders_to_skip: List of directories to skip.
-    #        :return: List of processed image file paths.
-    #        :rtype: list
-    #        """
-    #        batch_images = []
-    #        initial_batch_size = 50
-    #        min_batch_size = 10
-    #        max_batch_size = 1000
-    #        batch_size = initial_batch_size
-    #        target_batch_time = 0.1
-    #
-    #        for root, _, files in os.walk(directory):
-    #            if os.path.normpath(root) in map(os.path.normpath, folders_to_skip):
-    #                logger.debug(f"[ImageHandler] Skipping directory: {root}")
-    #                continue  # Skip this directory
-    #            sorted_files = os_sorted(files)
-    #            i = 0
-    #            while i < len(sorted_files):
-    #                start_time = time.time()
-    #                batch_images.clear()
-    #                batch_count = 0
-    #
-    #                while batch_count < batch_size and i < len(sorted_files):
-    #                    file = sorted_files[i]
-    #                    i += 1
-    #
-    #                    if self.is_image_file(file):
-    #                        file_path = os.path.join(root, file)
-    #                        batch_images.append(file_path)
-    #                        batch_count += 1
-    #                    else:
-    #                        continue
-    #
-    #                    if shutdown_event.is_set():
-    #                        logger.debug("[ImageHandler] Shutdown initiated, stopping after file processing.")
-    #                        return batch_images
-    #
-    #                if batch_images and self.start_dirs[0] in directory:
-    #                    with self.lock:
-    #                        image_list = self.data_service.get_image_list()
-    #                        if not image_list:
-    #                            self.data_service.set_image_list(batch_images.copy())
-    #                            self.data_service.set_current_index(0)
-    #                        else:
-    #                            image_list.extend(batch_images)
-    #                            self.data_service.set_image_list(image_list)
-    #
-    #                    if signal:
-    #                        signal.emit()
-    #
-    #                end_time = time.time()
-    #                batch_processing_time = end_time - start_time
-    #
-    #                if batch_processing_time < target_batch_time and batch_size < max_batch_size:
-    #
-    #                    batch_size = min(batch_size * 2, max_batch_size)
-    #                elif batch_processing_time > target_batch_time and batch_size > min_batch_size:
-    #
-    #                    batch_size = max(batch_size // 2, min_batch_size)
-    #
-    #                logger.debug(f"[ImageHandler] Batch size adjusted to: {batch_size}")
-    #
-    #        return batch_images
 
     def find_start_directory(self, image_path):
         """
@@ -621,10 +609,16 @@ class ImageHandler:
         return any(filename.lower().endswith(ext) for ext in valid_extensions)
 
     def shutdown(self):
-        """
-        Shut down the cache manager.
+        logger.info("[ImageHandler] Shutdown in progress, lock released")
 
-        This method triggers the shutdown process for the cache manager to release resources and stop any ongoing operations.
-        """
+        with self.image_list_open_condition:
+            logger.debug("[ImageHandler] Notifying all threads waiting on image_list_open_condition condition.")
+            self.image_list_open_condition.notify_all()
 
+        # Ensure the thread manager shuts down and cancels tasks
+        self.thread_manager.shutdown()
+
+        # Shutdown the cache manager
         self.data_service.cache_manager.shutdown()
+
+        logger.info("[ImageHandler] Shutdown complete.")

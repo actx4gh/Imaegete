@@ -1,7 +1,7 @@
 from PyQt6.QtGui import QKeySequence, QShortcut
 
 from core import config
-from core.config import NEXT_KEY, PREV_KEY, FIRST_KEY, LAST_KEY, UNDO_KEY, DELETE_KEY, RANDOM_KEY, FULLSCREEN_KEY
+from core.config import NEXT_KEY, PREV_KEY, FIRST_KEY, LAST_KEY, UNDO_KEY, DELETE_KEY, RANDOM_KEY, FULLSCREEN_KEY, QUIT_KEY
 
 
 def bind_keys(gui, image_manager):
@@ -37,3 +37,5 @@ def bind_keys(gui, image_manager):
     undo_shortcut.activated.connect(image_manager.random_image)
     fullscreen_shortcut = QShortcut(QKeySequence(FULLSCREEN_KEY), gui)
     fullscreen_shortcut.activated.connect(lambda: gui.image_display.toggle_fullscreen(gui))
+    quit_shortcut = QShortcut(QKeySequence(QUIT_KEY), gui)
+    quit_shortcut.activated.connect(gui.close)

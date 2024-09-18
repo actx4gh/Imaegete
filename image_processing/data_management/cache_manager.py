@@ -154,7 +154,9 @@ class CacheManager(QObject):
         """
         logger.info("[CacheManager] Initiating shutdown.")
         self.shutdown_watchdog()
-        self.metadata_manager.shutdown()
+        with self.cache_lock:
+            self.currently_active_requests.clear()
+        logger.info("[CacheManager] Shutdown complete.")
 
     def initialize_watchdog(self):
         """
@@ -206,11 +208,11 @@ class CacheManager(QObject):
 
     def shutdown_watchdog(self):
         """
-        Gracefully shut down the CacheManager, including the watchdog observer and metadata manager.
+        Stop the watchdog observer and wait for the thread to finish.
         """
         if hasattr(self, 'watchdog_observer') and self.watchdog_observer.is_alive():
             self.watchdog_observer.stop()
-            self.watchdog_observer.join()
+            self.watchdog_observer.join()  # Ensure it joins before shutdown proceeds
             logger.info("[CacheManager] Watchdog observer stopped.")
 
     def _setup_cache_directory(self):
@@ -306,12 +308,6 @@ class MetadataManager:
         """
         filename = os.path.basename(image_path)
         return os.path.join(self.cache_dir, f"{filename}.cache")
-
-    def shutdown(self):
-        """
-        Gracefully shut down the CacheManager, including the watchdog observer and metadata manager.
-        """
-        logger.info("[MetadataManager] Shutting down MetadataManager.")
 
     def file_is_ready(self, image_path):
         """Check if the file is ready for reading."""
