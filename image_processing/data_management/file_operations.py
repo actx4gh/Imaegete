@@ -67,6 +67,7 @@ def check_and_remove_empty_dir(dir_path):
         except Exception as e:
             logger.error(f"[FileOperations] Failed to remove directory {dir_path}: {e}")
 
+
 def is_image_file(filename):
     """
     Check if a given file is a valid image format.

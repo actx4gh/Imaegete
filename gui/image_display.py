@@ -96,7 +96,6 @@ class ImageDisplay(QObject):
         :param main: The main window object.
         """
 
-        """Toggle full-screen display of the current image."""
         if self.is_fullscreen:
             main.toggle_fullscreen_layout()
             main.showNormal()

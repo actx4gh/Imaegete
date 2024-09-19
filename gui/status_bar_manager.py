@@ -39,7 +39,6 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
         :param zoom_percentage: Zoom percentage of the displayed image.
         """
 
-        """Override and augment the update_status_bar method from the base class."""
         if self.status_label.isVisible():
             if file_path is None:
                 file_path = self.data_service.get_current_image_path()
@@ -58,10 +57,6 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
         This method overrides the base class's update method and focuses on updating metadata.
         """
 
-        """
-        Override the update_status_bar method to optionally update metadata.
-        If metadata_update is False, only update the total number of images.
-        """
         self.bar_data['image_index'] = self.data_service.get_current_index()
         self.bar_data['total_images'] = len(self.data_service.get_image_list())
 
@@ -75,7 +70,6 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
         Clears the status bar data and resets the status text.
         """
 
-        """Update the status bar when there is no image loaded."""
         self.bar_data.clear()
         self.status_label.setText("No image loaded")
         self.status_label.setToolTip("")
@@ -87,8 +81,6 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
 
         This method prevents starting a new worker if the current one is still running.
         """
-
-        """Submit the status update task to ThreadManager with custom logic."""
 
         if self.worker and self.worker.isRunning():
             return

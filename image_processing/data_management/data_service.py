@@ -122,23 +122,20 @@ class ImageDataService:
         """
         Insert an image into the image list while maintaining order based on os_sort_key.
         """
-        # Compute the sort key for the new image
+
         new_item_key = natsort.os_sort_key(image_path)
 
-        # Find the correct index to insert the new image using a manual comparison
         index = 0
         while index < len(self._image_list):
-            # Get the sort key for the current item in the list
+
             current_item_key = natsort.os_sort_key(self._image_list[index])
-            # If the new image key is less than the current item key, break and insert
+
             if new_item_key < current_item_key:
                 break
             index += 1
 
-        # Insert the image at the calculated position
         self._image_list.insert(index, image_path)
 
-        # Update the current index if necessary
         if self._current_image_path in self._image_list:
             self._current_index = self._image_list.index(self._current_image_path)
 
@@ -149,9 +146,9 @@ class ImageDataService:
         :param str image_path: The path of the image to remove.
         """
         if image_path in self._image_list:
-            # Find the index of the image to remove
+
             index = self._image_list.index(image_path)
-            # Remove the image and its key
+
             self._image_list.pop(index)
             if self._current_image_path in self._image_list:
                 self._current_index = self._image_list.index(self._current_image_path)

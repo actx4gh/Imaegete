@@ -57,7 +57,6 @@ class ImaegeteGUI(MainWindow):
         fonts, splitter handle width, status bar configuration, and collapsible sections.
         """
 
-        """Initialize UI components and configure settings."""
         logger.debug("[ImaegeteGUI] UI configuration set up.")
         glavnaqt_config.config.font_size = "Helvetica"
         glavnaqt_config.config.font_size = 13
@@ -80,7 +79,6 @@ class ImaegeteGUI(MainWindow):
         :param event: The resize event containing information about the new window size.
         """
 
-        """Override resizeEvent to add additional behavior while preserving base functionality."""
         if self.data_service.get_current_image_path():
             self.image_display.update_image_label()
             self.resize_emission_args['zoom_percentage'] = self.image_display.get_zoom_percentage()
@@ -105,7 +103,6 @@ class ImaegeteGUI(MainWindow):
         Disconnect signals to avoid memory leaks when the window is closed or signals need to be reset.
         """
 
-        """Disconnect signals to avoid memory leaks."""
         try:
             self.image_manager.image_cleared.disconnect(self.update_ui_on_image_cleared)
             self.customContextMenuRequested.disconnect(self.show_context_menu)
@@ -135,7 +132,6 @@ class ImaegeteGUI(MainWindow):
         Update the UI when the currently displayed image is cleared from the screen.
         """
 
-        """Update the UI when the image is cleared."""
         if self.image_display:
             self.image_display.clear_image()
 
@@ -153,7 +149,6 @@ class ImaegeteGUI(MainWindow):
         Setup the status bar to allow interaction with the user, such as clicking events.
         """
 
-        """Setup status bar interaction after it is fully configured."""
         if self.status_label:
             self.status_label.mousePressEvent = self.status_bar_clicked
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -265,7 +260,6 @@ class ImaegeteGUI(MainWindow):
         :param event: The close event triggering the shutdown.
         """
 
-        """Handle the window close event to disconnect signals and perform cleanup."""
         logger.debug("[ImaegeteGUI] Closing ImaegeteGUI...")
 
         self._disconnect_signals()

@@ -26,8 +26,7 @@ def main():
     _ = ImaegeteStatusBarManager(thread_manager=thread_manager, data_service=data_service)
     cache_manager = CacheManager(config.cache_dir, thread_manager, data_service, image_directories=config.start_dirs,
                                  max_size=config.IMAGE_CACHE_MAX_SIZE_KB)
-    # cache_manager = CacheManager(config.cache_dir, thread_manager, image_directories=config.start_dirs,
-    #                             max_size=config.IMAGE_CACHE_MAX_SIZE_KB)
+
     data_service.set_cache_manager(cache_manager)
     image_handler = ImageHandler(thread_manager, data_service)
     image_manager = ImageManager(image_handler, thread_manager)

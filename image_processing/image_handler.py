@@ -66,7 +66,6 @@ class ImageHandler:
             self.prefetched_random_images.append(random_index)
             image_path = self.data_service.get_image_path(random_index)
 
-            # Prefetch image without blocking
             self.data_service.cache_manager.retrieve_image(image_path)
             self.data_service.cache_manager.get_metadata(image_path)
         logger.debug(f'[ImageHandler] Prefetched random image indexes: {self.prefetched_random_images}')
@@ -167,7 +166,6 @@ class ImageHandler:
             if len(image_list) > 0:
                 previous_index = (self.data_service.get_current_index() - 1) % len(image_list)
                 self.set_current_image_by_index(previous_index)
-
 
     def set_current_image_by_index(self, index=None):
         """

@@ -1,7 +1,6 @@
 import threading
 from functools import partial
 from threading import RLock, Event
-from time import sleep
 
 from PyQt6.QtCore import pyqtSignal, QObject, Qt, QTimer
 from PyQt6.QtGui import QPixmap
@@ -64,13 +63,13 @@ class ImageManager(QObject):
         if image:
             logger.debug(f"[ImageManager thread {thread_id}] {image_path} retrieved successfully from cached.")
             QTimer.singleShot(0, partial(self.process_image_data, image_path, image))
-#        elif retries:
-#            retries -= 1
-#            delay = (3 - retries) * 0.05
-#            logger.error(
-#                f"[ImageManager thread {thread_id}] Retrying image load for {image_path} in {delay} seconds. Retries left: {retries}.")
-#            sleep(delay)
-#            self._display_image_task(image_path, retries=retries)
+
+
+
+
+
+
+
         else:
             logger.error(
                 f"[ImageManager thread {thread_id}] Image {image_path} is not in cache despite 'image_loaded' signal.")
