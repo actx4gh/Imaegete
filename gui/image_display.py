@@ -1,6 +1,6 @@
-from PyQt6.QtCore import Qt, QObject
+from PyQt6.QtCore import Qt, QObject, QTimer
 from PyQt6.QtWidgets import QLabel, QSizePolicy
-
+from threading import Event
 from core import logger
 
 
@@ -21,7 +21,7 @@ class ImageDisplay(QObject):
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.image_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.image_label.setMinimumSize(1, 1)
-
+        self.fullscreen_toggling = Event()
         self.image_label.setContentsMargins(0, 0, 0, 0)
         self.current_pixmap = None
         self.is_fullscreen = False
@@ -95,15 +95,21 @@ class ImageDisplay(QObject):
 
         :param main: The main window object.
         """
-
+        if self.fullscreen_toggling.is_set():
+            return
+        self.fullscreen_toggling.set()
         if self.is_fullscreen:
-            main.toggle_fullscreen_layout()
             main.showNormal()
-        else:
             main.toggle_fullscreen_layout()
+        else:
             main.showFullScreen()
+            main.toggle_fullscreen_layout()
 
-        self.image_label.resize(main.size())
-        self.update_image_label()
         self.is_fullscreen = not self.is_fullscreen
+        QTimer.singleShot(5, self._resize_and_update_label)
+
+    def _resize_and_update_label(self):
+        self.image_label.resize(self.image_label.size())
+        self.update_image_label()
+        self.fullscreen_toggling.clear()
         logger.debug(f"[ImageDisplay] Full-screen mode toggled: {self.is_fullscreen}")
