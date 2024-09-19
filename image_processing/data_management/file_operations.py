@@ -66,3 +66,14 @@ def check_and_remove_empty_dir(dir_path):
             logger.info(f"[FileOperations] Removed empty directory: {dir_path}")
         except Exception as e:
             logger.error(f"[FileOperations] Failed to remove directory {dir_path}: {e}")
+
+def is_image_file(filename):
+    """
+    Check if a given file is a valid image format.
+
+    :param str filename: The name of the file to check.
+    :return: True if the file is a valid image format, False otherwise.
+    :rtype: bool
+    """
+    valid_extensions = ['.webp', '.jpg', '.jpeg', '.png', '.bmp', '.gif']
+    return any(filename.lower().endswith(ext) for ext in valid_extensions)

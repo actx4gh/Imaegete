@@ -9,7 +9,7 @@ from natsort import os_sorted
 from core import config, logger
 from core.exceptions import ImaegeteError
 from glavnaqt.core.event_bus import create_or_get_shared_event_bus
-from image_processing.data_management.file_operations import move_image_and_cleanup
+from image_processing.data_management.file_operations import move_image_and_cleanup, is_image_file
 
 
 def log_active_threads():
@@ -39,7 +39,7 @@ class ImageHandler:
         self.dest_folders = config.dest_folders
         self.delete_folders = config.delete_folders
         self._start_dirs = []
-        self.shuffled_indices = []
+        self._shuffled_indices = []
 
         self.lock = threading.RLock()
         self.is_refreshing = threading.Event()
@@ -47,6 +47,29 @@ class ImageHandler:
 
         self.data_service.set_image_list([])
         self.data_service.set_sorted_images([])
+        self.prefetched_random_images = []
+
+    def prefetch_random_images(self, prefetch_num=3):
+        """
+        Prefetch up to 3 random images if fewer than 3 are already prefetched.
+        """
+        image_list = self.data_service.get_image_list()
+        if self.data_service.get_image_list_len() <= prefetch_num:
+            logger.debug(
+                f'[ImageHandler] Image list not greater than the number of images being prefetched, returning without prefetching random image')
+        while len(self.prefetched_random_images) < prefetch_num and image_list:
+            available_indices = list(set(self.shuffled_indices) - set(self.prefetched_random_images))
+            if not available_indices:
+                break
+
+            random_index = random.choice(available_indices)
+            self.prefetched_random_images.append(random_index)
+            image_path = self.data_service.get_image_path(random_index)
+
+            # Prefetch image without blocking
+            self.data_service.cache_manager.retrieve_image(image_path)
+            self.data_service.cache_manager.get_metadata(image_path)
+        logger.debug(f'[ImageHandler] Prefetched random image indexes: {self.prefetched_random_images}')
 
     @property
     def start_dirs(self):
@@ -68,7 +91,7 @@ class ImageHandler:
         :param int index: The position to insert the image. If None, append to the end.
         """
         image_list = self.data_service.get_image_list()
-        if self.is_image_file(image_path) and image_path not in image_list:
+        if is_image_file(image_path) and image_path not in image_list:
             with self.lock:
                 if index is not None:
                     image_list.insert(index, image_path)
@@ -145,6 +168,7 @@ class ImageHandler:
                 previous_index = (self.data_service.get_current_index() - 1) % len(image_list)
                 self.set_current_image_by_index(previous_index)
 
+
     def set_current_image_by_index(self, index=None):
         """
         Set the image at the specified index as the current image.
@@ -172,20 +196,32 @@ class ImageHandler:
 
             return None
 
-    def set_random_image(self):
-        """
-        Set a random image from the list as the current image, avoiding repeats until all images have been shown.
-        """
-        with self.lock:
+    @property
+    def shuffled_indices(self):
+        if not self._shuffled_indices:
             image_list = self.data_service.get_image_list()
             if len(image_list) > 0:
-                if not hasattr(self, 'shuffled_indices') or not self.shuffled_indices:
-                    self.shuffled_indices = list(range(len(image_list)))
-                    random.shuffle(self.shuffled_indices)
-                    logger.info("[ImageHandler] shuffling the list.")
+                self._shuffled_indices = list(range(len(image_list)))
+                random.shuffle(self._shuffled_indices)
+                logger.info("[ImageHandler] Initializing the shuffled list.")
+        return self._shuffled_indices
 
-                random_index = self.shuffled_indices.pop(0)
+    def set_random_image(self):
+        """
+        Set a random image from the list. If prefetched random images exist, use the first one.
+        Otherwise, use the original random image selection logic.
+        """
+        with self.lock:
+            if self.prefetched_random_images:
+                random_index = self.prefetched_random_images.pop(0)
+                logger.debug(f'[ImageHandler] Setting index to prefetched random image {random_index}')
                 self.set_current_image_by_index(random_index)
+            else:
+                image_list = self.data_service.get_image_list()
+                if len(image_list) > 0:
+                    random_index = self.shuffled_indices.pop(0)
+                    logger.debug(f'[ImageHandler] Setting index to non-prefetched random image {random_index}')
+                    self.set_current_image_by_index(random_index)
 
     def has_current_image(self):
         """
@@ -233,7 +269,7 @@ class ImageHandler:
                     self.data_service.cache_manager.retrieve_image(image_path)
                     self.data_service.cache_manager.get_metadata(image_path)
 
-    def load_image_from_cache(self, image_path):
+    def load_image_from_cache(self, image_path, background=True):
         """
         Load an image from the cache or disk.
 
@@ -244,7 +280,7 @@ class ImageHandler:
         :rtype: object
         """
         logger.debug(f"[ImageHandler] Loading image from cache or disk: {image_path}")
-        image = self.data_service.cache_manager.retrieve_image(image_path, active_request=True)
+        image = self.data_service.cache_manager.retrieve_image(image_path, active_request=True, background=background)
         return image
 
     def prefetch_images_if_needed(self):
@@ -253,6 +289,7 @@ class ImageHandler:
         """
         if not self.is_refreshing.is_set():
             self.prefetch_images()
+            self.prefetch_random_images()
 
     def delete_current_image(self):
         """
@@ -306,7 +343,9 @@ class ImageHandler:
         """
         with self.lock:
             try:
+                self.data_service.cache_manager.shutdown_watchdog()
                 move_image_and_cleanup(image_path, source_dir, dest_dir)
+                self.data_service.cache_manager.initialize_watchdog()
                 logger.info(f"[ImageHandler] Moved {image_path} from {source_dir} to {dest_dir}")
             except Exception as e:
                 logger.error(f"[ImageHandler] Error moving image {image_path}: {e}")
@@ -517,7 +556,7 @@ class ImageHandler:
                     file = sorted_files[i]
                     i += 1
 
-                    if self.is_image_file(file):
+                    if is_image_file(file):
                         file_path = os.path.join(root, file)
                         batch_images.append(file_path)
                         batch_count += 1
@@ -590,17 +629,6 @@ class ImageHandler:
         :rtype: str
         """
         return next((d for d in self.start_dirs if os.path.abspath(image_path).startswith(os.path.abspath(d))), None)
-
-    def is_image_file(self, filename):
-        """
-        Check if a given file is a valid image format.
-
-        :param str filename: The name of the file to check.
-        :return: True if the file is a valid image format, False otherwise.
-        :rtype: bool
-        """
-        valid_extensions = ['.webp', '.jpg', '.jpeg', '.png', '.bmp', '.gif']
-        return any(filename.lower().endswith(ext) for ext in valid_extensions)
 
     def shutdown(self):
         logger.info("[ImageHandler] Shutdown in progress, lock released")

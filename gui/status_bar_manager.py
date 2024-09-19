@@ -62,6 +62,7 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
         Override the update_status_bar method to optionally update metadata.
         If metadata_update is False, only update the total number of images.
         """
+        self.bar_data['image_index'] = self.data_service.get_current_index()
         self.bar_data['total_images'] = len(self.data_service.get_image_list())
 
         self.start_worker(file_path=None, zoom_percentage=None)

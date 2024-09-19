@@ -32,68 +32,48 @@ class ImageManager(QObject):
 
         self.image_list_updated.connect(self.on_image_list_updated, Qt.ConnectionType.BlockingQueuedConnection)
         self.lock = RLock()
-        self.image_handler.data_service.cache_manager.image_loaded.connect(self.on_image_loaded_from_cache)
+        self.image_handler.data_service.cache_manager.request_display_update.connect(self.display_image)
+        self.current_displayed_image = None
 
-    def display_image(self, index=None):
+    def display_image(self, image_path=None, index=None):
         """
         Display the image at the specified index.
 
         :param int index: The index of the image to display. If None, the current image is displayed.
+        :param str image_path:
         """
         with self.lock:
-            image_path = self.image_handler.set_current_image_by_index(index)
-
+            if not any((image_path, index)) and self.image_handler.has_current_image():
+                image_path = self.image_handler.data_service.get_current_image_path()
+            if not image_path and index:
+                image_path = self.image_handler.set_current_image_by_index(index)
             if image_path:
-
                 self._display_image_task(image_path)
-
             else:
                 self.image_cleared.emit()
 
-    def _display_image_task(self, image_path):
-        """
-        Display the image at the specified index.
-
-        :param int index: The index of the image to display. If None, the current image is displayed.
-        """
-        thread_id = threading.get_ident()
-        self.event_bus.emit('show_busy')
-        with self.lock:
-            current_image_path = self.image_handler.data_service.get_current_image_path()
-            if image_path != current_image_path:
-                return
-
-            logger.debug(f"[ImageManager thread {thread_id}] Loading {image_path} from cache or disk")
-            image = self.image_handler.load_image_from_cache(image_path)
-            if image:
-
-                QTimer.singleShot(0, partial(self.process_image_data, image_path, image))
-            else:
-                pass
-
-    def on_image_loaded_from_cache(self, image_path, retries=3):
+    def _display_image_task(self, image_path, retries=3):
         """
         Handle the event when an image is loaded from cache.
         """
-        with self.lock:
-            current_image_path = self.image_handler.data_service.get_current_image_path()
-            if image_path != current_image_path:
-                logger.debug(f"[ImageManager] Notified image {image_path} has been cached.")
-                return
-        logger.debug(f"[ImageManager] Notified current image {image_path} has been cached, attempting to retrieve")
-        image = self.image_handler.data_service.cache_manager.retrieve_image(image_path, active_request=True)
+        thread_id = threading.get_ident()
+        self.event_bus.emit('show_busy')
+        logger.debug(
+            f"[ImageManager thread {thread_id}] Request to display image {image_path}, attempting to retrieve from cache")
+        image = self.image_handler.load_image_from_cache(image_path, background=False)
         if image:
-            logger.debug(f"[ImageManager] {image_path} retrieved successfully and has been cached. Sending to display")
+            logger.debug(f"[ImageManager thread {thread_id}] {image_path} retrieved successfully from cached.")
             QTimer.singleShot(0, partial(self.process_image_data, image_path, image))
-        elif retries:
-            retries -= 1
-            delay = (3 - retries) * 0.5
-            logger.error(
-                f"[ImageManager] Retrying image load for {image_path} in {delay} seconds. Retries left: {retries}.")
-            sleep(delay)
-            self.on_image_loaded_from_cache(image_path, retries=retries)
+#        elif retries:
+#            retries -= 1
+#            delay = (3 - retries) * 0.05
+#            logger.error(
+#                f"[ImageManager thread {thread_id}] Retrying image load for {image_path} in {delay} seconds. Retries left: {retries}.")
+#            sleep(delay)
+#            self._display_image_task(image_path, retries=retries)
         else:
-            logger.error(f"[ImageManager] Image {image_path} is not in cache despite 'image_loaded' signal.")
+            logger.error(
+                f"[ImageManager thread {thread_id}] Image {image_path} is not in cache despite 'image_loaded' signal.")
 
     def process_image_data(self, image_path, image):
         """
@@ -106,10 +86,11 @@ class ImageManager(QObject):
         self.image_loaded.emit(image_path, pixmap)
         self.is_loaded.set()
         self.is_loading.clear()
+        self.current_displayed_image = image_path
         if not self.image_handler.is_refreshing.is_set():
             self.event_bus.emit('hide_busy')
         if not any((self.image_handler.is_refreshing.is_set(), self.is_prefetched.is_set())):
-            logger.debug(f'ImageManager prefetching after image data loaded for {image_path}')
+            logger.debug(f'[ImageManager] Prefetching with QTimer after image data loaded for {image_path}')
             QTimer.singleShot(0, self.image_handler.prefetch_images_if_needed)
             self.is_prefetched.set()
 
@@ -140,9 +121,10 @@ class ImageManager(QObject):
         """
         Handle the event when the image list is updated.
         """
-        if not any((self.is_loading.is_set(), self.is_loaded.is_set())):
+        if not any((self.is_loading.is_set(),
+                    self.is_loaded.is_set())) or self.image_handler.data_service.get_current_image_path() != self.current_displayed_image:
             self.is_loading.set()
-            logger.info(f'[ImageManager] No current image found, setting to first image')
+            logger.debug(f'[ImageManager] No current image found, setting to first image')
             self.display_image()
         if self.image_handler.is_refreshing.is_set():
             self.image_handler.update_image_total()
@@ -224,6 +206,7 @@ class ImageManager(QObject):
     def random_image(self):
         """
         Set and display a random image from the list.
+        After displaying, call prefetch_images_if_needed.
         """
         self.is_prefetched.clear()
         with self.lock:
