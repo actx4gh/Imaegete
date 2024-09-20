@@ -12,7 +12,6 @@ from key_binding.key_binder import bind_keys
 
 class ImaegeteGUI(MainWindow):
     def __init__(self, image_display, image_manager, data_service, app_name=config.APP_NAME, *args, **kwargs):
-
         """
         Initialize the ImaegeteGUI class with the provided parameters.
 
@@ -85,7 +84,6 @@ class ImaegeteGUI(MainWindow):
         super().resizeEvent(event)
 
     def _connect_signals(self):
-
         """
         Connect signals to their respective slots. Ensures signals are connected only once.
         """
@@ -112,7 +110,6 @@ class ImaegeteGUI(MainWindow):
             logger.debug("[ImaegeteGUI] No signals were connected or already disconnected.")
 
     def update_ui_on_image_loaded(self, file_path, pixmap):
-
         """
         Update the UI when a new image is loaded.
 
@@ -127,7 +124,6 @@ class ImaegeteGUI(MainWindow):
         logger.debug(f'[ImaegeteGUI] UI updated for loaded image {file_path}')
 
     def update_ui_on_image_cleared(self):
-
         """
         Update the UI when the currently displayed image is cleared from the screen.
         """
@@ -136,7 +132,6 @@ class ImaegeteGUI(MainWindow):
             self.image_display.clear_image()
 
     def on_resize(self):
-
         """
         Log and handle the resize event. Triggered when the window size changes.
         """
@@ -144,7 +139,6 @@ class ImaegeteGUI(MainWindow):
         self.log_resize_event()
 
     def setup_interactive_status_bar(self):
-
         """
         Setup the status bar to allow interaction with the user, such as clicking events.
         """
@@ -158,7 +152,6 @@ class ImaegeteGUI(MainWindow):
         super()._initialize_ui(collapsible_sections)
 
     def log_resize_event(self):
-
         """
         Log information about the window resize event, including the new width and height.
         """
@@ -166,7 +159,6 @@ class ImaegeteGUI(MainWindow):
         logger.debug(f"[ImaegeteGUI] Window resized to {self.width()}x{self.height()}")
 
     def format_category_keys(self, categories):
-
         """
         Format the category keys for display in the UI.
 
@@ -178,7 +170,6 @@ class ImaegeteGUI(MainWindow):
         return " | ".join([f"{key}: {cat}" for key, cat in key_mapping.items()])
 
     def status_bar_clicked(self, event):
-
         """
         Handle clicks on the status bar to trigger actions like opening file location or adjusting zoom.
 
@@ -195,7 +186,6 @@ class ImaegeteGUI(MainWindow):
                 self.open_file_properties()
 
     def show_context_menu(self, pos):
-
         """
         Display a context menu based on the user's right-click position in the UI.
 
@@ -212,7 +202,6 @@ class ImaegeteGUI(MainWindow):
         context_menu.exec(self.mapToGlobal(pos))
 
     def identify_segment(self, pos):
-
         """
         Identify the UI segment (filename, zoom, or date) based on the mouse click position.
 
@@ -223,7 +212,6 @@ class ImaegeteGUI(MainWindow):
         return "filename" if pos.x() < 100 else "zoom" if pos.x() < 200 else "date"
 
     def open_file_location(self):
-
         """
         Open the file explorer at the location of the currently loaded image.
         """
@@ -234,15 +222,12 @@ class ImaegeteGUI(MainWindow):
             os.startfile(folder_path)
 
     def adjust_zoom_level(self):
-
         """
         Adjust the zoom level of the displayed image. (Functionality not yet implemented)
         """
-
         pass
 
     def open_file_properties(self):
-
         """
         Open the file properties for the currently loaded image.
         """
@@ -252,7 +237,6 @@ class ImaegeteGUI(MainWindow):
             os.system(f'explorer /select,\"{current_image_path}\"')
 
     def closeEvent(self, event):
-
         """
         Handle the window close event. This method ensures that signals are disconnected
         and any necessary cleanup is performed before the application exits.

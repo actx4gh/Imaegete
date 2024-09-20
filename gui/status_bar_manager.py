@@ -9,7 +9,6 @@ from glavnaqt.ui.status_bar_manager import StatusBarManager as BaseStatusBarMana
 class ImaegeteStatusBarManager(BaseStatusBarManager):
 
     def __init__(self, thread_manager, data_service):
-
         """
         Initialize the ImaegeteStatusBarManager class.
 
@@ -31,7 +30,6 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
         self.event_bus.subscribe('hide_busy', self.stop_busy_indicator)
 
     def update_status_bar(self, file_path=None, zoom_percentage=None):
-
         """
         Update the status bar with image file path and zoom percentage.
 
@@ -50,7 +48,6 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
             self.start_worker(file_path=file_path, zoom_percentage=zoom_percentage)
 
     def update_image_total(self):
-
         """
         Update the status bar to show the total number of images.
 
@@ -63,7 +60,6 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
         self.start_worker(file_path=None, zoom_percentage=None)
 
     def update_status_for_no_image(self):
-
         """
         Update the status bar when no image is loaded.
 
@@ -88,7 +84,6 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
         self.thread_manager.submit_task(self._process_status_update, *args, **kwargs)
 
     def _process_status_update(self, file_path=None, zoom_percentage=None):
-
         """
         Process the status update task, fetching data and updating the status bar.
 
@@ -120,7 +115,6 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
         self.status_label.setToolTip(self.tooltip_text)
 
     def get_bar_data_value(self, key, default):
-
         """
         Retrieve a value from the status bar data with a default fallback.
 
@@ -134,7 +128,6 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
 
     @property
     def status_text(self):
-
         """
         Property that constructs the status bar text using the current bar data.
 
@@ -155,7 +148,6 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
 
     @property
     def tooltip_text(self):
-
         """
         Property that constructs the status bar tooltip using the current bar data.
 
@@ -177,7 +169,6 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
         )
 
     def get_filename(self, file_path):
-
         """
         Get the filename from the given file path.
 
@@ -188,21 +179,18 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
         return os.path.basename(file_path)
 
     def get_image_dimensions(self, metadata):
-
         """
         Get the dimensions of the image from its metadata.
 
         :param metadata: Metadata dictionary containing image information.
         :return: The dimensions of the image as a string.
         """
-
         if 'size' in metadata:
             size = metadata['size']
             return f"{size.width()} x {size.height()} px"
         return "Unknown dimensions"
 
     def get_file_size(self, metadata):
-
         """
         Get the file size from the image metadata.
 
@@ -216,7 +204,6 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
         return "Unknown size"
 
     def get_modification_date(self, metadata):
-
         """
         Get the modification date of the image from its metadata.
 
@@ -229,7 +216,6 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
         return "Unknown date"
 
     def _format_file_size(self, size):
-
         """
         Format the file size into a human-readable format (e.g., KB, MB, GB).
 

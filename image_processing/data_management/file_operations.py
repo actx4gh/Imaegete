@@ -1,6 +1,6 @@
 import os
 import shutil
-
+from PyQt6.QtGui import QImageReader
 from core import logger
 
 
@@ -67,6 +67,9 @@ def check_and_remove_empty_dir(dir_path):
         except Exception as e:
             logger.error(f"[FileOperations] Failed to remove directory {dir_path}: {e}")
 
+def is_valid_image(image_path):
+    reader = QImageReader(image_path)
+    return reader.canRead()
 
 def is_image_file(filename):
     """

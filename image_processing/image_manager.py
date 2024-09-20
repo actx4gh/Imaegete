@@ -62,19 +62,12 @@ class ImageManager(QObject):
         image = self.image_handler.load_image_from_cache(image_path, background=False)
         if image:
             logger.debug(f"[ImageManager thread {thread_id}] {image_path} retrieved successfully from cached.")
-            QTimer.singleShot(0, partial(self.process_image_data, image_path, image))
-
-
-
-
-
-
-
+            QTimer.singleShot(0, partial(self.send_image_to_display, image_path, image))
         else:
             logger.error(
-                f"[ImageManager thread {thread_id}] Image {image_path} is not in cache despite 'image_loaded' signal.")
+                f"[ImageManager thread {thread_id}] Image {image_path} could not be cached. Moving to next available.")
 
-    def process_image_data(self, image_path, image):
+    def send_image_to_display(self, image_path, image):
         """
         Process the loaded image data and emit the signal to display it.
 

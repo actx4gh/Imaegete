@@ -1,13 +1,14 @@
+from threading import Event
+
 from PyQt6.QtCore import Qt, QObject, QTimer
 from PyQt6.QtWidgets import QLabel, QSizePolicy
-from threading import Event
+
 from core import logger
 
 
 class ImageDisplay(QObject):
 
     def __init__(self):
-
         """
         Initialize the ImageDisplay class.
 
@@ -27,7 +28,6 @@ class ImageDisplay(QObject):
         self.is_fullscreen = False
 
     def display_image(self, image_path, pixmap):
-
         """
         Display the given image on the QLabel.
 
@@ -46,7 +46,6 @@ class ImageDisplay(QObject):
             self.clear_image()
 
     def update_image_label(self):
-
         """
         Update the QLabel to display the current pixmap, scaling it to fit the label size.
         """
@@ -54,7 +53,7 @@ class ImageDisplay(QObject):
         logger.debug("[ImageDisplay] Updating image label.")
         if self.current_pixmap:
             scaled_pixmap = self.current_pixmap.scaled(self.image_label.size(), Qt.AspectRatioMode.KeepAspectRatio,
-                                                       Qt.TransformationMode.FastTransformation)
+                                                       Qt.TransformationMode.SmoothTransformation)
             self.image_label.setPixmap(scaled_pixmap)
             logger.debug(f"[ImageDisplay] Updated image label size: {self.image_label.size()}")
         else:
@@ -62,7 +61,6 @@ class ImageDisplay(QObject):
             self.clear_image()
 
     def clear_image(self):
-
         """
         Clear the image currently displayed on the QLabel.
         """
@@ -72,7 +70,6 @@ class ImageDisplay(QObject):
         self.image_label.clear()
 
     def get_zoom_percentage(self):
-
         """
         Calculate the zoom percentage based on the QLabel and pixmap sizes.
 
@@ -89,7 +86,6 @@ class ImageDisplay(QObject):
         return round(zoom_percentage)
 
     def toggle_fullscreen(self, main):
-
         """
         Toggle between full-screen and normal window mode.
 
@@ -99,17 +95,16 @@ class ImageDisplay(QObject):
             return
         self.fullscreen_toggling.set()
         if self.is_fullscreen:
+            main.toggle_fullscreen_layout()
             main.showNormal()
-            main.toggle_fullscreen_layout()
         else:
-            main.showFullScreen()
             main.toggle_fullscreen_layout()
+            main.showFullScreen()
 
         self.is_fullscreen = not self.is_fullscreen
-        QTimer.singleShot(5, self._resize_and_update_label)
+        QTimer.singleShot(20, self._resize_and_update_label)
 
     def _resize_and_update_label(self):
-        self.image_label.resize(self.image_label.size())
         self.update_image_label()
         self.fullscreen_toggling.clear()
         logger.debug(f"[ImageDisplay] Full-screen mode toggled: {self.is_fullscreen}")

@@ -1,4 +1,5 @@
 import natsort
+from core import logger
 
 
 class ImageDataService:
@@ -110,6 +111,9 @@ class ImageDataService:
         """
         return self._image_list
 
+    def image_is_current(self, image_path):
+        return self._current_index == self._image_list.index(image_path)
+
     def set_image_list(self, image_list):
         """
         Set the image list.
@@ -147,15 +151,19 @@ class ImageDataService:
         """
         if image_path in self._image_list:
 
-            index = self._image_list.index(image_path)
+            original_index = self._image_list.index(image_path)
 
-            self._image_list.pop(index)
+            self._image_list.remove(image_path)
             if self._current_image_path in self._image_list:
                 self._current_index = self._image_list.index(self._current_image_path)
-            else:
+            elif self._image_list:
                 if self._current_index == len(self._image_list):
                     self._current_index = self._image_list[-1]
                 self.set_current_image_to_current_index()
+            else:
+                self._current_image_path = None
+                self._current_index = None
+                logger.info(f'[DataService] Removed last image from image list')
         else:
             raise ValueError(f"Image {image_path} not found in the list.")
 

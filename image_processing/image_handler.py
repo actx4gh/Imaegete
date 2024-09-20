@@ -258,8 +258,7 @@ class ImageHandler:
         for index in prefetch_indices:
             image_path = self.data_service.get_image_path(index)
             if image_path:
-                image = self.data_service.cache_manager.retrieve_image(image_path)
-                if image:
+                if self.data_service.cache_manager.is_cached(image_path):
                     logger.debug(f"[ImageHandler] Skipping already cached image: {image_path}")
                 else:
                     logger.debug(f"[ImageHandler] Prefetching uncached image: {image_path}")
@@ -554,8 +553,8 @@ class ImageHandler:
                     file = sorted_files[i]
                     i += 1
 
-                    if is_image_file(file):
-                        file_path = os.path.join(root, file)
+                    file_path = os.path.join(root, file)
+                    if is_image_file(file_path):
                         batch_images.append(file_path)
                         batch_count += 1
                     else:

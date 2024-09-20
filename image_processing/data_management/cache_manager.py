@@ -48,6 +48,9 @@ class CacheManager(QObject):
         self.currently_active_requests = set()
         self.display_requested_once = False
 
+    def is_cached(self, image_path):
+        return image_path in self.image_cache
+
     def retrieve_image(self, image_path, active_request=False, background=True):
         """
         Retrieve an image from the cache, or load it from disk if not present in the cache.
@@ -89,6 +92,9 @@ class CacheManager(QObject):
         :param str image_path: The path of the image to load.
         """
         thread_id = threading.get_ident()
+        if not image_path:
+            logger.debug(f"[CacheManager thread {thread_id}] wasn't given image_path, returning without loading image")
+            return
         image = QImage(image_path)
         if not image.isNull():
             logger.debug(f"[CacheManager thread {thread_id}] Loaded image from disk: {image_path}")
@@ -113,9 +119,12 @@ class CacheManager(QObject):
                     self.currently_active_requests.discard(image_path)
                 return image
         else:
-            logger.error(f"[CacheManager thread {thread_id}] Failed to load image from disk: {image_path}")
-            with self.cache_lock:
-                self.currently_active_requests.discard(image_path)
+            logger.error(
+                f"[CacheManager thread {thread_id}] Failed to load image from disk. Marking invalid: {image_path}")
+            self.data_service.remove_image(image_path)
+            self.event_bus.emit("update_image_total")
+            self.currently_active_requests.discard(image_path)
+            self.load_from_disk_and_cache(self.data_service.get_current_image_path())
 
     def refresh_cache(self, image_path):
         """
@@ -138,7 +147,7 @@ class CacheManager(QObject):
         with self.cache_lock:
             self.image_cache.pop(image_path, None)
             self.currently_active_requests.discard(image_path)
-        self._load_image_task(image_path)
+        self.load_from_disk_and_cache(image_path)
 
     def debounced_cache_refresh(self, image_path):
         """Submit the cache refresh task to the thread pool with a debouncing mechanism."""
