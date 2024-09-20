@@ -94,6 +94,7 @@ class ImageDisplay(QObject):
         if self.fullscreen_toggling.is_set():
             return
         self.fullscreen_toggling.set()
+        self.image_label.setUpdatesEnabled(False)
         if self.is_fullscreen:
             main.toggle_fullscreen_layout()
             main.showNormal()
@@ -102,9 +103,10 @@ class ImageDisplay(QObject):
             main.showFullScreen()
 
         self.is_fullscreen = not self.is_fullscreen
-        QTimer.singleShot(20, self._resize_and_update_label)
+        QTimer.singleShot(50, self._resize_and_update_label)
 
     def _resize_and_update_label(self):
         self.update_image_label()
+        self.image_label.setUpdatesEnabled(True)
         self.fullscreen_toggling.clear()
         logger.debug(f"[ImageDisplay] Full-screen mode toggled: {self.is_fullscreen}")
