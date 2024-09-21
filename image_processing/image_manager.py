@@ -17,10 +17,9 @@ class ImageManager(QObject):
     image_cleared = pyqtSignal()
     image_list_updated = pyqtSignal()
 
-    def __init__(self, image_handler, thread_manager):
+    def __init__(self, image_handler):
         super().__init__()
         self.image_handler = image_handler
-        self.thread_manager = thread_manager
         self.shutdown_event = Event()
         self.is_loading = Event()
         self.is_loaded = Event()

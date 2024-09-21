@@ -29,7 +29,7 @@ def main():
 
     data_service.set_cache_manager(cache_manager)
     image_handler = ImageHandler(thread_manager, data_service)
-    image_manager = ImageManager(image_handler, thread_manager)
+    image_manager = ImageManager(image_handler)
 
     image_display = ImageDisplay()
     sorter_gui = ImaegeteGUI(image_display=image_display, image_manager=image_manager, data_service=data_service)

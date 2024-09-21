@@ -27,6 +27,7 @@ class ImaegeteGUI(MainWindow):
         self.signals_connected = False
         self.cleanup_thread = None
         self.image_display = image_display
+        self.image_display.image_label.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.app_name = app_name
         self.image_manager = image_manager
         self.data_service = data_service
@@ -35,10 +36,10 @@ class ImaegeteGUI(MainWindow):
         self._initialize_ui_components()
         super().__init__(*args, **kwargs)
         self.setWindowTitle(f"{self.app_name} - No image loaded")
+        self._connect_signals()
         self.setup_interactive_status_bar()
         logger.debug("[ImaegeteGUI] UI configuration set up.")
 
-        self._connect_signals()
         bind_keys(self, self.image_manager)
         self.image_manager.refresh_image_list()
 
@@ -88,10 +89,9 @@ class ImaegeteGUI(MainWindow):
         Connect signals to their respective slots. Ensures signals are connected only once.
         """
 
-        """Connect signals. Ensures signals are connected only once."""
         self.image_manager.image_loaded.connect(self.update_ui_on_image_loaded)
         self.image_manager.image_cleared.connect(self.update_ui_on_image_cleared)
-        self.customContextMenuRequested.connect(self.show_context_menu)
+        self.image_display.image_label.customContextMenuRequested.connect(self.show_context_menu)
         self.signals_connected = True
         logger.debug("[ImaegeteGUI] Signals connected for image display.")
 
@@ -103,7 +103,7 @@ class ImaegeteGUI(MainWindow):
 
         try:
             self.image_manager.image_cleared.disconnect(self.update_ui_on_image_cleared)
-            self.customContextMenuRequested.disconnect(self.show_context_menu)
+            self.image_display.image_label.customContextMenuRequested.disconnect(self.show_context_menu)
             self.image_manager.image_loaded.disconnect(self.update_ui_on_image_loaded)
             logger.debug("[ImaegeteGUI] Signals disconnected.")
         except TypeError:
@@ -145,11 +145,7 @@ class ImaegeteGUI(MainWindow):
 
         if self.status_label:
             self.status_label.mousePressEvent = self.status_bar_clicked
-        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-
-    def _initialize_ui(self, collapsible_sections):
-        """Ensure status_bar_manager is initialized before parent UI setup."""
-        super()._initialize_ui(collapsible_sections)
+        self.status_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
 
     def log_resize_event(self):
         """
