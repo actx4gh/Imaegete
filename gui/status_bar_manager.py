@@ -4,7 +4,7 @@ from datetime import datetime
 from PyQt6.QtCore import pyqtSlot, QMutex, QMutexLocker, QThread
 
 from core import logger
-from glavnaqt.ui.new_status_bar_manager import StatusBarManager as BaseStatusBarManager
+from glavnaqt.ui.status_bar_manager import StatusBarManager as BaseStatusBarManager
 
 
 class ImaegeteStatusBarManager(BaseStatusBarManager):
