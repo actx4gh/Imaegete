@@ -11,7 +11,6 @@ class ImageDataService:
         self._current_image_path = None
         self._image_list = []
         self._sorted_images = []
-        self._image_list_keys = []
         self._current_index = 0
         self.cache_manager = None
 
@@ -185,6 +184,9 @@ class ImageDataService:
         self._current_index = index
         if len(self._image_list) >= index + 1:
             self.set_current_image_to_current_index()
+
+    def get_index_for_image(self, image_path):
+        return self._image_list.index(image_path)
 
     def set_current_image_to_current_index(self):
         """

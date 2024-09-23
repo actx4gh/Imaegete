@@ -1,43 +1,32 @@
 import os
-import threading
 from datetime import datetime
 
+from PyQt6.QtCore import pyqtSlot, QMutex, QMutexLocker, QThread
+
 from core import logger
-from glavnaqt.ui.status_bar_manager import StatusBarManager as BaseStatusBarManager
+from glavnaqt.ui.new_status_bar_manager import StatusBarManager as BaseStatusBarManager
 
 
 class ImaegeteStatusBarManager(BaseStatusBarManager):
-
     def __init__(self, thread_manager, data_service):
-        """
-        Initialize the ImaegeteStatusBarManager class.
-
-        Sets up the event bus subscriptions and initializes the thread manager and data service.
-
-        :param thread_manager: Manages background threads for tasks.
-        :param data_service: Manages data related to images and metadata.
-        """
-
-        super().__init__()
-        self.thread_manager = thread_manager
+        super().__init__(thread_manager)
         self.data_service = data_service
         self.bar_data = {}
+        self.bar_data_mutex = QMutex()  # Mutex for thread-safe access to bar_data
 
-        self.event_bus.subscribe('image_loaded', self.update_status_bar)
-        self.event_bus.subscribe('metadata_changed', self.update_status_bar)
-        self.event_bus.subscribe('update_image_total', self.update_image_total)
-        self.event_bus.subscribe('show_busy', self.start_busy_indicator)
-        self.event_bus.subscribe('hide_busy', self.stop_busy_indicator)
+        # Subscribe to events
+        self.event_bus.subscribe('image_loaded', self.update_status_bar_event)
+        self.event_bus.subscribe('metadata_changed', self.update_status_bar_event)
+        self.event_bus.subscribe('update_image_total', self.update_image_total_event)
 
-    def update_status_bar(self, file_path=None, zoom_percentage=None):
+    def update_status_bar_event(self, file_path=None, zoom_percentage=None):
         """
-        Update the status bar with image file path and zoom percentage.
+        Event handler for status bar updates.
 
-        :param file_path: Path of the image file.
+        :param file_path: Path to the image file.
         :param zoom_percentage: Zoom percentage of the displayed image.
         """
-
-        if self.status_label.isVisible():
+        if self.status_label and self.status_label.isVisible():
             if file_path is None:
                 file_path = self.data_service.get_current_image_path()
 
@@ -47,120 +36,121 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
 
             self.start_worker(file_path=file_path, zoom_percentage=zoom_percentage)
 
-    def update_image_total(self):
+    def update_image_total_event(self):
         """
-        Update the status bar to show the total number of images.
-
-        This method overrides the base class's update method and focuses on updating metadata.
+        Event handler to update the total number of images.
         """
+        with QMutexLocker(self.bar_data_mutex):
+            self.bar_data['image_index'] = self.data_service.get_current_index()
+            self.bar_data['total_images'] = len(self.data_service.get_image_list())
 
-        self.bar_data['image_index'] = self.data_service.get_current_index()
-        self.bar_data['total_images'] = len(self.data_service.get_image_list())
-
-        self.start_worker(file_path=None, zoom_percentage=None)
+        self.start_worker()
 
     def update_status_for_no_image(self):
         """
         Update the status bar when no image is loaded.
-
-        Clears the status bar data and resets the status text.
         """
-
-        self.bar_data.clear()
+        with QMutexLocker(self.bar_data_mutex):
+            self.bar_data.clear()
         self.status_label.setText("No image loaded")
         self.status_label.setToolTip("")
 
-    def start_worker(self, *args, **kwargs):
-
+    def _process_status_update(self, file_path=None, zoom_percentage=None, **kwargs):
         """
-        Start a worker thread to process the status update.
+        Background task to process the status update.
 
-        This method prevents starting a new worker if the current one is still running.
-        """
-
-        if self.worker and self.worker.isRunning():
-            return
-
-        self.thread_manager.submit_task(self._process_status_update, *args, **kwargs)
-
-    def _process_status_update(self, file_path=None, zoom_percentage=None):
-        """
-        Process the status update task, fetching data and updating the status bar.
-
-        :param file_path: Path of the image file.
+        :param file_path: Path to the image file.
         :param zoom_percentage: Zoom percentage of the displayed image.
         """
-        thread_id = threading.get_ident()
-        f"[StatusBarManager thread {thread_id}] processing status bar update"
+        thread_id = int(QThread.currentThreadId())
+        logger.debug(f"[ImaegeteStatusBarManager thread {thread_id}] processing status bar update")
+
+        # Create a local copy of bar_data to avoid threading issues
+        with QMutexLocker(self.bar_data_mutex):
+            bar_data = self.bar_data.copy()
+
         if zoom_percentage is not None:
-            self.bar_data['zoom_percentage'] = zoom_percentage
+            bar_data['zoom_percentage'] = zoom_percentage
 
         if file_path:
             metadata = self.data_service.cache_manager.get_metadata(file_path)
             if not metadata:
                 logger.warning(
-                    f"[StatusBarManager thread {thread_id}] Metadata not found for {file_path}. Status bar information may be incomplete."
+                    f"[ImaegeteStatusBarManager thread {thread_id}] Metadata not found for {file_path}. Status bar information may be incomplete."
                 )
-                super().update_status_bar("No metadata available")
+                status_text = "No metadata available"
+                tooltip_text = ""
+                self.status_updated.emit(status_text, tooltip_text)
                 return
 
-            self.bar_data['filename'] = self.get_filename(file_path)
-            self.bar_data['dimensions'] = self.get_image_dimensions(metadata)
-            self.bar_data['file_size'] = self.get_file_size(metadata)
-            self.bar_data['modification_date'] = self.get_modification_date(metadata)
-            self.bar_data['image_index'] = self.data_service.get_current_index()
-            self.bar_data['total_images'] = len(self.data_service.get_image_list())
+            bar_data['filename'] = self.get_filename(file_path)
+            bar_data['dimensions'] = self.get_image_dimensions(metadata)
+            bar_data['file_size'] = self.get_file_size(metadata)
+            bar_data['modification_date'] = self.get_modification_date(metadata)
+            bar_data['image_index'] = self.data_service.get_current_index()
+            bar_data['total_images'] = len(self.data_service.get_image_list())
 
-        self.status_label.setText(self.status_text)
-        self.status_label.setToolTip(self.tooltip_text)
+        # Construct status text and tooltip
+        status_text = self.construct_status_text(bar_data)
+        tooltip_text = self.construct_tooltip_text(bar_data)
 
-    def get_bar_data_value(self, key, default):
+        # Update bar_data in the main thread
+        self._pending_bar_data = bar_data
+
+        # Emit the signal to update the GUI
+        self.status_updated.emit(status_text, tooltip_text)
+
+    @pyqtSlot(str, str)
+    def update_status_bar(self, status_text, tooltip_text):
         """
-        Retrieve a value from the status bar data with a default fallback.
+        Slot to update the status bar GUI elements in the main thread.
 
-        :param key: The key to search for in the bar data.
-        :param default: The default value to return if the key is not found.
-        :return: The value corresponding to the key or the default value.
+        :param status_text: Text to display in the status bar.
+        :param tooltip_text: Tooltip text for the status bar.
         """
+        if self.status_label:
+            self.status_label.setText(status_text)
+            self.status_label.setToolTip(tooltip_text)
 
-        value = self.bar_data.get(key, default)
-        return value if value is not None else default
+        # Update bar_data safely
+        if hasattr(self, '_pending_bar_data'):
+            with QMutexLocker(self.bar_data_mutex):
+                self.bar_data.update(self._pending_bar_data)
+            del self._pending_bar_data
 
-    @property
-    def status_text(self):
+    def construct_status_text(self, bar_data):
         """
-        Property that constructs the status bar text using the current bar data.
+        Construct the status bar text using the provided bar data.
 
+        :param bar_data: Dictionary containing bar data.
         :return: The constructed status bar text.
         """
-
-        image_index = self.get_bar_data_value('image_index', 0)
-        total_images = self.get_bar_data_value('total_images', 0)
-        zoom_percentage = self.get_bar_data_value('zoom_percentage', 'Unknown')
-        dimensions = self.get_bar_data_value('dimensions', 'Unknown dimensions')
-        file_size = self.get_bar_data_value('file_size', 'Unknown size')
-        modification_date = self.get_bar_data_value('modification_date', 'Unknown date')
+        image_index = bar_data.get('image_index', 0)
+        total_images = bar_data.get('total_images', 0)
+        zoom_percentage = bar_data.get('zoom_percentage', 'Unknown')
+        dimensions = bar_data.get('dimensions', 'Unknown dimensions')
+        file_size = bar_data.get('file_size', 'Unknown size')
+        modification_date = bar_data.get('modification_date', 'Unknown date')
 
         return (
             f"📁 {image_index + 1}/{total_images} • 🔍 {zoom_percentage}% • "
             f"📏 {dimensions} • 💾 {file_size} • 📅 {modification_date}"
         )
 
-    @property
-    def tooltip_text(self):
+    def construct_tooltip_text(self, bar_data):
         """
-        Property that constructs the status bar tooltip using the current bar data.
+        Construct the status bar tooltip using the provided bar data.
 
+        :param bar_data: Dictionary containing bar data.
         :return: The constructed tooltip text.
         """
-
-        image_index = self.get_bar_data_value('image_index', 0)
-        total_images = self.get_bar_data_value('total_images', 0)
-        zoom_percentage = self.get_bar_data_value('zoom_percentage', 'Unknown')
-        dimensions = self.get_bar_data_value('dimensions', 'Unknown dimensions')
-        file_size = self.get_bar_data_value('file_size', 'Unknown size')
-        modification_date = self.get_bar_data_value('modification_date', 'Unknown date')
-        filename = self.get_bar_data_value('filename', 'Unknown file')
+        image_index = bar_data.get('image_index', 0)
+        total_images = bar_data.get('total_images', 0)
+        zoom_percentage = bar_data.get('zoom_percentage', 'Unknown')
+        dimensions = bar_data.get('dimensions', 'Unknown dimensions')
+        file_size = bar_data.get('file_size', 'Unknown size')
+        modification_date = bar_data.get('modification_date', 'Unknown date')
+        filename = bar_data.get('filename', 'Unknown file')
 
         return (
             f"Filename: {filename}\nZoom: {zoom_percentage}%\nDimensions: {dimensions}\n"
@@ -175,7 +165,6 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
         :param file_path: Path of the image file.
         :return: The filename extracted from the path.
         """
-
         return os.path.basename(file_path)
 
     def get_image_dimensions(self, metadata):
@@ -197,7 +186,6 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
         :param metadata: Metadata dictionary containing file information.
         :return: The file size as a string.
         """
-
         if 'file_size' in metadata:
             size = metadata['file_size']
             return self._format_file_size(size)
@@ -210,7 +198,6 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
         :param metadata: Metadata dictionary containing file information.
         :return: The modification date as a formatted string.
         """
-
         if 'last_modified' in metadata:
             return datetime.fromtimestamp(metadata['last_modified']).strftime('%Y-%m-%d %H:%M')
         return "Unknown date"
@@ -222,7 +209,6 @@ class ImaegeteStatusBarManager(BaseStatusBarManager):
         :param size: File size in bytes.
         :return: The formatted file size as a string.
         """
-
         for unit in ['B', 'KB', 'MB', 'GB']:
             if size < 1024.0:
                 return f"{size:.1f} {unit}"

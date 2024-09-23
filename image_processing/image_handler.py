@@ -1,9 +1,9 @@
 import os
 import random
-import threading
 import time
 
 import numpy as np
+from PyQt6.QtCore import QObject, QMutexLocker, QRecursiveMutex, QMutex, QWaitCondition, QThread
 from natsort import os_sorted
 
 from core import config, logger
@@ -12,12 +12,7 @@ from glavnaqt.core.event_bus import create_or_get_shared_event_bus
 from image_processing.data_management.file_operations import move_image_and_cleanup, is_image_file
 
 
-def log_active_threads():
-    active_threads = threading.enumerate()
-    logger.debug(f"[ImageHandler] Active threads: {active_threads}")
-
-
-class ImageHandler:
+class ImageHandler(QObject):
     """
     A class to manage image handling operations, including image list management,
     prefetching, moving, and deleting images.
@@ -33,6 +28,7 @@ class ImageHandler:
         :param thread_manager: The thread manager for handling asynchronous tasks.
         :param data_service: The service responsible for managing image data.
         """
+        super().__init__()
         self.thread_manager = thread_manager
         self.event_bus = create_or_get_shared_event_bus()
         self.data_service = data_service
@@ -41,34 +37,54 @@ class ImageHandler:
         self._start_dirs = []
         self._shuffled_indices = []
 
-        self.lock = threading.RLock()
-        self.is_refreshing = threading.Event()
-        self.image_list_open_condition = threading.Condition(self.lock)
+        self.lock = QRecursiveMutex()
+        self.is_refreshing = False
+        self.image_list_open_condition = QWaitCondition()
 
         self.data_service.set_image_list([])
         self.data_service.set_sorted_images([])
         self.prefetched_random_images = []
 
+        self.shutdown_flag = False
+        self.shutdown_mutex = QMutex()
+
     def prefetch_random_images(self, prefetch_num=3):
         """
-        Prefetch up to 3 random images if fewer than 3 are already prefetched.
+        Prefetch up to a specified number of random images, but ensures that the total number
+        of prefetched images never exceeds the prefetch_num limit.
+
+        :param int prefetch_num: The maximum number of images to prefetch (default is 3).
         """
-        image_list = self.data_service.get_image_list()
-        if self.data_service.get_image_list_len() <= prefetch_num:
-            logger.debug(
-                f'[ImageHandler] Image list not greater than the number of images being prefetched, returning without prefetching random image')
-        while len(self.prefetched_random_images) < prefetch_num and image_list:
-            available_indices = list(set(self.shuffled_indices) - set(self.prefetched_random_images))
-            if not available_indices:
-                break
+        with QMutexLocker(self.lock):
+            # Only prefetch if the total prefetched images is less than prefetch_num
+            while len(self.prefetched_random_images) < prefetch_num:
+                if self.data_service.get_image_list_len() <= prefetch_num:
+                    logger.debug('[ImageHandler] Not enough images in the list to prefetch.')
+                    break
 
-            random_index = random.choice(available_indices)
-            self.prefetched_random_images.append(random_index)
-            image_path = self.data_service.get_image_path(random_index)
+                available_indices = list(set(self.shuffled_indices) - set(self.prefetched_random_images))
+                if not available_indices:
+                    logger.debug('[ImageHandler] No available indices to prefetch.')
+                    break
 
-            self.data_service.cache_manager.retrieve_image(image_path)
-            self.data_service.cache_manager.get_metadata(image_path)
-        logger.debug(f'[ImageHandler] Prefetched random image indexes: {self.prefetched_random_images}')
+                # Prefetch a random image and add it to the prefetched list
+                random_index = random.choice(available_indices)
+                self.prefetched_random_images.append(random_index)
+                image_path = self.data_service.get_image_path(random_index)
+
+                self._retrieve_image_data(image_path)
+
+        logger.debug(f'[ImageHandler] Prefetched random image indexes: {self.prefetched_random_images[:prefetch_num]}')
+
+    def _retrieve_image_data(self, image_path):
+        """
+        Retrieve the image data from cache and its metadata. This is a helper function
+        to separate out the image fetching and metadata retrieval logic.
+
+        :param str image_path: The path to the image to be prefetched.
+        """
+        self.data_service.cache_manager.retrieve_image(image_path)
+        self.data_service.cache_manager.get_metadata(image_path)
 
     @property
     def start_dirs(self):
@@ -78,9 +94,10 @@ class ImageHandler:
         :return: A sorted list of start directories.
         :rtype: list
         """
-        if not self._start_dirs:
-            self._start_dirs = os_sorted(config.start_dirs)
-        return self._start_dirs
+        with QMutexLocker(self.lock):
+            if not self._start_dirs:
+                self._start_dirs = os_sorted(config.start_dirs)
+            return self._start_dirs
 
     def add_image_to_list(self, image_path, index=None):
         """
@@ -91,7 +108,7 @@ class ImageHandler:
         """
         image_list = self.data_service.get_image_list()
         if is_image_file(image_path) and image_path not in image_list:
-            with self.lock:
+            with QMutexLocker(self.lock):
                 if index is not None:
                     image_list.insert(index, image_path)
                 else:
@@ -104,7 +121,7 @@ class ImageHandler:
 
         :param str image_path: Path to the image file to be removed.
         """
-        with self.lock:
+        with QMutexLocker(self.lock):
             image_list = self.data_service.get_image_list()
             if image_path in image_list:
                 image_list.remove(image_path)
@@ -114,7 +131,7 @@ class ImageHandler:
         """
         Set the first image in the list as the current image.
         """
-        with self.lock:
+        with QMutexLocker(self.lock):
             if len(self.data_service.get_image_list()) > 0:
                 self.set_current_image_by_index(0)
 
@@ -122,7 +139,7 @@ class ImageHandler:
         """
         Set the last image in the list as the current image.
         """
-        with self.lock:
+        with QMutexLocker(self.lock):
             image_list = self.data_service.get_image_list()
             if len(image_list) > 0:
                 last_index = len(image_list) - 1
@@ -137,7 +154,7 @@ class ImageHandler:
         :return: A tuple containing the original index of the image and the image path.
         :rtype: tuple(int, str)
         """
-        with self.lock:
+        with QMutexLocker(self.lock):
             image_list = self.data_service.get_image_list()
             original_index = self.data_service.get_current_index()
             image_path = self.data_service.pop_image_list(original_index)
@@ -151,7 +168,7 @@ class ImageHandler:
         """
         Set the next image in the list as the current image.
         """
-        with self.lock:
+        with QMutexLocker(self.lock):
             image_list = self.data_service.get_image_list()
             if len(image_list) > 0:
                 next_index = (self.data_service.get_current_index() + 1) % len(image_list)
@@ -161,7 +178,7 @@ class ImageHandler:
         """
         Set the previous image in the list as the current image.
         """
-        with self.lock:
+        with QMutexLocker(self.lock):
             image_list = self.data_service.get_image_list()
             if len(image_list) > 0:
                 previous_index = (self.data_service.get_current_index() - 1) % len(image_list)
@@ -169,16 +186,15 @@ class ImageHandler:
 
     def set_current_image_by_index(self, index=None):
         """
-        Set the image at the specified index as the current image.
+        Sets the image at the specified index as the current image.
 
-        If an index is provided, the image at that position is set as the current image. If no index is provided,
-        the current index is set to 0 if not already set. Returns the path of the current image if available.
+        If you provide an index, the image at that position becomes the current image. If you do not provide an index and the current index is not already set, it defaults to 0. Returns the path of the current image if available.
 
-        :param int index: The position to set the current image. If None, the index defaults to 0 if not already set.
+        :param int index: The position to set as the current image. If None, defaults to 0 if not already set.
         :return: The path of the current image, or None if no image is set.
         :rtype: str or None
         """
-        with self.lock:
+        with QMutexLocker(self.lock):
 
             if index is not None:
                 self.data_service.set_current_index(index)
@@ -209,7 +225,7 @@ class ImageHandler:
         Set a random image from the list. If prefetched random images exist, use the first one.
         Otherwise, use the original random image selection logic.
         """
-        with self.lock:
+        with QMutexLocker(self.lock):
             if self.prefetched_random_images:
                 random_index = self.prefetched_random_images.pop(0)
                 logger.debug(f'[ImageHandler] Setting index to prefetched random image {random_index}')
@@ -284,7 +300,10 @@ class ImageHandler:
         """
         Prefetch images around the current image for faster loading.
         """
-        if not self.is_refreshing.is_set():
+        with QMutexLocker(self.lock):
+            should_prefetch = not self.is_refreshing
+
+        if should_prefetch:
             self.prefetch_images()
             self.prefetch_random_images()
 
@@ -301,7 +320,8 @@ class ImageHandler:
 
         delete_folder = self.delete_folders.get(start_dir)
         if delete_folder:
-            self.thread_manager.submit_task(self._move_image_task, image_path, start_dir, delete_folder)
+            self.thread_manager.submit_task(self._move_image_task, image_path=image_path, source_dir=start_dir,
+                                            dest_dir=delete_folder)
         else:
             logger.error(f"[ImageHandler] Delete folder not configured for start directory {start_dir}")
         self.data_service.append_sorted_images(('delete', image_path, original_index))
@@ -324,7 +344,8 @@ class ImageHandler:
                 f"[ImageHandler] Destination folder not found for category {category} in directory {start_dir}")
             return
 
-        self.thread_manager.submit_task(self._move_image_task, image_path, start_dir, dest_folder)
+        self.thread_manager.submit_task(self._move_image_task, image_path=image_path, source_dir=start_dir,
+                                        dest_dir=dest_folder)
         self.data_service.append_sorted_images(('move', image_path, category, original_index))
 
     def _move_image_task(self, image_path, source_dir, dest_dir):
@@ -338,14 +359,14 @@ class ImageHandler:
         :param str source_dir: The directory from which the image is being moved.
         :param str dest_dir: The directory to which the image is being moved.
         """
-        with self.lock:
-            try:
-                self.data_service.cache_manager.shutdown_watchdog()
-                move_image_and_cleanup(image_path, source_dir, dest_dir)
-                self.data_service.cache_manager.initialize_watchdog()
-                logger.info(f"[ImageHandler] Moved {image_path} from {source_dir} to {dest_dir}")
-            except Exception as e:
-                logger.error(f"[ImageHandler] Error moving image {image_path}: {e}")
+        try:
+            # No need to hold the lock here
+            self.data_service.cache_manager.shutdown_watchdog()
+            move_image_and_cleanup(image_path, source_dir, dest_dir)
+            self.data_service.cache_manager.initialize_watchdog()
+            logger.info(f"[ImageHandler] Moved {image_path} from {source_dir} to {dest_dir}")
+        except Exception as e:
+            logger.error(f"[ImageHandler] Error moving image {image_path}: {e}")
 
     def update_image_total(self):
         """Emit an event to update the image total based on the image list size."""
@@ -369,7 +390,8 @@ class ImageHandler:
         last_action = self.data_service.pop_sorted_images()
         action_type, image_path, *rest = last_action
         original_index = rest[-1]
-        self.thread_manager.submit_task(self._undo_action_task, image_path, action_type, rest)
+        self.thread_manager.submit_task(self._move_image_task, image_path=image_path, action_type=action_type,
+                                        rest=rest)
         self.add_image_to_list(image_path, original_index)
         self.data_service.set_current_index(original_index)
         return last_action
@@ -402,106 +424,99 @@ class ImageHandler:
 
         self._move_image_task(image_path, source_dir, dest_dir)
 
-    def refresh_image_list(self, signal=None, shutdown_event=None):
+    def refresh_image_list(self, signal=None):
         """
         Refresh the image list by scanning the directories for images.
 
         :param Signal signal: A signal to emit when the refresh is complete.
-        :param Event shutdown_event: Event to signal if the operation should be stopped.
         """
-        if shutdown_event and shutdown_event.is_set():
+        if self.is_shutdown():
             logger.info("[ImageHandler] Shutdown initiated, not starting new refresh task.")
             return
-
-        self.is_refreshing.set()
+        with QMutexLocker(self.lock):
+            self.is_refreshing = True
         logger.debug("[ImageHandler] Submitting refresh image list task.")
 
-        start_time = time.time()
-        self.thread_manager.submit_task(self._refresh_image_list_task, signal, shutdown_event)
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-        logger.debug(f"[ImageHandler] Time taken to submit the image list refresh task: {elapsed_time:.4f} seconds")
+        self.thread_manager.submit_task(self._refresh_image_list_task, signal=signal)
 
-    def _refresh_image_list_task(self, signal=None, shutdown_event=None):
+    def _refresh_image_list_task(self, signal=None):
         """
         Refresh the image list by scanning the directories for images.
 
         :param Signal signal: A signal to emit when the refresh is complete.
-        :param Event shutdown_event: Event to signal if the operation should be stopped.
         """
-        thread_id = threading.get_ident()
-        logger.debug(f"[ImageHandler thread {thread_id}] Starting image list refresh.")
+        thread_id = int(QThread.currentThreadId())
+        logger.info(f"[ImageHandler refresh_image_list_task thread {thread_id}] Starting image list refresh.")
 
-        start_time = time.time()
-        with self.lock:
-            if shutdown_event.is_set():
+        with QMutexLocker(self.lock):
+            if self.is_shutdown():
                 logger.debug(
                     f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing before taking any steps.")
                 return
             self.data_service.set_image_list([])
 
         def process_files_in_directory(directory):
-            thread_id = threading.get_ident()
-            logger.debug(f'[ImageHandler thread {thread_id} thread {thread_id}] processing {directory}')
-            folders_to_skip = []
+            thread_id = int(QThread.currentThreadId())
+            logger.info(f'[ImageHandler process_files_in_directory thread {thread_id}] processing {directory}')
+            try:
+                folders_to_skip = []
 
-            for start_dir, subfolders in self.dest_folders.items():
+                for start_dir, subfolders in self.dest_folders.items():
+                    if os.path.normpath(start_dir) == os.path.normpath(directory):
+                        folders_to_skip.extend(subfolders.values())
 
-                if os.path.normpath(start_dir) == os.path.normpath(directory):
-                    folders_to_skip.extend(subfolders.values())
+                for start_dir, delete_folder in self.delete_folders.items():
+                    if self.is_shutdown():
+                        logger.debug(
+                            f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing while generating skip folders.")
+                        return
+                    if os.path.normpath(start_dir) == os.path.normpath(directory):
+                        folders_to_skip.append(delete_folder)
+                logger.debug(f'[ImageHandler thread {thread_id}] skipping {folders_to_skip}')
+                self._process_files_in_directory(directory, signal=signal,
+                                                 folders_to_skip=folders_to_skip, thread_id=thread_id)
+                with QMutexLocker(self.lock):
+                    if directory in self._start_dirs:
+                        self._start_dirs.remove(directory)
+                        self.image_list_open_condition.wakeAll()
+                logger.info(
+                    f'[ImageHandler process_files_in_directory thread {thread_id}] Completed processing {directory}')
+            except Exception as e:
+                logger.error(f"[ImageHandler thread {thread_id}] Error processing directory {directory}: {e}")
 
-            for start_dir, delete_folder in self.delete_folders.items():
-                if shutdown_event.is_set():
-                    logger.debug(
-                        f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing while generating skip folders.")
-                    return
-                if os.path.normpath(start_dir) == os.path.normpath(directory):
-                    folders_to_skip.append(delete_folder)
-            logger.debug(f'[ImageHandler thread {thread_id} thread {thread_id}] skipping {folders_to_skip}')
-            processed_images = self._process_files_in_directory(directory, shutdown_event, signal,
-                                                                folders_to_skip=folders_to_skip)
-            if self.start_dirs.index(directory) == 0:
-                with self.image_list_open_condition:
-                    self.start_dirs.remove(directory)
-                    self.image_list_open_condition.notify_all()
-            return processed_images
+        with QMutexLocker(self.lock):
+            dirs_to_process = self.start_dirs.copy()
+        for d in dirs_to_process:
+            if self.is_shutdown():
+                logger.debug(
+                    f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing before submitting tasks.")
+                return
+            logger.debug(f'[ImageHandler thread {thread_id}] spawning new thread to process directory {d}')
+            self.thread_manager.submit_task(process_files_in_directory, directory=d, tag="refresh_image_list",
+                                            on_finished=self.thread_manager.task_finished_callback)
 
-        futures = [self.thread_manager.submit_task(process_files_in_directory, d) for d in self.start_dirs]
-        if shutdown_event.is_set():
-            logger.debug(
-                f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing before iterating over futures.")
-            return
-        try:
-            for future in futures:
-                try:
-                    future.result()
-                except Exception as e:
-                    logger.error(f"[ImageHandler thread {thread_id}] Error during image list refresh: {e}")
-                if shutdown_event.is_set():
-                    logger.debug(
-                        f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing while iterating over futures.")
-                    return
-        finally:
-            logger.debug(f"[ImageHandler thread {thread_id}] All directory processing tasks completed.")
+        # Wait for all tasks to complete
+        logger.info(
+            f"[ImageHandler thread {thread_id}] Active threads before waitForDone: {self.thread_manager.thread_pool.activeThreadCount()}")
+        # Waiting for all "refresh_image_list" tagged tasks to complete
+        self.thread_manager.wait_for_tagged_tasks("refresh_image_list")
+        logger.info(
+            f"[ImageHandler thread {thread_id}] Active threads after waitForDone: {self.thread_manager.thread_pool.activeThreadCount()}")
 
-        if self.is_refreshing.is_set():
-            self.is_refreshing.clear()
-        if shutdown_event.is_set():
+        with QMutexLocker(self.lock):
+            self.is_refreshing = False
+
+        if self.is_shutdown():
             logger.debug(
                 f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing prior to final emission.")
             return
         logger.debug(
             f"[ImageHandler thread {thread_id}] sending final emission with image list total {self.data_service.get_image_list_len()}")
-        signal.emit()
-        if shutdown_event.is_set():
-            logger.debug(
-                f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing after final emission.")
-            return
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-        logger.info(f"[ImageHandler thread {thread_id}] Time taken to refresh image list: {elapsed_time:.4f} seconds")
+        if signal:
+            signal.emit()
+        logger.info(f"[ImageHandler refresh_image_list_task thread {thread_id}] completed image list refresh.")
 
-    def _process_files_in_directory(self, directory, shutdown_event, signal, folders_to_skip, thread_id=""):
+    def _process_files_in_directory(self, directory, signal, folders_to_skip, thread_id=""):
         """
         Process image files in the given directory with dynamic batch sizing.
 
@@ -509,113 +524,95 @@ class ImageHandler:
         Skips directories in `folders_to_skip` and handles a shutdown event if triggered.
 
         :param str directory: Directory path to process.
-        :param threading.Event shutdown_event: Event to signal when to stop processing.
         :param signal: Signal object to emit when a batch is processed.
         :param list folders_to_skip: List of directories to skip.
-        :return: List of processed image file paths.
-        :rtype: list
         """
-        batch_images = []
-        initial_batch_size = 50
-        min_batch_size = 10
-        max_batch_size = 1000
-        batch_size = initial_batch_size
-        target_batch_time = 0.1
         if not thread_id:
-            thread_id = threading.get_ident()
+            thread_id = int(QThread.currentThreadId())
+        try:
+            batch_images = []
+            initial_batch_size = 50
+            min_batch_size = 10
+            max_batch_size = 1000
+            batch_size = initial_batch_size
+            target_batch_time = 0.1
+            logger.info(f"[ImageHandler thread {thread_id}] About to process {directory}.")
 
-        for root, _, files in os.walk(directory):
-            if shutdown_event.is_set():
-                logger.debug(
-                    f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing while about to process {root}.")
-                return batch_images
-            if os.path.normpath(root) in map(os.path.normpath, folders_to_skip):
-                logger.debug(f"[ImageHandler thread {thread_id}] Skipping directory: {root}")
-                continue
-
-            sorted_files = os_sorted(files)
-            i = 0
-
-            while i < len(sorted_files):
-                if shutdown_event.is_set():
+            for root, _, files in os.walk(directory):
+                if self.is_shutdown():
                     logger.debug(
-                        f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing while iterating over files for {root}.")
-                    return batch_images
-                start_time = time.time()
-                batch_images.clear()
-                batch_count = 0
+                        f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing while about to process {root}.")
+                    return
+                if os.path.normpath(root) in map(os.path.normpath, folders_to_skip):
+                    logger.debug(f"[ImageHandler thread {thread_id}] Skipping directory: {root}")
+                    continue
 
-                while batch_count < batch_size and i < len(sorted_files):
-                    if shutdown_event.is_set():
-                        logger.debug(
-                            f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing while building batch for {root}")
-                        return batch_images
-                    file = sorted_files[i]
-                    i += 1
+                sorted_files = os_sorted(files)
+                i = 0
 
-                    file_path = os.path.join(root, file)
-                    if is_image_file(file_path):
-                        batch_images.append(file_path)
-                        batch_count += 1
-                    else:
-                        continue
+                while i < len(sorted_files) and not self.is_shutdown():
+                    start_time = time.time()
+                    batch_images.clear()
+                    batch_count = 0
 
-                with self.image_list_open_condition:
-                    if shutdown_event.is_set():
-                        logger.debug(f"[ImageHandler thread {thread_id}] Shutdown during image list open condition")
-                        return batch_images
-                    while batch_images and self.start_dirs[0] != directory:
-                        while batch_images and self.start_dirs[0] != directory:
-                            if shutdown_event.is_set():
-                                logger.debug(
-                                    f"[ImageHandler thread {thread_id}] Shutdown during image list open condition, stopping.")
-                                return batch_images
-                            logger.debug(f"[ImageHandler] thread {thread_id} waiting to add images from {directory}")
-                            if shutdown_event.is_set():
-                                logger.debug(
-                                    f"[ImageHandler thread {thread_id}] Shutdown during image list open condition, stopping.")
-                                return batch_images
-                            if shutdown_event.is_set():
-                                logger.debug(
-                                    f"[ImageHandler thread {thread_id}] Shutdown list before waiting to add files for {directory} to image list")
-                                return batch_images
-                            self.image_list_open_condition.wait(timeout=0.1)
+                    while batch_count < batch_size and i < len(sorted_files) and not self.is_shutdown():
+                        file = sorted_files[i]
+                        i += 1
 
-                if shutdown_event.is_set():
-                    logger.debug(f"[ImageHandler thread {thread_id}] Shutdown during file processing in {directory}")
-                    return batch_images
-                if batch_images and self.start_dirs[0] == directory:
-                    with self.lock:
-                        if shutdown_event.is_set():
-                            logger.debug(
-                                f"[ImageHandler thread {thread_id}] Shutdown before extending image list during file processing")
-                            return batch_images
-                        image_list = self.data_service.get_image_list()
-                        if not image_list:
-                            self.data_service.set_image_list(batch_images.copy())
-                            self.data_service.set_current_index(0)
+                        file_path = os.path.join(root, file)
+                        if is_image_file(file_path):
+                            batch_images.append(file_path)
+                            batch_count += 1
                         else:
-                            image_list.extend(batch_images)
-                            self.data_service.set_image_list(image_list)
+                            continue
+                    with QMutexLocker(self.lock):
+                        if self.is_shutdown():
+                            logger.debug(f"[ImageHandler thread {thread_id}] Shutdown during image list open condition")
+                            return
+                        while batch_images and self.start_dirs and directory not in self.start_dirs and not self.is_shutdown():
+                            logger.debug(f"[ImageHandler thread {thread_id}] Waiting to add images from {directory}")
+                            self.image_list_open_condition.wait(self.lock, 100)  # Wait for 100ms
 
-                    if shutdown_event.is_set():
+                    if self.is_shutdown():
                         logger.debug(
-                            f"[ImageHandler thread {thread_id}] Shutdown before emitting signal list during file processing")
-                        return batch_images
+                            f"[ImageHandler thread {thread_id}] Shutdown during file processing in {directory}")
+                        return
+                    with QMutexLocker(self.lock):
+                        if batch_images and self.start_dirs[0] == directory:
+                            if self.is_shutdown():
+                                logger.debug(
+                                    f"[ImageHandler thread {thread_id}] Shutdown before extending image list during file processing")
+                                return
+                            image_list = self.data_service.get_image_list()
+                            if not image_list:
+                                self.data_service.set_image_list(batch_images.copy())
+                                self.data_service.set_current_index(0)
+                            else:
+                                image_list.extend(batch_images)
+                                self.data_service.set_image_list(image_list)
+
+                            if self.is_shutdown():
+                                logger.debug(
+                                    f"[ImageHandler thread {thread_id}] Shutdown before emitting signal during file processing")
+                                return
                     if signal:
+                        logger.debug(
+                            f"[ImageHandler thread {thread_id}] emitting signal during file processing for {directory}")
                         signal.emit()
 
-                end_time = time.time()
-                batch_processing_time = end_time - start_time
+                    end_time = time.time()
+                    batch_processing_time = end_time - start_time
 
-                if batch_processing_time < target_batch_time and batch_size < max_batch_size:
-                    batch_size = min(batch_size * 2, max_batch_size)
-                elif batch_processing_time > target_batch_time and batch_size > min_batch_size:
-                    batch_size = max(batch_size // 2, min_batch_size)
+                    if batch_processing_time < target_batch_time and batch_size < max_batch_size:
+                        batch_size = min(batch_size * 2, max_batch_size)
+                    elif batch_processing_time > target_batch_time and batch_size > min_batch_size:
+                        batch_size = max(batch_size // 2, min_batch_size)
 
-                logger.debug(f"[ImageHandler thread {thread_id}] Batch size adjusted to: {batch_size}")
+                    logger.debug(f"[ImageHandler thread {thread_id}] Batch size adjusted to: {batch_size}")
+                    logger.info(f"[ImageHandler thread {thread_id}] Completed processing {directory}")
 
-        return batch_images
+        except Exception as e:
+            logger.error(f"[ImageHandler thread {thread_id}] Error processing files in directory {directory}: {e}")
 
     def find_start_directory(self, image_path):
         """
@@ -625,17 +622,27 @@ class ImageHandler:
         :return: The start directory corresponding to the image.
         :rtype: str
         """
-        return next((d for d in self.start_dirs if os.path.abspath(image_path).startswith(os.path.abspath(d))), None)
+        with QMutexLocker(self.lock):
+            return next((d for d in self.start_dirs if os.path.abspath(image_path).startswith(os.path.abspath(d))),
+                        None)
 
     def shutdown(self):
         logger.info("[ImageHandler] Shutdown in progress, lock released")
-
-        with self.image_list_open_condition:
+        self.set_shutdown()
+        with QMutexLocker(self.lock):
             logger.debug("[ImageHandler] Notifying all threads waiting on image_list_open_condition condition.")
-            self.image_list_open_condition.notify_all()
+            self.image_list_open_condition.wakeAll()
 
         self.thread_manager.shutdown()
 
         self.data_service.cache_manager.shutdown()
 
         logger.info("[ImageHandler] Shutdown complete.")
+
+    def set_shutdown(self):
+        with QMutexLocker(self.shutdown_mutex):
+            self.shutdown_flag = True
+
+    def is_shutdown(self):
+        with QMutexLocker(self.shutdown_mutex):
+            return self.shutdown_flag

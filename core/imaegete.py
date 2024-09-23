@@ -6,11 +6,11 @@ from core import config, logger
 from glavnaqt.core.thread_manager import ThreadManager
 from gui.image_display import ImageDisplay
 from gui.main_window import ImaegeteGUI
-from gui.new_status_bar_manager import ImaegeteStatusBarManager
-from image_processing.data_management.n_cache_manager import CacheManager
+from gui.status_bar_manager import ImaegeteStatusBarManager
+from image_processing.data_management.cache_manager import CacheManager
 from image_processing.data_management.data_service import ImageDataService
-from image_processing.n_image_handler import ImageHandler
-from image_processing.n_image_manager import ImageManager
+from image_processing.image_handler import ImageHandler
+from image_processing.image_manager import ImageManager
 
 
 def main():
