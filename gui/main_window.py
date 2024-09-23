@@ -43,10 +43,8 @@ class ImaegeteGUI(MainWindow):
         bind_keys(self, self.image_manager)
         self.image_manager.refresh_image_list()
 
-        logger.debug("[ImaegeteGUI] Status bar manager configured and signals connected.")
         self.show()
         logger.debug("[ImaegeteGUI] Main window shown.")
-        logger.debug("[ImaegeteGUI] Initial image load triggered.")
 
     def _initialize_ui_components(self):
 
