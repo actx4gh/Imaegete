@@ -73,12 +73,12 @@ class ImageManager(QObject):
                     logger.debug(f"[ImageManager thread {thread_id}] shutting down before loading image for display")
                     return
                 if image_path in self.loading_images:
-                    logger.debug(f"[ImageManager thread {thread_id}] Image {image_path} is already loading, skipping task.")
+                    logger.info(f"[ImageManager thread {thread_id}] Image {image_path} is already loading, skipping task.")
                     return
                 self.loading_images.add(image_path)
 
             self.event_bus.emit('show_busy')
-            logger.debug(
+            logger.info(
                 f"[ImageManager thread {thread_id}] Request to display image {image_path}, attempting to retrieve from cache"
             )
 
@@ -89,7 +89,7 @@ class ImageManager(QObject):
                 self.loading_images.discard(image_path)
 
             if image:
-                logger.debug(f"[ImageManager thread {thread_id}] {image_path} retrieved successfully from cache.")
+                logger.info(f"[ImageManager thread {thread_id}] {image_path} retrieved successfully from cache.")
                 # Emit the signal to display the image
                 self.image_ready.emit(image_path, image)
             else:
@@ -172,7 +172,7 @@ class ImageManager(QObject):
             else:
                 logger.debug(f'[ImageManager] on_image_list_updated image refresh complete, hiding busy indicator')
                 self.event_bus.emit('hide_busy')
-                if not self.is_prefetched:
+                if not self.is_prefetched and not self.is_loading:
                     self.image_handler.prefetch_images_if_needed()
                     self.is_prefetched = True
 

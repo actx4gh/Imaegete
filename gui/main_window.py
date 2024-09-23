@@ -237,12 +237,14 @@ class ImaegeteGUI(MainWindow):
 
         :param event: The close event triggering the shutdown.
         """
+        logger.debug("[CustomMainWindow] Closing CustomMainWindow...")
 
-        logger.debug("[ImaegeteGUI] Closing ImaegeteGUI...")
-
+        # Perform custom cleanup
         self._disconnect_signals()
-
         self.image_manager.shutdown()
 
-        logger.debug("[ImaegeteGUI] Exiting application.")
+        # Ensure that MainWindow shutdown logic is executed
+        super().closeEvent(event)  # Calls the parent MainWindow's closeEvent to handle ThreadManager shutdown
+
+        logger.debug("[CustomMainWindow] Exiting application.")
         event.accept()

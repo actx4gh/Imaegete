@@ -633,8 +633,6 @@ class ImageHandler(QObject):
             logger.debug("[ImageHandler] Notifying all threads waiting on image_list_open_condition condition.")
             self.image_list_open_condition.wakeAll()
 
-        self.thread_manager.shutdown()
-
         self.data_service.cache_manager.shutdown()
 
         logger.info("[ImageHandler] Shutdown complete.")

@@ -38,7 +38,6 @@ def main():
 
     def on_exit():
         logger.info("[Main] Application exit triggered")
-        thread_manager.shutdown()
 
     app.aboutToQuit.connect(on_exit)
     sys.exit(app.exec())
