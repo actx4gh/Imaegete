@@ -15,7 +15,7 @@ from image_processing.data_management.file_operations import move_image_and_clea
 class ImageHandler(QObject):
     """
     A class to manage image handling operations, including image list management,
-    prefetching, moving, and deleting images.
+    moving, and deleting images.
     """
 
     def __init__(self, thread_manager, data_service):
@@ -43,45 +43,17 @@ class ImageHandler(QObject):
 
         self.data_service.set_image_list([])
         self.data_service.set_sorted_images([])
-        self.prefetched_random_images = []
 
         self.shutdown_flag = False
-        self.shutdown_mutex = QMutex()
 
-    def prefetch_random_images(self, prefetch_num=3):
-        """
-        Prefetch up to a specified number of random images, but ensures that the total number
-        of prefetched images never exceeds the prefetch_num limit.
 
-        :param int prefetch_num: The maximum number of images to prefetch (default is 3).
-        """
-        with QMutexLocker(self.lock):
-            # Only prefetch if the total prefetched images is less than prefetch_num
-            while len(self.prefetched_random_images) < prefetch_num:
-                if self.data_service.get_image_list_len() <= prefetch_num:
-                    logger.debug('[ImageHandler] Not enough images in the list to prefetch.')
-                    break
-
-                available_indices = list(set(self.shuffled_indices) - set(self.prefetched_random_images))
-                if not available_indices:
-                    logger.debug('[ImageHandler] No available indices to prefetch.')
-                    break
-
-                # Prefetch a random image and add it to the prefetched list
-                random_index = random.choice(available_indices)
-                self.prefetched_random_images.append(random_index)
-                image_path = self.data_service.get_image_path(random_index)
-
-                self._retrieve_image_data(image_path)
-
-        logger.debug(f'[ImageHandler] Prefetched random image indexes: {self.prefetched_random_images[:prefetch_num]}')
 
     def _retrieve_image_data(self, image_path):
         """
         Retrieve the image data from cache and its metadata. This is a helper function
         to separate out the image fetching and metadata retrieval logic.
 
-        :param str image_path: The path to the image to be prefetched.
+        :param str image_path: The path to the image to be retrieved
         """
         self.data_service.cache_manager.retrieve_image(image_path)
         self.data_service.cache_manager.get_metadata(image_path)
@@ -108,11 +80,10 @@ class ImageHandler(QObject):
         """
         image_list = self.data_service.get_image_list()
         if is_image_file(image_path) and image_path not in image_list:
-            with QMutexLocker(self.lock):
-                if index is not None:
-                    image_list.insert(index, image_path)
-                else:
-                    image_list.append(image_path)
+            if index is not None:
+                image_list.insert(index, image_path)
+            else:
+                image_list.append(image_path)
             self.data_service.set_image_list(image_list)
 
     def remove_image_from_list(self, image_path):
@@ -121,29 +92,26 @@ class ImageHandler(QObject):
 
         :param str image_path: Path to the image file to be removed.
         """
-        with QMutexLocker(self.lock):
-            image_list = self.data_service.get_image_list()
-            if image_path in image_list:
-                image_list.remove(image_path)
-            self.data_service.set_image_list(image_list)
+        image_list = self.data_service.get_image_list()
+        if image_path in image_list:
+            image_list.remove(image_path)
+        self.data_service.set_image_list(image_list)
 
     def set_first_image(self):
         """
         Set the first image in the list as the current image.
         """
-        with QMutexLocker(self.lock):
-            if len(self.data_service.get_image_list()) > 0:
-                self.set_current_image_by_index(0)
+        if len(self.data_service.get_image_list()) > 0:
+            self.set_current_image_by_index(0)
 
     def set_last_image(self):
         """
         Set the last image in the list as the current image.
         """
-        with QMutexLocker(self.lock):
-            image_list = self.data_service.get_image_list()
-            if len(image_list) > 0:
-                last_index = len(image_list) - 1
-                self.set_current_image_by_index(last_index)
+        image_list = self.data_service.get_image_list()
+        if len(image_list) > 0:
+            last_index = len(image_list) - 1
+            self.set_current_image_by_index(last_index)
 
     def pop_image(self):
         """
@@ -154,35 +122,32 @@ class ImageHandler(QObject):
         :return: A tuple containing the original index of the image and the image path.
         :rtype: tuple(int, str)
         """
-        with QMutexLocker(self.lock):
-            image_list = self.data_service.get_image_list()
-            original_index = self.data_service.get_current_index()
-            image_path = self.data_service.pop_image_list(original_index)
-            if original_index == len(image_list):
-                self.data_service.set_current_index(len(image_list) - 1)
-            else:
-                self.data_service.set_current_image_to_current_index()
-            return original_index, image_path
+        image_list = self.data_service.get_image_list()
+        original_index = self.data_service.get_current_index()
+        image_path = self.data_service.pop_image_list(original_index)
+        if original_index == len(image_list):
+            self.data_service.set_current_index(len(image_list) - 1)
+        else:
+            self.data_service.set_current_image_to_current_index()
+        return original_index, image_path
 
     def set_next_image(self):
         """
         Set the next image in the list as the current image.
         """
-        with QMutexLocker(self.lock):
-            image_list = self.data_service.get_image_list()
-            if len(image_list) > 0:
-                next_index = (self.data_service.get_current_index() + 1) % len(image_list)
-                self.set_current_image_by_index(next_index)
+        image_list = self.data_service.get_image_list()
+        if len(image_list) > 0:
+            next_index = (self.data_service.get_current_index() + 1) % len(image_list)
+            self.set_current_image_by_index(next_index)
 
     def set_previous_image(self):
         """
         Set the previous image in the list as the current image.
         """
-        with QMutexLocker(self.lock):
-            image_list = self.data_service.get_image_list()
-            if len(image_list) > 0:
-                previous_index = (self.data_service.get_current_index() - 1) % len(image_list)
-                self.set_current_image_by_index(previous_index)
+        image_list = self.data_service.get_image_list()
+        if len(image_list) > 0:
+            previous_index = (self.data_service.get_current_index() - 1) % len(image_list)
+            self.set_current_image_by_index(previous_index)
 
     def set_current_image_by_index(self, index=None):
         """
@@ -194,21 +159,19 @@ class ImageHandler(QObject):
         :return: The path of the current image, or None if no image is set.
         :rtype: str or None
         """
-        with QMutexLocker(self.lock):
+        if index is not None:
+            self.data_service.set_current_index(index)
+        elif not isinstance(self.data_service.get_current_index(), int):
 
-            if index is not None:
-                self.data_service.set_current_index(index)
-            elif not isinstance(self.data_service.get_current_index(), int):
+            self.data_service.set_current_index(0)
 
-                self.data_service.set_current_index(0)
+        image_path = self.data_service.get_current_image_path()
 
-            image_path = self.data_service.get_current_image_path()
+        if image_path:
+            self.data_service.set_current_image_path(image_path)
+            return image_path
 
-            if image_path:
-                self.data_service.set_current_image_path(image_path)
-                return image_path
-
-            return None
+        return None
 
     @property
     def shuffled_indices(self):
@@ -217,25 +180,19 @@ class ImageHandler(QObject):
             if len(image_list) > 0:
                 self._shuffled_indices = list(range(len(image_list)))
                 random.shuffle(self._shuffled_indices)
-                logger.info("[ImageHandler] Initializing the shuffled list.")
+                logger.debug("[ImageHandler] Initializing the shuffled list.")
         return self._shuffled_indices
 
     def set_random_image(self):
         """
-        Set a random image from the list. If prefetched random images exist, use the first one.
+        Set a random image from the list.
         Otherwise, use the original random image selection logic.
         """
-        with QMutexLocker(self.lock):
-            if self.prefetched_random_images:
-                random_index = self.prefetched_random_images.pop(0)
-                logger.debug(f'[ImageHandler] Setting index to prefetched random image {random_index}')
-                self.set_current_image_by_index(random_index)
-            else:
-                image_list = self.data_service.get_image_list()
-                if len(image_list) > 0:
-                    random_index = self.shuffled_indices.pop(0)
-                    logger.debug(f'[ImageHandler] Setting index to non-prefetched random image {random_index}')
-                    self.set_current_image_by_index(random_index)
+        image_list = self.data_service.get_image_list()
+        if len(image_list) > 0:
+            random_index = self.shuffled_indices.pop(0)
+            logger.debug(f'[ImageHandler] Setting index to random image {random_index}')
+            self.set_current_image_by_index(random_index)
 
     def has_current_image(self):
         """
@@ -246,41 +203,7 @@ class ImageHandler(QObject):
         """
         return bool(self.data_service.get_current_image_path())
 
-    def prefetch_images(self, depth=3, max_prefetch=10):
-        """
-        Prefetch images around the current image for faster loading.
 
-        :param int depth: Number of images ahead and behind the current image to prefetch.
-        :param int max_prefetch: Maximum number of images to prefetch.
-        """
-        total_images = len(self.data_service.get_image_list())
-        if total_images == 0:
-            return
-
-        prev_index = (self.data_service.get_current_index() + -1) % total_images
-        next_index = (self.data_service.get_current_index() + 1) % total_images
-        behind = np.arange(prev_index, prev_index - depth, -1) % total_images
-        ahead = np.arange(next_index, next_index + depth) % total_images
-
-        logger.debug(
-            f"[ImageHandler] Starting prefetch of indexes {list(behind)} and {list(ahead)} from index {self.data_service.get_current_index()} with a total of {total_images} images")
-
-        prefetch_indices = [item for pair in zip(ahead, behind) for item in pair]
-
-        if len(prefetch_indices) > max_prefetch:
-            prefetch_indices = prefetch_indices[:max_prefetch]
-            logger.warn(f"[ImageHandler] Reduced number of prefetch items to max_prefetch {max_prefetch}")
-
-        for index in prefetch_indices:
-            image_path = self.data_service.get_image_path(index)
-            if image_path:
-                if self.data_service.cache_manager.is_cached(image_path):
-                    logger.debug(f"[ImageHandler] Skipping already cached image: {image_path}")
-                else:
-                    logger.debug(f"[ImageHandler] Prefetching uncached image: {image_path}")
-
-                    self.data_service.cache_manager.retrieve_image(image_path)
-                    self.data_service.cache_manager.get_metadata(image_path)
 
     def load_image_from_cache(self, image_path, background=True):
         """
@@ -296,16 +219,7 @@ class ImageHandler(QObject):
         image = self.data_service.cache_manager.retrieve_image(image_path, active_request=True, background=background)
         return image
 
-    def prefetch_images_if_needed(self):
-        """
-        Prefetch images around the current image for faster loading.
-        """
-        with QMutexLocker(self.lock):
-            should_prefetch = not self.is_refreshing
 
-        if should_prefetch:
-            self.prefetch_images()
-            self.prefetch_random_images()
 
     def delete_current_image(self):
         """
@@ -431,7 +345,7 @@ class ImageHandler(QObject):
         :param Signal signal: A signal to emit when the refresh is complete.
         """
         if self.is_shutdown():
-            logger.info("[ImageHandler] Shutdown initiated, not starting new refresh task.")
+            logger.debug("[ImageHandler] Shutdown initiated, not starting new refresh task.")
             return
         with QMutexLocker(self.lock):
             self.is_refreshing = True
@@ -446,18 +360,17 @@ class ImageHandler(QObject):
         :param Signal signal: A signal to emit when the refresh is complete.
         """
         thread_id = int(QThread.currentThreadId())
-        logger.info(f"[ImageHandler refresh_image_list_task thread {thread_id}] Starting image list refresh.")
+        logger.debug(f"[ImageHandler refresh_image_list_task thread {thread_id}] Starting image list refresh.")
 
-        with QMutexLocker(self.lock):
-            if self.is_shutdown():
-                logger.debug(
-                    f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing before taking any steps.")
-                return
-            self.data_service.set_image_list([])
+        if self.is_shutdown():
+            logger.debug(
+                f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing before taking any steps.")
+            return
+        self.data_service.set_image_list([])
 
         def process_files_in_directory(directory):
             thread_id = int(QThread.currentThreadId())
-            logger.info(f'[ImageHandler process_files_in_directory thread {thread_id}] processing {directory}')
+            logger.debug(f'[ImageHandler process_files_in_directory thread {thread_id}] processing {directory}')
             try:
                 folders_to_skip = []
 
@@ -479,7 +392,7 @@ class ImageHandler(QObject):
                     if directory in self._start_dirs:
                         self._start_dirs.remove(directory)
                         self.image_list_open_condition.wakeAll()
-                logger.info(
+                logger.debug(
                     f'[ImageHandler process_files_in_directory thread {thread_id}] Completed processing {directory}')
             except Exception as e:
                 logger.error(f"[ImageHandler thread {thread_id}] Error processing directory {directory}: {e}")
@@ -496,11 +409,11 @@ class ImageHandler(QObject):
                                             on_finished=self.thread_manager.task_finished_callback)
 
         # Wait for all tasks to complete
-        logger.info(
+        logger.debug(
             f"[ImageHandler thread {thread_id}] Active threads before waitForDone: {self.thread_manager.thread_pool.activeThreadCount()}")
         # Waiting for all "refresh_image_list" tagged tasks to complete
         self.thread_manager.wait_for_tagged_tasks("refresh_image_list")
-        logger.info(
+        logger.debug(
             f"[ImageHandler thread {thread_id}] Active threads after waitForDone: {self.thread_manager.thread_pool.activeThreadCount()}")
 
         with QMutexLocker(self.lock):
@@ -514,7 +427,7 @@ class ImageHandler(QObject):
             f"[ImageHandler thread {thread_id}] sending final emission with image list total {self.data_service.get_image_list_len()}")
         if signal:
             signal.emit()
-        logger.info(f"[ImageHandler refresh_image_list_task thread {thread_id}] completed image list refresh.")
+        logger.debug(f"[ImageHandler refresh_image_list_task thread {thread_id}] completed image list refresh.")
 
     def _process_files_in_directory(self, directory, signal, folders_to_skip, thread_id=""):
         """
@@ -536,7 +449,7 @@ class ImageHandler(QObject):
             max_batch_size = 1000
             batch_size = initial_batch_size
             target_batch_time = 0.1
-            logger.info(f"[ImageHandler thread {thread_id}] About to process {directory}.")
+            logger.debug(f"[ImageHandler thread {thread_id}] About to process {directory}.")
 
             for root, _, files in os.walk(directory):
                 if self.is_shutdown():
@@ -578,23 +491,24 @@ class ImageHandler(QObject):
                             f"[ImageHandler thread {thread_id}] Shutdown during file processing in {directory}")
                         return
                     with QMutexLocker(self.lock):
-                        if batch_images and self.start_dirs[0] == directory:
-                            if self.is_shutdown():
-                                logger.debug(
-                                    f"[ImageHandler thread {thread_id}] Shutdown before extending image list during file processing")
-                                return
-                            image_list = self.data_service.get_image_list()
-                            if not image_list:
-                                self.data_service.set_image_list(batch_images.copy())
-                                self.data_service.set_current_index(0)
-                            else:
-                                image_list.extend(batch_images)
-                                self.data_service.set_image_list(image_list)
+                        first_start_dir = self.start_dirs[0]
+                    if batch_images and first_start_dir == directory:
+                        if self.is_shutdown():
+                            logger.debug(
+                                f"[ImageHandler thread {thread_id}] Shutdown before extending image list during file processing")
+                            return
+                        image_list = self.data_service.get_image_list()
+                        if not image_list:
+                            self.data_service.set_image_list(batch_images.copy())
+                            self.data_service.set_current_index(0)
+                        else:
+                            image_list.extend(batch_images)
+                            self.data_service.set_image_list(image_list)
 
-                            if self.is_shutdown():
-                                logger.debug(
-                                    f"[ImageHandler thread {thread_id}] Shutdown before emitting signal during file processing")
-                                return
+                        if self.is_shutdown():
+                            logger.debug(
+                                f"[ImageHandler thread {thread_id}] Shutdown before emitting signal during file processing")
+                            return
                     if signal:
                         logger.debug(
                             f"[ImageHandler thread {thread_id}] emitting signal during file processing for {directory}")
@@ -609,7 +523,7 @@ class ImageHandler(QObject):
                         batch_size = max(batch_size // 2, min_batch_size)
 
                     logger.debug(f"[ImageHandler thread {thread_id}] Batch size adjusted to: {batch_size}")
-                    logger.info(f"[ImageHandler thread {thread_id}] Completed processing {directory}")
+                    logger.debug(f"[ImageHandler thread {thread_id}] Completed processing {directory}")
 
         except Exception as e:
             logger.error(f"[ImageHandler thread {thread_id}] Error processing files in directory {directory}: {e}")
@@ -627,7 +541,7 @@ class ImageHandler(QObject):
                         None)
 
     def shutdown(self):
-        logger.info("[ImageHandler] Shutdown in progress, lock released")
+        logger.debug("[ImageHandler] Shutdown in progress")
         self.set_shutdown()
         with QMutexLocker(self.lock):
             logger.debug("[ImageHandler] Notifying all threads waiting on image_list_open_condition condition.")
@@ -635,12 +549,10 @@ class ImageHandler(QObject):
 
         self.data_service.cache_manager.shutdown()
 
-        logger.info("[ImageHandler] Shutdown complete.")
+        logger.debug("[ImageHandler] Shutdown complete.")
 
     def set_shutdown(self):
-        with QMutexLocker(self.shutdown_mutex):
-            self.shutdown_flag = True
+        self.shutdown_flag = True
 
     def is_shutdown(self):
-        with QMutexLocker(self.shutdown_mutex):
-            return self.shutdown_flag
+        return self.shutdown_flag

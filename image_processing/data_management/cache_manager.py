@@ -52,8 +52,7 @@ class CacheManager(QObject):
         # Shutdown flag and mutex
 
     def is_shutting_down(self):
-        with QMutexLocker(self.shutdown_mutex):
-            return self.shutdown_flag
+        return self.shutdown_flag
 
     def is_cached(self, image_path):
         return image_path in self.image_cache
@@ -61,7 +60,7 @@ class CacheManager(QObject):
     def retrieve_image(self, image_path, active_request=False, background=True):
         with QMutexLocker(self.cache_lock):
             if self.is_shutting_down():
-                logger.info(f"[CacheManager] Shutdown initiated, not retrieving image {image_path}.")
+                logger.debug(f"[CacheManager] Shutdown initiated, not retrieving image {image_path}.")
                 return None
             image = self.image_cache.get(image_path)
             if image:
@@ -81,12 +80,12 @@ class CacheManager(QObject):
 
         if background:
             if self.thread_manager.is_shutting_down:
-                logger.info(f"[CacheManager] Shutdown initiated, not submitting background task for {image_path}.")
+                logger.debug(f"[CacheManager] Shutdown initiated, not submitting background task for {image_path}.")
                 return None
             logger.debug(f"[CacheManager] Submitting image load task in background thread for {image_path}")
             runnable = self.thread_manager.submit_task(self.load_from_disk_and_cache, image_path=image_path)
             if runnable is None:
-                logger.info(f"[CacheManager] Task submission failed for image {image_path} due to shutdown.")
+                logger.debug(f"[CacheManager] Task submission failed for image {image_path} due to shutdown.")
                 return None
         else:
             logger.debug(f"[CacheManager] Running image load task directly for {image_path}")
@@ -99,7 +98,7 @@ class CacheManager(QObject):
             logger.debug(f"[CacheManager thread {thread_id}] No image_path provided, returning without loading image")
             return
         if self.is_shutting_down():
-            logger.info(f"[CacheManager thread {thread_id}] Shutdown initiated, not loading image {image_path}.")
+            logger.debug(f"[CacheManager thread {thread_id}] Shutdown initiated, not loading image {image_path}.")
             return
         image = QImage(image_path)
         if not image.isNull():
@@ -107,7 +106,7 @@ class CacheManager(QObject):
             logger.debug(f"[CacheManager thread {thread_id}] Loaded image from disk: {image_path} index {index}")
             with QMutexLocker(self.cache_lock):
                 if self.is_shutting_down():
-                    logger.info(
+                    logger.debug(
                         f"[CacheManager thread {thread_id}] Shutdown initiated, not caching image {image_path}.")
                     return
                 self.image_cache[image_path] = image
@@ -140,12 +139,12 @@ class CacheManager(QObject):
 
     def refresh_cache(self, image_path):
         if self.is_shutting_down():
-            logger.info(f"[CacheManager] Shutdown initiated, not refreshing cache for {image_path}.")
+            logger.debug(f"[CacheManager] Shutdown initiated, not refreshing cache for {image_path}.")
             return
-        logger.info(f"[CacheManager] Refreshing cache for {image_path}")
+        logger.debug(f"[CacheManager] Refreshing cache for {image_path}")
         if self.metadata_manager.file_is_ready(image_path):
             if self.thread_manager.is_shutting_down:
-                logger.info(f"[CacheManager] Shutdown initiated, not submitting refresh task for {image_path}.")
+                logger.debug(f"[CacheManager] Shutdown initiated, not submitting refresh task for {image_path}.")
                 return
             self.thread_manager.submit_task(self._refresh_task, image_path=image_path)
         else:
@@ -153,7 +152,7 @@ class CacheManager(QObject):
 
     def _refresh_task(self, image_path):
         if self.is_shutting_down():
-            logger.info(f"[CacheManager] Shutdown initiated, not refreshing cache for {image_path}.")
+            logger.debug(f"[CacheManager] Shutdown initiated, not refreshing cache for {image_path}.")
             return
         with QMutexLocker(self.cache_lock):
             self.image_cache.pop(image_path, None)
@@ -162,12 +161,12 @@ class CacheManager(QObject):
 
     def debounced_cache_refresh(self, image_path):
         if self.is_shutting_down():
-            logger.info(f"[CacheManager] Shutdown initiated, not refreshing cache for {image_path}.")
+            logger.debug(f"[CacheManager] Shutdown initiated, not refreshing cache for {image_path}.")
             return
 
         def debounced_task():
             if self.is_shutting_down():
-                logger.info(f"[CacheManager] Shutdown initiated, not running debounced task for {image_path}.")
+                logger.debug(f"[CacheManager] Shutdown initiated, not running debounced task for {image_path}.")
                 return
             if self.debounce_tasks.get(image_path):
                 del self.debounce_tasks[image_path]
@@ -175,20 +174,19 @@ class CacheManager(QObject):
 
         if image_path not in self.debounce_tasks:
             if self.thread_manager.is_shutting_down:
-                logger.info(f"[CacheManager] Shutdown initiated, not submitting debounced task for {image_path}.")
+                logger.debug(f"[CacheManager] Shutdown initiated, not submitting debounced task for {image_path}.")
                 return
             runnable = self.thread_manager.submit_task(debounced_task)
             if runnable is not None:
                 self.debounce_tasks[image_path] = runnable
 
     def shutdown(self):
-        logger.info("[CacheManager] Initiating shutdown.")
-        with QMutexLocker(self.shutdown_mutex):
-            self.shutdown_flag = True
+        logger.debug("[CacheManager] Initiating shutdown.")
+        self.shutdown_flag = True
         self.shutdown_watchdog()
         with QMutexLocker(self.cache_lock):
             self.currently_active_requests.clear()
-        logger.info("[CacheManager] Shutdown complete.")
+        logger.debug("[CacheManager] Shutdown complete.")
 
     def get_cache_path(self, image_path):
         filename = os.path.basename(image_path)
@@ -200,7 +198,7 @@ class CacheManager(QObject):
         specific subdirectories that match `dest_folders` or `delete_folders`.
         """
         if self.is_shutting_down():
-            logger.info("[CacheManager] Shutdown initiated, not initializing watchdog.")
+            logger.debug("[CacheManager] Shutdown initiated, not initializing watchdog.")
             return
         event_handler = CacheEventHandler(self)
         self.watchdog_observer = Observer()
@@ -226,7 +224,7 @@ class CacheManager(QObject):
         if not self.thread_manager.is_shutting_down:
             self.thread_manager.submit_task(self._monitor_watchdog)
         else:
-            logger.info("[CacheManager] Shutdown initiated, not starting watchdog monitor task.")
+            logger.debug("[CacheManager] Shutdown initiated, not starting watchdog monitor task.")
 
     def _monitor_watchdog(self):
         while not self.thread_manager.is_shutting_down and not self.is_shutting_down():
@@ -239,7 +237,7 @@ class CacheManager(QObject):
         Restart the watchdog observer if it crashes.
         """
         if self.is_shutting_down():
-            logger.info("[CacheManager] Shutdown initiated, not restarting watchdog.")
+            logger.debug("[CacheManager] Shutdown initiated, not restarting watchdog.")
             return
         logger.warning("[CacheManager] Watchdog observer crashed. Restarting...")
         self.shutdown_watchdog()
@@ -252,7 +250,7 @@ class CacheManager(QObject):
         if hasattr(self, 'watchdog_observer') and self.watchdog_observer.is_alive():
             self.watchdog_observer.stop()
             self.watchdog_observer.join()
-            logger.info("[CacheManager] Watchdog observer stopped.")
+            logger.debug("[CacheManager] Watchdog observer stopped.")
 
     def _setup_cache_directory(self):
         """
@@ -261,7 +259,7 @@ class CacheManager(QObject):
         if not os.path.exists(self.cache_dir):
             try:
                 os.makedirs(self.cache_dir)
-                logger.info(f"[CacheManager] Cache directory created: {self.cache_dir}")
+                logger.debug(f"[CacheManager] Cache directory created: {self.cache_dir}")
             except OSError as e:
                 logger.error(f"[CacheManager] Failed to create cache directory: {e}")
         else:
@@ -269,13 +267,13 @@ class CacheManager(QObject):
 
     def _load_metadata_task(self, image_path):
         if self.is_shutting_down():
-            logger.info(f"[CacheManager] Shutdown initiated, not loading metadata for {image_path}.")
+            logger.debug(f"[CacheManager] Shutdown initiated, not loading metadata for {image_path}.")
             return
         metadata = self.metadata_manager.load_metadata(image_path)
         if metadata:
             with QMutexLocker(self.cache_lock):
                 if self.is_shutting_down():
-                    logger.info(f"[CacheManager] Shutdown initiated, not caching metadata for {image_path}.")
+                    logger.debug(f"[CacheManager] Shutdown initiated, not caching metadata for {image_path}.")
                     return
                 self.metadata_cache[image_path] = metadata
                 if len(self.metadata_cache) > self.max_size:
@@ -292,14 +290,14 @@ class CacheManager(QObject):
         :rtype: dict or None
         """
         if self.is_shutting_down():
-            logger.info(f"[CacheManager] Shutdown initiated, not retrieving metadata for {image_path}.")
+            logger.debug(f"[CacheManager] Shutdown initiated, not retrieving metadata for {image_path}.")
             return None
         if image_path in self.metadata_cache:
             self.metadata_cache.move_to_end(image_path)
             return self.metadata_cache[image_path]
 
         if self.thread_manager.is_shutting_down:
-            logger.info(f"[CacheManager] Shutdown initiated, not submitting metadata load task for {image_path}.")
+            logger.debug(f"[CacheManager] Shutdown initiated, not submitting metadata load task for {image_path}.")
             return None
         self.thread_manager.submit_task(self._load_metadata_task, image_path=image_path)
         return None
@@ -315,24 +313,21 @@ class MetadataManager:
         self.thread_manager = thread_manager
         self.lock = QReadWriteLock()
         self.shutdown_flag = False
-        self.shutdown_mutex = QMutex()
 
     def is_shutting_down(self):
-        with QMutexLocker(self.shutdown_mutex):
-            return self.shutdown_flag
+        return self.shutdown_flag
 
     def shutdown(self):
-        with QMutexLocker(self.shutdown_mutex):
-            self.shutdown_flag = True
+        self.shutdown_flag = True
 
     def save_metadata(self, image_path, metadata):
         if self.is_shutting_down():
-            logger.info(f"[MetadataManager] Shutdown initiated, not saving metadata for {image_path}.")
+            logger.debug(f"[MetadataManager] Shutdown initiated, not saving metadata for {image_path}.")
             return
 
         def async_save():
             if self.is_shutting_down():
-                logger.info(f"[MetadataManager] Shutdown initiated, not saving metadata for {image_path}.")
+                logger.debug(f"[MetadataManager] Shutdown initiated, not saving metadata for {image_path}.")
                 return
             cache_path = self.get_cache_path(image_path)
             current_metadata = self.load_metadata(image_path)
@@ -347,13 +342,13 @@ class MetadataManager:
                     self.lock.unlock()
 
         if self.thread_manager.is_shutting_down:
-            logger.info(f"[MetadataManager] Shutdown initiated, not submitting save metadata task for {image_path}.")
+            logger.debug(f"[MetadataManager] Shutdown initiated, not submitting save metadata task for {image_path}.")
             return
         self.thread_manager.submit_task(async_save)
 
     def load_metadata(self, image_path):
         if self.is_shutting_down():
-            logger.info(f"[MetadataManager] Shutdown initiated, not loading metadata for {image_path}.")
+            logger.debug(f"[MetadataManager] Shutdown initiated, not loading metadata for {image_path}.")
             return None
         cache_path = self.get_cache_path(image_path)
         if os.path.exists(cache_path):
@@ -411,7 +406,7 @@ class CacheEventHandler(FileSystemEventHandler):
         Handle file modification events and refresh the cache only if the modification time has changed.
         """
         if self.cache_manager.is_shutting_down():
-            logger.info(f"[CacheEventHandler] Shutdown initiated, ignoring modified event for {event.src_path}.")
+            logger.debug(f"[CacheEventHandler] Shutdown initiated, ignoring modified event for {event.src_path}.")
             return
         if not event.is_directory and not self._is_excluded(event.src_path):
             self.handle_modified(event)
@@ -431,7 +426,7 @@ class CacheEventHandler(FileSystemEventHandler):
         Handle file creation events to refresh the cache.
         """
         if self.cache_manager.is_shutting_down():
-            logger.info(f"[CacheEventHandler] Shutdown initiated, ignoring created event for {event.src_path}.")
+            logger.debug(f"[CacheEventHandler] Shutdown initiated, ignoring created event for {event.src_path}.")
             return
         if not any((event.is_directory, self._is_excluded(event.src_path))) and is_image_file(event.src_path):
             logger.debug(
@@ -445,7 +440,7 @@ class CacheEventHandler(FileSystemEventHandler):
         Handle file deletion events by removing the image from the cache.
         """
         if self.cache_manager.is_shutting_down():
-            logger.info(f"[CacheEventHandler] Shutdown initiated, ignoring deleted event for {event.src_path}.")
+            logger.debug(f"[CacheEventHandler] Shutdown initiated, ignoring deleted event for {event.src_path}.")
             return
         if not event.is_directory and not self._is_excluded(
                 event.src_path) and event.src_path in self.cache_manager.data_service.get_image_list():
@@ -457,7 +452,7 @@ class CacheEventHandler(FileSystemEventHandler):
 
     def __refresh_cache_if_needed(self, event):
         if self.cache_manager.is_shutting_down():
-            logger.info(f"[CacheEventHandler] Shutdown initiated, not refreshing cache for {event.src_path}.")
+            logger.debug(f"[CacheEventHandler] Shutdown initiated, not refreshing cache for {event.src_path}.")
             return
         try:
             current_mod_time = os.path.getmtime(event.src_path)
