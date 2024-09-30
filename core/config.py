@@ -1,12 +1,10 @@
-import argparse
 import os
-import platform
-import subprocess
 
-import yaml
+from confumo.confumo import Confumo
 
 APP_NAME = 'Imaegete'
 
+# Constants
 LOGGER_NAME = 'imaegete'
 LOG_FILE_NAME = f'{LOGGER_NAME}.log'
 WINDOW_TITLE_SUFFIX = 'Imaegete'
@@ -24,120 +22,41 @@ QUIT_KEY = 'Q'
 IMAGE_CACHE_MAX_SIZE_KB = 102400
 
 
-class Config:
+class Config(Confumo):
     """
-    A class to handle the configuration setup for the application, including parsing command line arguments and reading YAML files.
+    Subclass of BaseConfiguration to handle specific application configurations,
+    extending the base argument parsing with additional options.
     """
 
-    def __init__(self):
-        """
-        Initialize the configuration by setting up platform-specific directories and loading the configuration.
-        """
-        self.platform_name = platform.system()
-        self._default_config_dir = self._get_default_config_dir()
-        self._config = self._initialize_configuration()
-
-    def _is_cygwin(self):
-        """
-        Check if the current environment is Cygwin.
-
-        :return: True if Cygwin is detected, False otherwise.
-        :rtype: bool
-        """
-        ostype = os.getenv('OSTYPE', '').lower()
-        return 'cygwin' in ostype
-
-    def _cygwin_to_windows_path(self, cygwin_path):
-        """
-        Convert a Cygwin path to a Windows path.
-
-        :param str cygwin_path: The Cygwin file path to convert.
-        :return: The converted Windows file path.
-        :rtype: str
-        """
-        result = subprocess.run(['cygpath', '-w', cygwin_path], capture_output=True, text=True)
-        return result.stdout.strip()
-
-    def _ensure_windows_path(self, path):
-        """
-        Ensure the given path is in Windows format if running on Cygwin, otherwise return the absolute path.
-
-        :param str path: The file path to ensure.
-        :return: The ensured Windows or absolute file path.
-        :rtype: str
-        """
-        if self._is_cygwin():
-            return self._cygwin_to_windows_path(path)
-        else:
-            return os.path.abspath(path)
-
-    def _parse_args(self, args=None):
-        """
-        Parse command line arguments for the configuration.
-
-        :param list args: Command line arguments to parse. If None, parse sys.argv.
-        :return: Parsed arguments as an argparse.Namespace object.
-        :rtype: argparse.Namespace
-        """
-        parser = argparse.ArgumentParser(description=f"{APP_NAME} Configuration")
-        parser.add_argument('--config', type=str, help="Path to the YAML configuration file")
-        parser.add_argument('--categories', type=str, nargs='*', help="List of categories")
-        parser.add_argument('--sort_dir', type=str, help="Base directory to put sorting folders. Defaults to START_DIR")
-        parser.add_argument('--start_dirs', type=str, default='.', help="Base image dirs. Defaults to CWD")
-        parser.add_argument('--log_dir', type=str, help="Where to store logs. Defaults to CONFIG_DIR/logs")
-        parser.add_argument('--cache_dir', type=str, help="Where to cache data. Defaults to CONFIG_DIR/cache")
-        parser.add_argument('--config_dir', type=str, default=self._default_config_dir,
-                            help=f"Where to load/save config data. Defaults to {self._default_config_dir}")
-        parser.add_argument('--log_level', type=str, choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-                            default='INFO', help="Logging level")
-        return parser.parse_args(args)
-
-    def _get_default_config_dir(self):
-        """
-        Get the default configuration directory based on the platform.
-
-        :return: The default configuration directory.
-        :rtype: str
-        """
-        system = self.platform_name
-
-        if system == 'Darwin':
-            config_dir = os.path.expanduser(f"~/Library/Application Support/{APP_NAME}")
-        elif system == 'Linux' or 'CYGWIN' in system:
-            config_dir = os.path.expanduser(f"~/.config/{APP_NAME}")
-        elif system == 'Windows':
-            config_dir = os.path.join(os.getenv('LOCALAPPDATA'), APP_NAME)
-        else:
-            raise RuntimeError(f"Unsupported OS: {system}")
-        return config_dir
-
-    def _read_config_file(self, config_path):
-        """
-        Read and load the YAML configuration file.
-
-        :param str config_path: The path to the YAML configuration file.
-        :return: The configuration as a dictionary.
-        :rtype: dict
-        """
-        with open(config_path, 'r') as file:
-            config = yaml.safe_load(file)
-        return config
+    def __init__(self, app_name=APP_NAME, additional_args=None):
+        # Define additional arguments specific to this application
+        additional_args = [
+            {'flags': ['--categories'], 'kwargs': {'type': str, 'nargs': '*', 'help': "List of categories"}},
+            {'flags': ['--sort_dir'],
+             'kwargs': {'type': str, 'help': "Base directory to put sorting folders. Defaults to START_DIR"}},
+            {'flags': ['--start_dirs'],
+             'kwargs': {'type': str, 'default': '.', 'help': "Base image dirs. Defaults to CWD"}},
+            {'flags': ['--log_dir'],
+             'kwargs': {'type': str, 'help': "Where to store logs. Defaults to CONFIG_DIR/logs"}},
+            {'flags': ['--cache_dir'],
+             'kwargs': {'type': str, 'help': "Where to cache data. Defaults to CONFIG_DIR/cache"}},
+        ]
+        # Call the base class's __init__ method with app_name and additional_args
+        super().__init__(app_name=app_name, additional_args=additional_args)
+        self._setup_module_attributes()
+        self._initialize_configuration()
 
     def _initialize_configuration(self):
         """
         Initialize the application configuration by combining command line arguments and YAML file settings.
-        :return: The initialized configuration as a dictionary.
-        :rtype: dict
+        This extends the base configuration initialization by adding app-specific logic.
         """
-        args = self._parse_args()
+        args = self.args
 
         config_dir = self._ensure_windows_path(args.config_dir)
 
         config = {
             'categories': args.categories,
-            'log_level': args.log_level,
-            'app_name': APP_NAME,
-            'config_dir': config_dir,
             'log_dir': self._ensure_windows_path(args.log_dir) if args.log_dir else os.path.join(config_dir, 'logs'),
             'cache_dir': self._ensure_windows_path(args.cache_dir) if args.cache_dir else os.path.join(config_dir,
                                                                                                        'cache'),
@@ -145,18 +64,18 @@ class Config:
             'start_dirs': [self._ensure_windows_path(args.start_dirs)]
         }
 
+        # Read the YAML config file if provided
         if args.config:
             file_config = self._read_config_file(args.config)
-
             config.update({k: v for k, v in file_config.items() if v is not None})
 
+        # Ensure 'start_dirs' is always a list of absolute paths
         if isinstance(config['start_dirs'], str):
-
             config['start_dirs'] = [self._ensure_windows_path(config['start_dirs'])]
         elif isinstance(config['start_dirs'], list):
-
             config['start_dirs'] = [self._ensure_windows_path(d.strip()) for d in config['start_dirs']]
 
+        # Add default folders for sorted files and deleted files
         config['dest_folders'] = {}
         config['delete_folders'] = {}
 
@@ -165,10 +84,8 @@ class Config:
 
             if config.get('categories'):
                 config['dest_folders'][start_dir] = {}
-
                 for category in config['categories']:
                     category_path = self._ensure_windows_path(os.path.join(sort_dir, category))
-
                     config['dest_folders'][start_dir][category] = category_path
 
             delete_path = self._ensure_windows_path(os.path.join(sort_dir, 'deleted'))
@@ -176,30 +93,4 @@ class Config:
 
         return config
 
-    def __getattr__(self, name):
-        """
-        Override the attribute getter to retrieve values from the configuration dictionary.
-
-        :param str name: The name of the attribute to retrieve.
-        :return: The value of the attribute from the configuration.
-        :rtype: Any
-        :raises AttributeError: If the attribute does not exist in the configuration.
-        """
-        if name in self._config:
-            return self._config[name]
-        raise AttributeError(f"'Config' object has no attribute '{name}'")
-
-
-config_instance = Config()
-
-categories = config_instance.categories
-dest_folders = config_instance.dest_folders
-delete_folders = config_instance.delete_folders
-sort_dir = config_instance.sort_dir
-log_level = config_instance.log_level
-app_name = config_instance.app_name
-log_dir = config_instance.log_dir
-cache_dir = config_instance.cache_dir
-config_dir = config_instance.config_dir
-start_dirs = config_instance.start_dirs
-platform_name = config_instance.platform_name
+config = Config.get_instance()

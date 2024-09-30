@@ -1,6 +1,8 @@
 import os
 import shutil
+
 from PyQt6.QtGui import QImageReader
+
 from core import logger
 
 
@@ -67,9 +69,11 @@ def check_and_remove_empty_dir(dir_path):
         except Exception as e:
             logger.error(f"[FileOperations] Failed to remove directory {dir_path}: {e}")
 
+
 def is_valid_image(image_path):
     reader = QImageReader(image_path)
     return reader.canRead()
+
 
 def is_image_file(filename):
     """
@@ -81,3 +85,15 @@ def is_image_file(filename):
     """
     valid_extensions = ['.webp', '.jpg', '.jpeg', '.png', '.bmp', '.gif']
     return any(filename.lower().endswith(ext) for ext in valid_extensions)
+
+
+def find_matching_directory(image_path, directory_list):
+    """
+    Find the directory from a given list that contains the image.
+
+    :param str image_path: The path to the image.
+    :param list[str] directory_list: A list of directories to check.
+    :return: The directory from the list that contains the image, or None if not found.
+    :rtype: str
+    """
+    return next((d for d in directory_list if os.path.abspath(image_path).startswith(os.path.abspath(d))), None)

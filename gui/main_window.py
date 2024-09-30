@@ -5,18 +5,18 @@ from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QMenu
 
 from core import config, logger
-from glavnaqt.core import config as glavnaqt_config
+from glavnaqt.core import config as ui_config
 from glavnaqt.ui.main_window import MainWindow
 from key_binding.key_binder import bind_keys
 
 
 class ImaegeteGUI(MainWindow):
-    def __init__(self, image_display, image_manager, data_service, app_name=config.APP_NAME, *args, **kwargs):
+    def __init__(self, image_display, image_controller, data_service, app_name=config.APP_NAME, *args, **kwargs):
         """
         Initialize the ImaegeteGUI class with the provided parameters.
 
         :param image_display: Object responsible for displaying images.
-        :param image_manager: Manager handling image operations like loading and clearing.
+        :param image_controller: Manager handling image operations like loading and clearing.
         :param data_service: Service managing data related to images.
         :param app_name: The name of the application (default: config.APP_NAME).
         :param args: Additional arguments passed to the parent class.
@@ -25,11 +25,12 @@ class ImaegeteGUI(MainWindow):
 
         logger.debug("[ImaegeteGUI] Initializing ImaegeteGUI.")
         self.signals_connected = False
+        self.ui_config = ui_config
         self.cleanup_thread = None
         self.image_display = image_display
         self.image_display.image_label.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.app_name = app_name
-        self.image_manager = image_manager
+        self.image_controller = image_controller
         self.data_service = data_service
 
         logger.debug(f"[ImaegeteGUI] Creating main GUI window {config.WINDOW_TITLE_SUFFIX}.")
@@ -40,8 +41,7 @@ class ImaegeteGUI(MainWindow):
         self.setup_interactive_status_bar()
         logger.debug("[ImaegeteGUI] UI configuration set up.")
 
-        bind_keys(self, self.image_manager)
-        self.image_manager.refresh_image_list()
+        bind_keys(self, self.image_controller)
 
         self.show()
         logger.debug("[ImaegeteGUI] Main window shown.")
@@ -56,18 +56,18 @@ class ImaegeteGUI(MainWindow):
         """
 
         logger.debug("[ImaegeteGUI] UI configuration set up.")
-        glavnaqt_config.config.font_size = "Helvetica"
-        glavnaqt_config.config.font_size = 13
-        glavnaqt_config.config.splitter_handle_width = 3
-        glavnaqt_config.config.enable_status_bar_manager = True
+        self.ui_config.font_size = "Helvetica"
+        self.ui_config.font_size = 13
+        self.ui_config.splitter_handle_width = 3
+        self.ui_config.enable_status_bar_manager = True
         if config.categories:
-            glavnaqt_config.config.update_collapsible_section('top', self.format_category_keys(config.categories),
-                                                              glavnaqt_config.ALIGN_CENTER)
-        glavnaqt_config.config.update_collapsible_section('main_content', 'test main content',
-                                                          alignment=glavnaqt_config.ALIGN_CENTER,
+            self.ui_config.update_collapsible_section('top', self.format_category_keys(config.categories),
+                                                              self.ui_config.ALIGN_CENTER)
+        self.ui_config.update_collapsible_section('main_content', 'test main content',
+                                                          alignment=self.ui_config.ALIGN_CENTER,
                                                           widget=self.image_display.image_label)
-        glavnaqt_config.config.update_collapsible_section('bottom', 'test status bar',
-                                                          alignment=glavnaqt_config.ALIGN_CENTER)
+        self.ui_config.update_collapsible_section('bottom', 'test status bar',
+                                                          alignment=self.ui_config.ALIGN_CENTER)
 
     def resizeEvent(self, event):
 
@@ -87,8 +87,8 @@ class ImaegeteGUI(MainWindow):
         Connect signals to their respective slots. Ensures signals are connected only once.
         """
 
-        self.image_manager.image_loaded.connect(self.update_ui_on_image_loaded)
-        self.image_manager.image_cleared.connect(self.update_ui_on_image_cleared)
+        self.image_controller.image_loaded.connect(self.update_ui_on_image_loaded)
+        self.image_controller.image_cleared.connect(self.update_ui_on_image_cleared)
         self.image_display.image_label.customContextMenuRequested.connect(self.show_context_menu)
         self.signals_connected = True
         logger.debug("[ImaegeteGUI] Signals connected for image display.")
@@ -100,9 +100,9 @@ class ImaegeteGUI(MainWindow):
         """
 
         try:
-            self.image_manager.image_cleared.disconnect(self.update_ui_on_image_cleared)
+            self.image_controller.image_cleared.disconnect(self.update_ui_on_image_cleared)
             self.image_display.image_label.customContextMenuRequested.disconnect(self.show_context_menu)
-            self.image_manager.image_loaded.disconnect(self.update_ui_on_image_loaded)
+            self.image_controller.image_loaded.disconnect(self.update_ui_on_image_loaded)
             logger.debug("[ImaegeteGUI] Signals disconnected.")
         except TypeError:
             logger.debug("[ImaegeteGUI] No signals were connected or already disconnected.")
@@ -241,7 +241,6 @@ class ImaegeteGUI(MainWindow):
 
         # Perform custom cleanup
         self._disconnect_signals()
-        self.image_manager.shutdown()
 
         # Ensure that MainWindow shutdown logic is executed
         super().closeEvent(event)  # Calls the parent MainWindow's closeEvent to handle ThreadManager shutdown

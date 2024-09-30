@@ -8,9 +8,13 @@ from gui.image_display import ImageDisplay
 from gui.main_window import ImaegeteGUI
 from gui.status_bar_manager import ImaegeteStatusBarManager
 from image_processing.data_management.cache_manager import CacheManager
+from image_processing.data_management.image_cache_handler import ImageCacheHandler
 from image_processing.data_management.data_service import ImageDataService
-from image_processing.image_handler import ImageHandler
-from image_processing.image_manager import ImageManager
+from image_processing.data_management.file_task_handler import FileTaskHandler
+from image_processing.new_image_handler import ImageHandler
+from image_processing.data_management.image_list_manager import ImageListManager
+from image_processing.image_loader import ImageLoader
+from image_processing.image_controller import ImageController
 
 
 def main():
@@ -19,7 +23,6 @@ def main():
     """
     logger.info("[Main] Starting application.")
     app = QApplication(sys.argv)
-
     thread_manager = ThreadManager()
 
     data_service = ImageDataService()
@@ -28,11 +31,15 @@ def main():
                                  max_size=config.IMAGE_CACHE_MAX_SIZE_KB)
 
     data_service.set_cache_manager(cache_manager)
-    image_handler = ImageHandler(thread_manager, data_service)
-    image_manager = ImageManager(image_handler)
+    image_list_manager = ImageListManager(data_service=data_service, thread_manager=thread_manager)
+    file_task_handler = FileTaskHandler(thread_manager=thread_manager)
+    image_handler = ImageHandler(data_service, thread_manager, image_list_manager, file_task_handler)
+    image_cache_handler = ImageCacheHandler(cache_manager=cache_manager)
+    image_loader = ImageLoader(cache_handler=image_cache_handler, thread_manager=thread_manager)
+    image_controller = ImageController(image_list_manager, image_loader, image_handler)
 
     image_display = ImageDisplay()
-    sorter_gui = ImaegeteGUI(image_display=image_display, image_manager=image_manager, data_service=data_service)
+    sorter_gui = ImaegeteGUI(image_display=image_display, image_controller=image_controller, data_service=data_service)
 
     sorter_gui.show()
 

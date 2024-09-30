@@ -136,6 +136,15 @@ class ImageDataService:
         with QMutexLocker(self.lock):
             return self._current_index == self._image_list.index(image_path)
 
+    def extend_image_list(self, image_list):
+        """
+        Set the image list.
+
+        :param list image_list: The list of images.
+        """
+        with QMutexLocker(self.lock):
+            self._image_list.extend(image_list)
+
     def set_image_list(self, image_list):
         """
         Set the image list.
