@@ -3,7 +3,7 @@ import shutil
 
 from PyQt6.QtGui import QImageReader
 
-from core import logger, config
+from imaegete.core import logger, config
 
 
 def move_file(src, dest):

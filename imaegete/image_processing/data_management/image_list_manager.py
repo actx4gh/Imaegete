@@ -1,12 +1,11 @@
 import os
 import random
 import time
-from copy import deepcopy
-from PyQt6.QtCore import QThread, QWaitCondition, QMutex, QMutexLocker
+from PyQt6.QtCore import QThread, QWaitCondition, QMutex
 from natsort import os_sorted
 
-from core.logger import logger, config
-from image_processing.data_management.file_operations import is_image_file
+from imaegete.core.logger import logger, config
+from imaegete.image_processing.data_management.file_operations import is_image_file
 
 
 class ImageListManager:

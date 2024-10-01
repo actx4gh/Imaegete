@@ -9,10 +9,10 @@ from PyQt6.QtGui import QImage
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-from core import config
-from core import logger
+from imaegete.core import config
+from imaegete.core import logger
 from glavnaqt.core.event_bus import create_or_get_shared_event_bus
-from image_processing.data_management.file_operations import is_image_file
+from imaegete.image_processing.data_management.file_operations import is_image_file
 
 
 class CacheManager(QObject):

@@ -4,10 +4,10 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QMenu
 
-from core import config, logger
+from imaegete.core import config, logger
 from glavnaqt.core import config as ui_config
 from glavnaqt.ui.main_window import MainWindow
-from key_binding.key_binder import bind_keys
+from imaegete.key_binding.key_binder import bind_keys
 
 
 class ImaegeteGUI(MainWindow):

@@ -1,7 +1,7 @@
 from PyQt6.QtGui import QKeySequence, QShortcut
 
-from core import config
-from core.config import NEXT_KEY, PREV_KEY, FIRST_KEY, LAST_KEY, UNDO_KEY, DELETE_KEY, RANDOM_KEY, FULLSCREEN_KEY, \
+from imaegete.core import config
+from imaegete.core.config import NEXT_KEY, PREV_KEY, FIRST_KEY, LAST_KEY, UNDO_KEY, DELETE_KEY, RANDOM_KEY, FULLSCREEN_KEY, \
     QUIT_KEY
 
 

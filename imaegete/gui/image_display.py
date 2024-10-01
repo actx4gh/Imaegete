@@ -3,7 +3,7 @@ from threading import Event
 from PyQt6.QtCore import Qt, QObject, QTimer
 from PyQt6.QtWidgets import QLabel, QSizePolicy
 
-from core import logger
+from imaegete.core import logger
 
 
 class ImageDisplay(QObject):

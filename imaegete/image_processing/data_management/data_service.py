@@ -1,7 +1,7 @@
 import natsort
 from PyQt6.QtCore import QRecursiveMutex, QMutexLocker
 
-from core import logger
+from imaegete.core import logger
 
 
 class ImageDataService:

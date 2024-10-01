@@ -1,7 +1,7 @@
 from PyQt6.QtCore import QObject
 from os.path import dirname
-from core import config, logger
-from image_processing.data_management.file_operations import find_matching_directory
+from imaegete.core import config, logger
+from imaegete.image_processing.data_management.file_operations import find_matching_directory
 
 
 class ImageHandler(QObject):
@@ -14,7 +14,6 @@ class ImageHandler(QObject):
         self.delete_folders = config.delete_folders
         self.dest_folders = config.dest_folders
         self.start_dirs = config.start_dirs
-        pass
 
     def move_or_delete_image(self, image_path, action_type, original_index=None, category=None):
         """

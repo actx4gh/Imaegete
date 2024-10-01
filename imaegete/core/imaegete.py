@@ -2,19 +2,19 @@ import sys
 
 from PyQt6.QtWidgets import QApplication
 
-from core import config, logger
+from imaegete.core import config, logger
 from glavnaqt.core.thread_manager import ThreadManager
-from gui.image_display import ImageDisplay
-from gui.main_window import ImaegeteGUI
-from gui.status_bar_manager import ImaegeteStatusBarManager
-from image_processing.data_management.cache_manager import CacheManager
-from image_processing.data_management.image_cache_handler import ImageCacheHandler
-from image_processing.data_management.data_service import ImageDataService
-from image_processing.data_management.file_task_handler import FileTaskHandler
-from image_processing.image_handler import ImageHandler
-from image_processing.data_management.image_list_manager import ImageListManager
-from image_processing.image_loader import ImageLoader
-from image_processing.image_controller import ImageController
+from imaegete.gui.image_display import ImageDisplay
+from imaegete.gui.main_window import ImaegeteGUI
+from imaegete.gui.status_bar_manager import ImaegeteStatusBarManager
+from imaegete.image_processing.data_management.cache_manager import CacheManager
+from imaegete.image_processing.data_management.image_cache_handler import ImageCacheHandler
+from imaegete.image_processing.data_management.data_service import ImageDataService
+from imaegete.image_processing.data_management.file_task_handler import FileTaskHandler
+from imaegete.image_processing.image_handler import ImageHandler
+from imaegete.image_processing.data_management.image_list_manager import ImageListManager
+from imaegete.image_processing.image_loader import ImageLoader
+from imaegete.image_processing.image_controller import ImageController
 
 
 def main():

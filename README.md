@@ -1,75 +1,113 @@
-Imaegete is a desktop application designed for efficiently organizing and managing large collections of images. The
-project uses PyQt6 for the GUI and leverages multithreading for performing file operations, caching, and image handling
-to ensure a responsive user experience.
 
-- **Image Sorting**: Move images between different categories or delete them with customizable key bindings.
-- **Multithreaded Operations**: Asynchronous image loading, caching, and processing to keep the UI responsive.
-- **Image Caching**: A cache system to store images and metadata, minimizing disk reads.
-- **Prefetching**: Prefetch images ahead of time for smoother navigation between images.
-- **Key Bindings**: Customizable keyboard shortcuts for quick image navigation and sorting.
-- **Full-Screen Viewing**: Toggle full-screen image viewing for a better experience.
-- **Status Bar Information**: Displays detailed information about the currently selected image, including file size,
-  dimensions, and more.
+# Imaegete - Image Management and Sorting Application
 
+Imaegete is a Qt-based image management and sorting application. It allows users to organize, view, move, and delete images using customizable categories. The app is designed to be both a GUI and command-line utility with various configurable options.
 
-- **`main.py`**: Entry point for the application, responsible for initializing and launching the UI and managing
-  resources.
-- **`config.py`**: Centralized configuration handling, supporting platform-specific settings and YAML configuration.
-- **`logger.py`**: Custom logger for logging application events to both the console and log files.
-- **`image_manager.py`**: Manages the current image, handles navigation between images, and triggers image loading.
-- **`image_handler.py`**: Handles the core image operations such as moving, deleting, and shuffling images.
-- **`cache_manager.py`**: Manages caching of images and metadata to optimize image loading performance.
-- **`data_service.py`**: A service layer that provides access to image-related data and maintains the image list and
-  indices.
-- **`file_operations.py`**: Handles low-level file operations like moving and cleaning up images.
-- **`image_display.py`**: Provides the GUI component for displaying images, with support for resizing and full-screen
-  modes.
-- **`status_bar_manager.py`**: Manages the status bar, displaying real-time information about the currently loaded
-  image.
-- **`thread_manager.py`**: Manages a pool of threads for running tasks asynchronously without blocking the main UI
-  thread.
-- **`exceptions.py`**: Defines custom exceptions for error handling throughout the application.
-- **`key_binder.py`**: Maps keyboard shortcuts to actions for quick image sorting, navigation, and manipulation.
+## Features
+- Organize images into custom categories
+- Delete and move images to predefined folders
+- Use keyboard shortcuts for fast navigation
+- Supports configuration via CLI arguments and YAML config file
+- Logging of all operations for tracking
 
+## Installation
 
-1. Clone the repository:
+### Requirements
+The following dependencies are required to run the application:
 
-    ```bash
-    git clone https://github.com/actx4gh/imaegete.git
-    ```
+- Python 3.7+
+- PyQt6
+- Pillow
+- Watchdog
+- Natsort
 
-2. Install the dependencies:
+Install the dependencies using the `requirements.txt` file:
 
-    ```bash
-    pip install -r requirements.txt
-    ```
+```bash
+pip install -r requirements.txt
+```
 
-3. Run the application:
+### Running the Application
 
-    ```bash
-    python imaegete.py
-    ```
+You can run the application from the command line with various options either by specifying command-line arguments or by using a configuration file.
 
+#### 1. Running with CLI Arguments
 
-- **Next Image**: Right Arrow
-- **Previous Image**: Left Arrow
-- **First Image**: Home
-- **Last Image**: End
-- **Delete Image**: Delete
-- **Random Image**: R
-- **Undo Last Action**: U
-- **Toggle Full-Screen**: F
+```bash
+python imaegete.py --categories cat1 cat2 --start_dirs /path/to/images --log_dir /path/to/logs --cache_dir /path/to/cache
+```
 
+##### Available CLI Arguments:
+- `--categories`: A list of categories to organize images into.
+- `--sort_dir`: Base directory to put sorting folders. Defaults to the starting directory.
+- `--start_dirs`: The directory where images are stored. Defaults to the current working directory.
+- `--log_dir`: Directory where logs are stored. Defaults to the config/logs directory.
+- `--cache_dir`: Directory where cached data is stored. Defaults to the config/cache directory.
+- `--config`: Path to the YAML configuration file for loading settings (alternative to CLI options).
 
-- **Not Ready for Production**: This project is still under active development and is not yet ready for wide
-  consumption. Some features may not function as expected, and additional testing and error handling are needed.
+Example:
+```bash
+python imaegete.py --categories cats dogs --start_dirs ./images --log_dir ./logs --cache_dir ./cache
+```
 
+#### 2. Running with Configuration File
 
-- Improved error handling and logging.
-- Enhanced UI elements and customization options.
-- Support for more image formats and larger datasets.
-- Comprehensive unit testing and documentation.
+You can specify the configuration file by using the `--config` option:
 
-Contributions are welcome. Please feel free to submit a pull request or file an issue.
+```bash
+python imaegete.py --config config.yaml
+```
 
-[MIT License](LICENSE)
+##### Example Config File (YAML):
+
+```yaml
+categories:
+  - Category1
+  - Category2
+log_dir: /path/to/logs
+cache_dir: /path/to/cache
+start_dirs: 
+  - /path/to/images
+sort_dir: /path/to/sorted
+```
+
+This configuration allows you to preload settings instead of passing them as CLI arguments.
+
+### Logging
+By default, all operations are logged in the `imaegete.log` file (or another specified log location). You can check the logs for any errors or operations performed by the application.
+
+### Keyboard Shortcuts
+
+The following keyboard shortcuts are available for quick navigation and management of images:
+
+| Action                | Key         |
+|-----------------------|-------------|
+| Next Image            | Right       |
+| Previous Image        | Left        |
+| First Image           | Home        |
+| Last Image            | End         |
+| Random Image          | R           |
+| Delete Image          | Delete      |
+| Undo Last Action      | U           |
+| Toggle Fullscreen     | F           |
+| Quit Application      | Q           |
+
+These shortcuts can be used within the GUI to perform operations quickly.
+
+### Development
+
+To contribute to this project, clone the repository and install the dependencies as specified in the `requirements.txt`.
+
+#### Running Tests
+
+The project contains unit tests that are written using `pytest`. To run the tests, execute the following:
+
+```bash
+pytest
+```
+
+The tests cover key components like configuration parsing, image handling, and logging.
+
+## License
+
+This project is licensed under the MIT License. See the `LICENSE` file for more details.

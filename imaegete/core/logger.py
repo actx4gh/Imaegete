@@ -2,7 +2,7 @@ import inspect
 import logging
 import os
 
-from core import config
+from imaegete.core import config
 
 
 def get_dynamic_logger():

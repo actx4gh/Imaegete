@@ -1,7 +1,6 @@
-import os
 from PyQt6.QtCore import QThread
 
-from image_processing.data_management.file_operations import move_image_and_cleanup
+from imaegete.image_processing.data_management.file_operations import move_image_and_cleanup
 
 
 # FileOperationHandler (file_task_handler.py)

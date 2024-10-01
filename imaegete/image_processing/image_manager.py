@@ -1,7 +1,7 @@
 from PyQt6.QtCore import QObject, pyqtSignal, Qt, QMutexLocker, QRecursiveMutex, QThread, QMutex, QTimer
 from PyQt6.QtGui import QPixmap
 
-from core import logger
+from imaegete.core import logger
 from glavnaqt.core.event_bus import create_or_get_shared_event_bus
 
 
