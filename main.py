@@ -1,5 +1,5 @@
-import os
 import sys
+
 print(sys.path)
 from glavnaqt.core.thread_manager import ThreadManager
 from imaegete.gui.image_display import ImageDisplay
@@ -39,7 +39,8 @@ def main():
     image_controller = ImageController(image_list_manager, image_loader, image_handler)
 
     image_display = ImageDisplay()
-    sorter_gui = ImaegeteGUI(image_display=image_display, image_controller=image_controller, data_service=data_service)
+    sorter_gui = ImaegeteGUI(image_display=image_display, thread_manager=thread_manager,
+                             image_controller=image_controller, data_service=data_service)
 
     sorter_gui.show()
 

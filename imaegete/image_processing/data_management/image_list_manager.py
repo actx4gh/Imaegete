@@ -1,6 +1,7 @@
 import os
 import random
 import time
+
 from PyQt6.QtCore import QThread, QWaitCondition, QMutex
 from natsort import os_sorted
 
@@ -40,7 +41,7 @@ class ImageListManager:
                                             folders_to_skip=folders_to_skip, tag="refresh_image_list",
                                             on_finished=self.thread_manager.task_finished_callback)
 
-    def process_files_in_directory(self, directory, folders_to_skip, signal):
+    def process_files_in_directory(self, directory, folders_to_skip, signal, stop_flag):
         """
         Process image files in a given directory, updating the image list in batches.
         Emit signal after each batch of images is processed.
@@ -56,6 +57,8 @@ class ImageListManager:
         target_batch_time = 0.1
 
         for root, _, files in os.walk(directory):
+            if stop_flag():
+                return None
             if os.path.normpath(root) in folders_to_skip:
                 continue
 
@@ -63,10 +66,14 @@ class ImageListManager:
             i = 0
 
             while i < len(sorted_files):
+                if stop_flag():
+                    return None
                 start_time = time.time()
                 batch_images = []
 
                 while len(batch_images) < batch_size and i < len(sorted_files):
+                    if stop_flag():
+                        return None
                     file = sorted_files[i]
                     file_path = os.path.join(root, file)
                     if is_image_file(file_path):
@@ -75,28 +82,46 @@ class ImageListManager:
 
                 image_list.extend(batch_images)
                 if directory == self.start_dirs[0]:
+                    if stop_flag():
+                        return None
                     if image_list and not self.data_service.get_image_list():
                         self.data_service.set_current_image_path(image_list[0])
                         self.data_service.set_current_index(0)
+                    if stop_flag():
+                        return None
                     self.data_service.extend_image_list(image_list)
                     image_list = []
                     if signal:
+                        if stop_flag():
+                            return None
                         signal.emit()
 
                 # Adjust batch size based on processing time
                 batch_processing_time = time.time() - start_time
                 if batch_processing_time < target_batch_time and batch_size < max_batch_size:
+                    if stop_flag():
+                        return None
                     batch_size = min(batch_size * 2, max_batch_size)
                 elif batch_processing_time > target_batch_time and batch_size > min_batch_size:
+                    if stop_flag():
+                        return None
                     batch_size = max(batch_size // 2, min_batch_size)
 
         if image_list:
             while directory != self.start_dirs[0]:
+                if stop_flag():
+                    return None
                 logger.debug(f"[ImageHandler thread {thread_id}] Waiting to add images from {directory}")
                 self.image_list_open_condition.wait(self.lock, 100)
+            if stop_flag():
+                return None
             self.data_service.extend_image_list(image_list)
+            if stop_flag():
+                return None
             if signal:
                 signal.emit()
+        if stop_flag():
+            return None
         self.start_dirs.remove(directory)
         self.image_list_open_condition.wakeAll()
 

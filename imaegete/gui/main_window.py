@@ -241,6 +241,7 @@ class ImaegeteGUI(MainWindow):
 
         # Perform custom cleanup
         self._disconnect_signals()
+        self.image_controller.shutdown()
 
         # Ensure that MainWindow shutdown logic is executed
         super().closeEvent(event)  # Calls the parent MainWindow's closeEvent to handle ThreadManager shutdown

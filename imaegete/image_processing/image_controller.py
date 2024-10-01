@@ -109,3 +109,10 @@ class ImageController(QObject):
                 logger.error("[ImageController] Could not get current image from data service.")
         else:
             self.event_bus.emit('hide_busy')
+
+    def shutdown(self):
+        """
+        Shutdown the ImageController safely.
+        """
+        self.image_list_manager.image_list_open_condition.wakeAll()
+        self.image_list_manager.data_service.cache_manager.shutdown()
