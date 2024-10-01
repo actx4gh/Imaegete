@@ -10,16 +10,29 @@ Imaegete is a Qt-based image management and sorting application. It allows users
 - Supports configuration via CLI arguments and YAML config file
 - Logging of all operations for tracking
 
+## Screenshots
+![Screenshot of imaegete displaying an image of a dog named Ya-hoo](./assets/images/imaegete-ss0.jpg)
+
 ## Installation
 
 ### Requirements
 The following dependencies are required to run the application:
 
-- Python 3.7+
-- PyQt6
-- Pillow
-- Watchdog
-- Natsort
+- Python 3.10+
+- colorama==0.4.6
+- confumo https://github.com/actx4gh/confumo
+- exceptiongroup==1.2.2
+- glavnaqt https://github.com/actx4gh/GlavnaQt
+- iniconfig==2.0.0
+- natsort==8.4.0
+- packaging==24.1
+- pluggy==1.5.0
+- PyQt6-Qt6==6.7.2
+- PyQt6_sip==13.8.0
+- pytest==8.3.2
+- PyYAML==6.0.2
+- tomli==2.0.1
+- watchdog==5.0.3
 
 Install the dependencies using the `requirements.txt` file:
 
