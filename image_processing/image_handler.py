@@ -1,558 +1,93 @@
-import os
-import random
-import time
-
-import numpy as np
-from PyQt6.QtCore import QObject, QMutexLocker, QRecursiveMutex, QMutex, QWaitCondition, QThread
-from natsort import os_sorted
-
+from PyQt6.QtCore import QObject
+from os.path import dirname
 from core import config, logger
-from core.exceptions import ImaegeteError
-from glavnaqt.core.event_bus import create_or_get_shared_event_bus
-from image_processing.data_management.file_operations import move_image_and_cleanup, is_image_file
+from image_processing.data_management.file_operations import find_matching_directory
 
 
 class ImageHandler(QObject):
-    """
-    A class to manage image handling operations, including image list management,
-    moving, and deleting images.
-    """
-
-    def __init__(self, thread_manager, data_service):
-        """
-        Initialize the ImageHandler with a thread manager and data service.
-
-        Sets up necessary components such as event bus, destination folders,
-        and image list management.
-
-        :param thread_manager: The thread manager for handling asynchronous tasks.
-        :param data_service: The service responsible for managing image data.
-        """
+    def __init__(self, data_service, thread_manager, image_list_manager, file_task_handler):
         super().__init__()
-        self.thread_manager = thread_manager
-        self.event_bus = create_or_get_shared_event_bus()
         self.data_service = data_service
-        self.dest_folders = config.dest_folders
+        self.thread_manager = thread_manager
+        self.image_list_manager = image_list_manager
+        self.file_task_handler = file_task_handler
         self.delete_folders = config.delete_folders
-        self._start_dirs = []
-        self._shuffled_indices = []
+        self.dest_folders = config.dest_folders
+        self.start_dirs = config.start_dirs
+        pass
 
-        self.lock = QRecursiveMutex()
-        self.is_refreshing = False
-        self.image_list_open_condition = QWaitCondition()
-
-        self.data_service.set_image_list([])
-        self.data_service.set_sorted_images([])
-
-        self.shutdown_flag = False
-
-
-
-    def _retrieve_image_data(self, image_path):
+    def move_or_delete_image(self, image_path, action_type, original_index=None, category=None):
         """
-        Retrieve the image data from cache and its metadata. This is a helper function
-        to separate out the image fetching and metadata retrieval logic.
+        Helper function to move or delete an image.
+        Determines the correct source and destination directories based on action type.
 
-        :param str image_path: The path to the image to be retrieved
+        :param str image_path: The path to the image.
+        :param str action_type: The action type ('move' or 'delete').
+        :param int original_index:
+        :param str category: The category to move the image to (required for 'move' action).
         """
-        self.data_service.cache_manager.retrieve_image(image_path)
-        self.data_service.cache_manager.get_metadata(image_path)
-
-    @property
-    def start_dirs(self):
-        """
-        Get the list of start directories, sorted if not already cached.
-
-        :return: A sorted list of start directories.
-        :rtype: list
-        """
-        with QMutexLocker(self.lock):
-            if not self._start_dirs:
-                self._start_dirs = os_sorted(config.start_dirs)
-            return self._start_dirs
-
-    def add_image_to_list(self, image_path, index=None):
-        """
-        Add a new image to the image list at the specified index or at the end.
-
-        :param str image_path: Path to the image file.
-        :param int index: The position to insert the image. If None, append to the end.
-        """
-        image_list = self.data_service.get_image_list()
-        if is_image_file(image_path) and image_path not in image_list:
-            if index is not None:
-                image_list.insert(index, image_path)
-            else:
-                image_list.append(image_path)
-            self.data_service.set_image_list(image_list)
-
-    def remove_image_from_list(self, image_path):
-        """
-        Remove an image from the image list.
-
-        :param str image_path: Path to the image file to be removed.
-        """
-        image_list = self.data_service.get_image_list()
-        if image_path in image_list:
-            image_list.remove(image_path)
-        self.data_service.set_image_list(image_list)
-
-    def set_first_image(self):
-        """
-        Set the first image in the list as the current image.
-        """
-        if len(self.data_service.get_image_list()) > 0:
-            self.set_current_image_by_index(0)
-
-    def set_last_image(self):
-        """
-        Set the last image in the list as the current image.
-        """
-        image_list = self.data_service.get_image_list()
-        if len(image_list) > 0:
-            last_index = len(image_list) - 1
-            self.set_current_image_by_index(last_index)
-
-    def pop_image(self):
-        """
-        Pop an image from the current index in the image list.
-
-        Removes the image at the current index from the image list and updates the current index accordingly.
-
-        :return: A tuple containing the original index of the image and the image path.
-        :rtype: tuple(int, str)
-        """
-        image_list = self.data_service.get_image_list()
-        original_index = self.data_service.get_current_index()
-        image_path = self.data_service.pop_image_list(original_index)
-        if original_index == len(image_list):
-            self.data_service.set_current_index(len(image_list) - 1)
-        else:
-            self.data_service.set_current_image_to_current_index()
-        return original_index, image_path
-
-    def set_next_image(self):
-        """
-        Set the next image in the list as the current image.
-        """
-        image_list = self.data_service.get_image_list()
-        if len(image_list) > 0:
-            next_index = (self.data_service.get_current_index() + 1) % len(image_list)
-            self.set_current_image_by_index(next_index)
-
-    def set_previous_image(self):
-        """
-        Set the previous image in the list as the current image.
-        """
-        image_list = self.data_service.get_image_list()
-        if len(image_list) > 0:
-            previous_index = (self.data_service.get_current_index() - 1) % len(image_list)
-            self.set_current_image_by_index(previous_index)
-
-    def set_current_image_by_index(self, index=None):
-        """
-        Sets the image at the specified index as the current image.
-
-        If you provide an index, the image at that position becomes the current image. If you do not provide an index and the current index is not already set, it defaults to 0. Returns the path of the current image if available.
-
-        :param int index: The position to set as the current image. If None, defaults to 0 if not already set.
-        :return: The path of the current image, or None if no image is set.
-        :rtype: str or None
-        """
-        if index is not None:
-            self.data_service.set_current_index(index)
-        elif not isinstance(self.data_service.get_current_index(), int):
-
-            self.data_service.set_current_index(0)
-
-        image_path = self.data_service.get_current_image_path()
-
-        if image_path:
-            self.data_service.set_current_image_path(image_path)
-            return image_path
-
-        return None
-
-    @property
-    def shuffled_indices(self):
-        if not self._shuffled_indices:
-            image_list = self.data_service.get_image_list()
-            if len(image_list) > 0:
-                self._shuffled_indices = list(range(len(image_list)))
-                random.shuffle(self._shuffled_indices)
-                logger.debug("[ImageHandler] Initializing the shuffled list.")
-        return self._shuffled_indices
-
-    def set_random_image(self):
-        """
-        Set a random image from the list.
-        Otherwise, use the original random image selection logic.
-        """
-        image_list = self.data_service.get_image_list()
-        if len(image_list) > 0:
-            random_index = self.shuffled_indices.pop(0)
-            logger.debug(f'[ImageHandler] Setting index to random image {random_index}')
-            self.set_current_image_by_index(random_index)
-
-    def has_current_image(self):
-        """
-        Check if there is a valid current image.
-
-        :return: True if there is a current image, False otherwise.
-        :rtype: bool
-        """
-        return bool(self.data_service.get_current_image_path())
-
-
-
-    def load_image_from_cache(self, image_path, background=True):
-        """
-        Load an image from the cache or disk.
-
-        Attempts to retrieve the image from the cache. If the image is not cached, it will load it from disk.
-
-        :param str image_path: The path to the image to load.
-        :return: The loaded image.
-        :rtype: object
-        """
-        logger.debug(f"[ImageHandler] Loading image from cache or disk: {image_path}")
-        image = self.data_service.cache_manager.retrieve_image(image_path, active_request=True, background=background)
-        return image
-
-
-
-    def delete_current_image(self):
-        """
-        Delete the current image by moving it to the delete folder and removing it from the list.
-        """
-
-        original_index, image_path = self.pop_image()
-        start_dir = self.find_start_directory(image_path)
+        start_dir = find_matching_directory(image_path, self.start_dirs)
         if not start_dir:
-            logger.error(f"[ImageHandler] Start directory for image {image_path} not found.")
+            logger.error(f"Start directory for image {image_path} not found.")
             return
 
-        delete_folder = self.delete_folders.get(start_dir)
-        if delete_folder:
-            self.thread_manager.submit_task(self._move_image_task, image_path=image_path, source_dir=start_dir,
-                                            dest_dir=delete_folder)
-        else:
-            logger.error(f"[ImageHandler] Delete folder not configured for start directory {start_dir}")
-        self.data_service.append_sorted_images(('delete', image_path, original_index))
+        image_dir = dirname(image_path)
+        if action_type == 'delete':
+            if original_index is None:
+                dest_dir = image_dir
+                source_dir = self.delete_folders.get(start_dir)
+            else:
+                dest_dir = self.delete_folders.get(start_dir)
+                source_dir = image_dir
+            if dest_dir:
+                self.file_task_handler.delete_image(image_path, source_dir, dest_dir)
+            else:
+                logger.error(f"Delete folder not configured for start directory {start_dir}")
+        elif action_type == 'move' and category:
+            category_folder = self.dest_folders.get(start_dir, {}).get(category)
+            if original_index is None:
+                dest_dir = image_dir
+                source_dir = category_folder
+            else:
+                dest_dir = category_folder
+                source_dir = image_dir
+            if dest_dir:
+                self.file_task_handler.move_image(image_path, source_dir, dest_dir)
+            else:
+                logger.error(f"Destination folder not found for category {category} in directory {start_dir}")
+
+        if original_index is not None:
+            self.data_service.append_sorted_images((action_type, image_path, category, original_index))
 
     def move_current_image(self, category):
         """
-        Move the current image to a specific category folder.
-
-        :param str category: The category to move the image to.
+        Move the current image to a category folder.
         """
-        original_index, image_path = self.pop_image()
-        start_dir = self.find_start_directory(image_path)
-        if not start_dir:
-            logger.error(f"[ImageHandler] Start directory for image {image_path} not found.")
-            return
+        current_index, image_path = self.image_list_manager.pop_image()
+        if image_path:
+            self.move_or_delete_image(image_path, 'move', original_index=current_index, category=category)
 
-        dest_folder = self.dest_folders[start_dir].get(category)
-        if not dest_folder:
-            logger.error(
-                f"[ImageHandler] Destination folder not found for category {category} in directory {start_dir}")
-            return
-
-        self.thread_manager.submit_task(self._move_image_task, image_path=image_path, source_dir=start_dir,
-                                        dest_dir=dest_folder)
-        self.data_service.append_sorted_images(('move', image_path, category, original_index))
-
-    def _move_image_task(self, image_path, source_dir, dest_dir):
+    def delete_current_image(self):
         """
-        Move an image from the source directory to the destination directory.
-
-        This method handles moving an image file and cleaning up the source directory after the move.
-        If an error occurs during the move, it logs the error.
-
-        :param str image_path: The path to the image to be moved.
-        :param str source_dir: The directory from which the image is being moved.
-        :param str dest_dir: The directory to which the image is being moved.
+        Delete the current image by moving it to the delete folder.
         """
-        try:
-            # No need to hold the lock here
-            self.data_service.cache_manager.shutdown_watchdog()
-            move_image_and_cleanup(image_path, source_dir, dest_dir)
-            self.data_service.cache_manager.initialize_watchdog()
-            logger.info(f"[ImageHandler] Moved {image_path} from {source_dir} to {dest_dir}")
-        except Exception as e:
-            logger.error(f"[ImageHandler] Error moving image {image_path}: {e}")
-
-    def update_image_total(self):
-        """Emit an event to update the image total based on the image list size."""
-        if len(self.data_service.get_image_list()) > 0:
-            self.event_bus.emit('update_image_total')
+        current_index, image_path = self.image_list_manager.pop_image()
+        if image_path:
+            self.move_or_delete_image(image_path, 'delete', original_index=current_index)
 
     def undo_last_action(self):
         """
         Undo the last move or delete action.
-
-        This method retrieves the most recent action (either a move or delete) from the sorted images list
-        and reverses it. The image is restored to its original state, and the current index is updated accordingly.
-
-        :return: A tuple representing the last undone action, including the action type, image path, and additional details.
-        :rtype: tuple or None
         """
-        if not self.data_service.get_sorted_images():
-            logger.warning("[ImageHandler] No actions to undo.")
-            return
-
         last_action = self.data_service.pop_sorted_images()
-        action_type, image_path, *rest = last_action
-        original_index = rest[-1]
-        self.thread_manager.submit_task(self._move_image_task, image_path=image_path, action_type=action_type,
-                                        rest=rest)
-        self.add_image_to_list(image_path, original_index)
-        self.data_service.set_current_index(original_index)
-        return last_action
-
-    def _undo_action_task(self, image_path, action_type, rest):
-        """
-        Task to undo the last action on an image.
-
-        Depending on the action type ('delete' or 'move'), it restores the image to its original location.
-
-        :param str image_path: The path of the image to undo the action for.
-        :param str action_type: The type of action to undo ('delete' or 'move').
-        :param list rest: Additional information required for the undo operation (e.g., category).
-        :raises ImaegeteError: If the action type is unrecognized.
-        """
-        start_dir = self.find_start_directory(image_path)
-        if not start_dir:
-            logger.error(f"[ImageHandler] Start directory for image {image_path} not found.")
-            return
-
-        if action_type == 'delete':
-            source_dir = self.delete_folders.get(start_dir)
-            dest_dir = start_dir
-        elif action_type == 'move':
-            category = rest[0]
-            source_dir = self.dest_folders[start_dir].get(category)
-            dest_dir = start_dir
-        else:
-            raise ImaegeteError(f"Action type {action_type} unrecognized")
-
-        self._move_image_task(image_path, source_dir, dest_dir)
-
-    def refresh_image_list(self, signal=None):
-        """
-        Refresh the image list by scanning the directories for images.
-
-        :param Signal signal: A signal to emit when the refresh is complete.
-        """
-        if self.is_shutdown():
-            logger.debug("[ImageHandler] Shutdown initiated, not starting new refresh task.")
-            return
-        with QMutexLocker(self.lock):
-            self.is_refreshing = True
-        logger.debug("[ImageHandler] Submitting refresh image list task.")
-
-        self.thread_manager.submit_task(self._refresh_image_list_task, signal=signal)
-
-    def _refresh_image_list_task(self, signal=None):
-        """
-        Refresh the image list by scanning the directories for images.
-
-        :param Signal signal: A signal to emit when the refresh is complete.
-        """
-        thread_id = int(QThread.currentThreadId())
-        logger.debug(f"[ImageHandler refresh_image_list_task thread {thread_id}] Starting image list refresh.")
-
-        if self.is_shutdown():
-            logger.debug(
-                f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing before taking any steps.")
-            return
-        self.data_service.set_image_list([])
-
-        def process_files_in_directory(directory):
-            thread_id = int(QThread.currentThreadId())
-            logger.debug(f'[ImageHandler process_files_in_directory thread {thread_id}] processing {directory}')
-            try:
-                folders_to_skip = []
-
-                for start_dir, subfolders in self.dest_folders.items():
-                    if os.path.normpath(start_dir) == os.path.normpath(directory):
-                        folders_to_skip.extend(subfolders.values())
-
-                for start_dir, delete_folder in self.delete_folders.items():
-                    if self.is_shutdown():
-                        logger.debug(
-                            f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing while generating skip folders.")
-                        return
-                    if os.path.normpath(start_dir) == os.path.normpath(directory):
-                        folders_to_skip.append(delete_folder)
-                logger.debug(f'[ImageHandler thread {thread_id}] skipping {folders_to_skip}')
-                self._process_files_in_directory(directory, signal=signal,
-                                                 folders_to_skip=folders_to_skip, thread_id=thread_id)
-                with QMutexLocker(self.lock):
-                    if directory in self._start_dirs:
-                        self._start_dirs.remove(directory)
-                        self.image_list_open_condition.wakeAll()
-                logger.debug(
-                    f'[ImageHandler process_files_in_directory thread {thread_id}] Completed processing {directory}')
-            except Exception as e:
-                logger.error(f"[ImageHandler thread {thread_id}] Error processing directory {directory}: {e}")
-
-        with QMutexLocker(self.lock):
-            dirs_to_process = self.start_dirs.copy()
-        for d in dirs_to_process:
-            if self.is_shutdown():
-                logger.debug(
-                    f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing before submitting tasks.")
-                return
-            logger.debug(f'[ImageHandler thread {thread_id}] spawning new thread to process directory {d}')
-            self.thread_manager.submit_task(process_files_in_directory, directory=d, tag="refresh_image_list",
-                                            on_finished=self.thread_manager.task_finished_callback)
-
-        # Wait for all tasks to complete
-        logger.debug(
-            f"[ImageHandler thread {thread_id}] Active threads before waitForDone: {self.thread_manager.thread_pool.activeThreadCount()}")
-        # Waiting for all "refresh_image_list" tagged tasks to complete
-        self.thread_manager.wait_for_tagged_tasks("refresh_image_list")
-        logger.debug(
-            f"[ImageHandler thread {thread_id}] Active threads after waitForDone: {self.thread_manager.thread_pool.activeThreadCount()}")
-
-        with QMutexLocker(self.lock):
-            self.is_refreshing = False
-
-        if self.is_shutdown():
-            logger.debug(
-                f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing prior to final emission.")
-            return
-        logger.debug(
-            f"[ImageHandler thread {thread_id}] sending final emission with image list total {self.data_service.get_image_list_len()}")
-        if signal:
-            signal.emit()
-        logger.debug(f"[ImageHandler refresh_image_list_task thread {thread_id}] completed image list refresh.")
-
-    def _process_files_in_directory(self, directory, signal, folders_to_skip, thread_id=""):
-        """
-        Process image files in the given directory with dynamic batch sizing.
-
-        Walks through the directory, processes images in batches, and adjusts batch size based on processing time.
-        Skips directories in `folders_to_skip` and handles a shutdown event if triggered.
-
-        :param str directory: Directory path to process.
-        :param signal: Signal object to emit when a batch is processed.
-        :param list folders_to_skip: List of directories to skip.
-        """
-        if not thread_id:
-            thread_id = int(QThread.currentThreadId())
-        try:
-            batch_images = []
-            initial_batch_size = 50
-            min_batch_size = 10
-            max_batch_size = 1000
-            batch_size = initial_batch_size
-            target_batch_time = 0.1
-            logger.debug(f"[ImageHandler thread {thread_id}] About to process {directory}.")
-
-            for root, _, files in os.walk(directory):
-                if self.is_shutdown():
-                    logger.debug(
-                        f"[ImageHandler thread {thread_id}] Shutdown initiated, stopping batch processing while about to process {root}.")
-                    return
-                if os.path.normpath(root) in map(os.path.normpath, folders_to_skip):
-                    logger.debug(f"[ImageHandler thread {thread_id}] Skipping directory: {root}")
-                    continue
-
-                sorted_files = os_sorted(files)
-                i = 0
-
-                while i < len(sorted_files) and not self.is_shutdown():
-                    start_time = time.time()
-                    batch_images.clear()
-                    batch_count = 0
-
-                    while batch_count < batch_size and i < len(sorted_files) and not self.is_shutdown():
-                        file = sorted_files[i]
-                        i += 1
-
-                        file_path = os.path.join(root, file)
-                        if is_image_file(file_path):
-                            batch_images.append(file_path)
-                            batch_count += 1
-                        else:
-                            continue
-                    with QMutexLocker(self.lock):
-                        if self.is_shutdown():
-                            logger.debug(f"[ImageHandler thread {thread_id}] Shutdown during image list open condition")
-                            return
-                        while batch_images and self.start_dirs and directory not in self.start_dirs and not self.is_shutdown():
-                            logger.debug(f"[ImageHandler thread {thread_id}] Waiting to add images from {directory}")
-                            self.image_list_open_condition.wait(self.lock, 100)  # Wait for 100ms
-
-                    if self.is_shutdown():
-                        logger.debug(
-                            f"[ImageHandler thread {thread_id}] Shutdown during file processing in {directory}")
-                        return
-                    with QMutexLocker(self.lock):
-                        first_start_dir = self.start_dirs[0]
-                    if batch_images and first_start_dir == directory:
-                        if self.is_shutdown():
-                            logger.debug(
-                                f"[ImageHandler thread {thread_id}] Shutdown before extending image list during file processing")
-                            return
-                        image_list = self.data_service.get_image_list()
-                        if not image_list:
-                            self.data_service.set_image_list(batch_images.copy())
-                            self.data_service.set_current_index(0)
-                        else:
-                            image_list.extend(batch_images)
-                            self.data_service.set_image_list(image_list)
-
-                        if self.is_shutdown():
-                            logger.debug(
-                                f"[ImageHandler thread {thread_id}] Shutdown before emitting signal during file processing")
-                            return
-                    if signal:
-                        logger.debug(
-                            f"[ImageHandler thread {thread_id}] emitting signal during file processing for {directory}")
-                        signal.emit()
-
-                    end_time = time.time()
-                    batch_processing_time = end_time - start_time
-
-                    if batch_processing_time < target_batch_time and batch_size < max_batch_size:
-                        batch_size = min(batch_size * 2, max_batch_size)
-                    elif batch_processing_time > target_batch_time and batch_size > min_batch_size:
-                        batch_size = max(batch_size // 2, min_batch_size)
-
-                    logger.debug(f"[ImageHandler thread {thread_id}] Batch size adjusted to: {batch_size}")
-                    logger.debug(f"[ImageHandler thread {thread_id}] Completed processing {directory}")
-
-        except Exception as e:
-            logger.error(f"[ImageHandler thread {thread_id}] Error processing files in directory {directory}: {e}")
-
-    def find_start_directory(self, image_path):
-        """
-        Find the start directory for the given image.
-
-        :param str image_path: The path to the image.
-        :return: The start directory corresponding to the image.
-        :rtype: str
-        """
-        with QMutexLocker(self.lock):
-            return next((d for d in self.start_dirs if os.path.abspath(image_path).startswith(os.path.abspath(d))),
-                        None)
-
-    def shutdown(self):
-        logger.debug("[ImageHandler] Shutdown in progress")
-        self.set_shutdown()
-        with QMutexLocker(self.lock):
-            logger.debug("[ImageHandler] Notifying all threads waiting on image_list_open_condition condition.")
-            self.image_list_open_condition.wakeAll()
-
-        self.data_service.cache_manager.shutdown()
-
-        logger.debug("[ImageHandler] Shutdown complete.")
-
-    def set_shutdown(self):
-        self.shutdown_flag = True
-
-    def is_shutdown(self):
-        return self.shutdown_flag
+        if last_action:
+            action_type, image_path, *rest = last_action
+            original_index = rest[-1]
+            if action_type == 'delete':
+                self.move_or_delete_image(image_path, 'delete')
+            elif action_type == 'move':
+                category = rest[0]
+                self.move_or_delete_image(image_path, 'move', category=category)
+            self.image_list_manager.add_image_to_list(image_path, original_index)
+            self.data_service.set_current_index(original_index)
+            return last_action

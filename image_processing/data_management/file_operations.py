@@ -3,7 +3,7 @@ import shutil
 
 from PyQt6.QtGui import QImageReader
 
-from core import logger
+from core import logger, config
 
 
 def move_file(src, dest):
@@ -30,7 +30,8 @@ def move_image_and_cleanup(image_path, source_dir, dest_dir):
     :param str dest_dir: The destination directory.
     """
     move_related_files(image_path, source_dir, dest_dir)
-    check_and_remove_empty_dir(source_dir)
+    if source_dir in config.dest_folders or source_dir in config.delete_folders:
+        check_and_remove_empty_dir(source_dir)
 
 
 def move_related_files(filename, src_folder, dest_folder):

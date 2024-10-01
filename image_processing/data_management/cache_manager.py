@@ -194,17 +194,20 @@ class CacheManager(QObject):
 
     def initialize_watchdog(self):
         """
-        Initialize the watchdog observer to monitor changes in the image directories, excluding
-        specific subdirectories that match `dest_folders` or `delete_folders`.
+        Initialize the watchdog observer to monitor changes in the image directories.
         """
+        if hasattr(self, 'watchdog_observer') and self.watchdog_observer.is_alive():
+            logger.debug("[CacheManager] Watchdog observer is already running.")
+            return
         if self.is_shutting_down():
             logger.debug("[CacheManager] Shutdown initiated, not initializing watchdog.")
             return
+
+        # Start the observer
         event_handler = CacheEventHandler(self)
         self.watchdog_observer = Observer()
 
         directories_to_exclude = set()
-
         for start_dir in self.image_directories:
             if start_dir in self.dest_folders:
                 for dest_subfolder in self.dest_folders[start_dir].values():
@@ -221,15 +224,19 @@ class CacheManager(QObject):
 
         self.watchdog_observer.start()
         logger.debug(f"[CacheManager] Watchdog started, monitoring directories excluding: {directories_to_exclude}")
-        if not self.thread_manager.is_shutting_down:
-            self.thread_manager.submit_task(self._monitor_watchdog)
-        else:
-            logger.debug("[CacheManager] Shutdown initiated, not starting watchdog monitor task.")
 
-    def _monitor_watchdog(self):
+    def _monitor_watchdog(self, stop_flag):
+        """
+        Monitor the Watchdog and restart it if it crashes. Terminate if the stop flag is set.
+        """
         while not self.thread_manager.is_shutting_down and not self.is_shutting_down():
+            if stop_flag():  # Check if the task has been signaled to stop
+                logger.info("[CacheManager] Stop signal received, exiting _monitor_watchdog task.")
+                break
+
             if not self.watchdog_observer.is_alive():
                 self.restart_watchdog()
+
             QThread.sleep(self.stability_check_interval)
 
     def restart_watchdog(self):
@@ -244,12 +251,13 @@ class CacheManager(QObject):
         self.initialize_watchdog()
 
     def shutdown_watchdog(self):
-        """
-        Stop the watchdog observer and wait for the thread to finish.
-        """
         if hasattr(self, 'watchdog_observer') and self.watchdog_observer.is_alive():
+            logger.debug("[CacheManager] Stopping watchdog observer...")
+            self.thread_manager.stop_tasks_by_tag("watchdog_monitor")
+            self.thread_manager.wait_for_tagged_tasks("watchdog_monitor")
             self.watchdog_observer.stop()
             self.watchdog_observer.join()
+
             logger.debug("[CacheManager] Watchdog observer stopped.")
 
     def _setup_cache_directory(self):
@@ -371,6 +379,9 @@ class MetadataManager:
         return True
 
 
+import time
+
+
 class CacheEventHandler(FileSystemEventHandler):
     """
     A class to handle filesystem events related to the image cache, such as file creation, modification, and deletion.
@@ -381,6 +392,9 @@ class CacheEventHandler(FileSystemEventHandler):
         super().__init__()
         self.cache_manager = cache_manager
         self.excluded_paths = set()
+        self.current_event_sources = []
+        self.thread_id = int(QThread.currentThreadId())
+        self.last_event_time = {}  # Dictionary to track last event times
 
         for start_dir in self.cache_manager.image_directories:
             if start_dir in self.cache_manager.dest_folders:
@@ -401,36 +415,68 @@ class CacheEventHandler(FileSystemEventHandler):
                 return True
         return False
 
+    def _should_throttle_event(self, src_path, throttle_seconds=1.0):
+        """
+        Check if the event for src_path should be throttled.
+        If a similar event occurred within the throttle_seconds window, it is ignored.
+        """
+        current_time = time.time()
+        if src_path in self.last_event_time:
+            last_time = self.last_event_time[src_path]
+            if current_time - last_time < throttle_seconds:
+                logger.debug(f"[CacheEventHandler thread {self.thread_id}] Throttling event for {src_path}.")
+                return True
+
+        # Update the last event time
+        self.last_event_time[src_path] = current_time
+        return False
+
     def on_modified(self, event):
         """
         Handle file modification events and refresh the cache only if the modification time has changed.
         """
-        if self.cache_manager.is_shutting_down():
-            logger.debug(f"[CacheEventHandler] Shutdown initiated, ignoring modified event for {event.src_path}.")
+        if self._should_throttle_event(event.src_path):
             return
-        if not event.is_directory and not self._is_excluded(event.src_path):
-            self.handle_modified(event)
 
-    def handle_modified(self, event):
-        """Handle modification logic separately to keep `on_modified` clean."""
-        if not is_image_file(event.src_path):
+        if self.cache_manager.is_shutting_down():
+            logger.debug(
+                f"[CacheEventHandler thread {self.thread_id}] Modification event handler got shutdown initiated, ignoring modified event for {event.src_path}.")
             return
+        if self.cache_manager.data_service.image_in_ongoing_file_tasks(event.src_path):
+            logger.debug(
+                f'[CacheEventHandler thread {self.thread_id}] Modification event handler will not process {event.src_path}. Currently part of file handling tasks.')
+            return None
         if event.src_path in self.cache_manager.currently_active_requests:
             logger.debug(
-                f'[CacheEventHandler] Returning without further processing {event.src_path}. Already active in the cache.')
+                f'[CacheEventHandler thread {self.thread_id}] Modification event handler will not process {event.src_path}. Already active in the cache.')
             return None
-        self.__refresh_cache_if_needed(event)
+        if not event.is_directory and not self._is_excluded(event.src_path):
+            logger.debug(
+                f'[CacheEventHandler thread {self.thread_id}] Modification event handler triggered for {event.src_path}, refreshing cache')
+            self.__refresh_cache_if_needed(event)
 
     def on_created(self, event):
         """
         Handle file creation events to refresh the cache.
         """
-        if self.cache_manager.is_shutting_down():
-            logger.debug(f"[CacheEventHandler] Shutdown initiated, ignoring created event for {event.src_path}.")
+        if self._should_throttle_event(event.src_path):
             return
+
+        if self.cache_manager.is_shutting_down():
+            logger.debug(
+                f"[CacheEventHandler thread {self.thread_id}] Created event handler got shutdown initiated, ignoring created event for {event.src_path}.")
+            return
+        if event.src_path in self.cache_manager.currently_active_requests:
+            logger.debug(
+                f'[CacheEventHandler thread {self.thread_id}] Created event handler will not process {event.src_path}. Already active in the cache.')
+            return None
+        if self.cache_manager.data_service.image_in_ongoing_file_tasks(event.src_path):
+            logger.debug(
+                f'[CacheEventHandler thread {self.thread_id}] Created event handler will not process {event.src_path}. Currently part of file handling tasks.')
+            return None
         if not any((event.is_directory, self._is_excluded(event.src_path))) and is_image_file(event.src_path):
             logger.debug(
-                f'[CacheEventHandler] File creation event triggered for {event.src_path}, adding to image list and refreshing cache')
+                f'[CacheEventHandler thread {self.thread_id}] Created event handler triggered for {event.src_path}, adding to image list and refreshing cache')
             self.cache_manager.data_service.insert_sorted_image(event.src_path)
             self.cache_manager.event_bus.emit("update_image_total")
             self.__refresh_cache_if_needed(event)
@@ -439,20 +485,33 @@ class CacheEventHandler(FileSystemEventHandler):
         """
         Handle file deletion events by removing the image from the cache.
         """
-        if self.cache_manager.is_shutting_down():
-            logger.debug(f"[CacheEventHandler] Shutdown initiated, ignoring deleted event for {event.src_path}.")
+        if self._should_throttle_event(event.src_path):
             return
+
+        if self.cache_manager.is_shutting_down():
+            logger.debug(
+                f"[CacheEventHandler thread {self.thread_id}] Deleted event handler shutdown initiated, ignoring deleted event for {event.src_path}.")
+            return
+        if event.src_path in self.cache_manager.currently_active_requests:
+            logger.debug(
+                f'[CacheEventHandler thread {self.thread_id}] Deleted event handler {event.src_path}. Already active in the cache.')
+            return None
+        if self.cache_manager.data_service.image_in_ongoing_file_tasks(event.src_path):
+            logger.debug(
+                f'[CacheEventHandler thread {self.thread_id}] Deleted event handler will not process {event.src_path}. Currently part of file handling tasks.')
+            return None
         if not event.is_directory and not self._is_excluded(
                 event.src_path) and event.src_path in self.cache_manager.data_service.get_image_list():
             logger.debug(
-                f'[CacheEventHandler] File deletion event triggered for {event.src_path}, removing from image list')
+                f'[CacheEventHandler thread {self.thread_id}] Deleted event handler triggered for {event.src_path}, removing from image list')
             self.cache_manager.data_service.remove_image(event.src_path)
             self.cache_manager.event_bus.emit("update_image_total")
             self.cache_manager.request_display_update.emit(self.cache_manager.data_service.get_current_image_path())
 
     def __refresh_cache_if_needed(self, event):
         if self.cache_manager.is_shutting_down():
-            logger.debug(f"[CacheEventHandler] Shutdown initiated, not refreshing cache for {event.src_path}.")
+            logger.debug(
+                f"[CacheEventHandler thread {self.thread_id}] Shutdown initiated, not refreshing cache for {event.src_path}.")
             return
         try:
             current_mod_time = os.path.getmtime(event.src_path)
@@ -462,14 +521,15 @@ class CacheEventHandler(FileSystemEventHandler):
                 cached_mod_time = cached_metadata.get('last_modified')
                 if cached_mod_time != current_mod_time:
                     logger.debug(
-                        f'[CacheEventHandler] Modification time changed for {event.src_path}. Refreshing cache.')
+                        f'[CacheEventHandler thread {self.thread_id}] Modification time changed for {event.src_path}. Refreshing cache.')
                     self.cache_manager.debounced_cache_refresh(event.src_path)
                 else:
                     logger.debug(
-                        f'[CacheEventHandler] Modification time unchanged for {event.src_path}. No refresh needed.')
-
+                        f'[CacheEventHandler thread {self.thread_id}] Modification time unchanged for {event.src_path}. No refresh needed.')
             else:
-                logger.debug(f'[CacheEventHandler] No metadata cached for {event.src_path}. Refreshing cache.')
+                logger.debug(
+                    f'[CacheEventHandler thread {self.thread_id}] No metadata cached for {event.src_path}. Refreshing cache.')
                 self.cache_manager.debounced_cache_refresh(event.src_path)
         except Exception as e:
-            logger.error(f'[CacheEventHandler] Error while handling {event.event_type} event for {event.src_path}: {e}')
+            logger.error(
+                f'[CacheEventHandler thread {self.thread_id}] Error while handling {event.event_type} event for {event.src_path}: {e}')

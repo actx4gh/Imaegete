@@ -15,9 +15,12 @@ class ImageDataService:
         self._current_image_path = None
         self._image_list = []
         self._sorted_images = []
+        self._ongoing_file_tasks = []
         self._current_index = 0
         self.cache_manager = None
-        self.lock = QRecursiveMutex()  # Central lock to ensure thread safety
+        self.image_list_lock = QRecursiveMutex()
+        self.sorted_images_lock = QRecursiveMutex()
+        self.ongoing_file_tasks_lock = QRecursiveMutex()
 
     def get_image_path(self, index):
         """
@@ -27,7 +30,7 @@ class ImageDataService:
         :return: The image path at the given index or None if out of bounds.
         :rtype: str or None
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             if 0 <= index < len(self._image_list):
                 return self._image_list[index]
             return None
@@ -39,7 +42,7 @@ class ImageDataService:
         :return: The current image path.
         :rtype: str
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             return self._current_image_path
 
     def set_current_image_path(self, image_path):
@@ -48,8 +51,12 @@ class ImageDataService:
 
         :param str image_path: The path of the current image.
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             self._current_image_path = image_path
+
+    def image_in_ongoing_file_tasks(self, image_path):
+        with QMutexLocker(self.ongoing_file_tasks_lock):
+            return image_path in self._ongoing_file_tasks
 
     def get_sorted_images(self):
         """
@@ -58,7 +65,7 @@ class ImageDataService:
         :return: The sorted images.
         :rtype: list
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             return self._sorted_images.copy()
 
     def set_sorted_images(self, sorted_images):
@@ -67,7 +74,7 @@ class ImageDataService:
 
         :param list sorted_images: The list of sorted images.
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             self._sorted_images = sorted_images
 
     def pop_sorted_images(self, index=None):
@@ -78,10 +85,11 @@ class ImageDataService:
         :return: The popped sorted image.
         :rtype: tuple
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             if index is None:
                 index = len(self._sorted_images) - 1
-            return self._sorted_images.pop(index)
+            if self._sorted_images:
+                return self._sorted_images.pop(index)
 
     def pop_image_list(self, index=None):
         """
@@ -91,7 +99,7 @@ class ImageDataService:
         :return: The popped image.
         :rtype: str
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             if index is None:
                 index = len(self._image_list) - 1
             return self._image_list.pop(index)
@@ -102,8 +110,17 @@ class ImageDataService:
 
         :param tuple sorted_tuple: The tuple to append to the sorted images list.
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             self._sorted_images.append(sorted_tuple)
+
+    def append_ongoing_file_tasks(self, image_path):
+        """
+        Append a tuple to the sorted images list.
+
+        :param image_path:
+        """
+        with QMutexLocker(self.ongoing_file_tasks_lock):
+            self._ongoing_file_tasks.append(image_path)
 
     def get_image_list_len(self):
         """
@@ -112,8 +129,18 @@ class ImageDataService:
         :return: The number of images in the image list.
         :rtype: int
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             return len(self._image_list)
+
+    def get_ongoing_file_tasks(self):
+        """
+        Get the image list.
+
+        :return: The list of images.
+        :rtype: list
+        """
+        with QMutexLocker(self.ongoing_file_tasks_lock):
+            return self._ongoing_file_tasks.copy()
 
     def get_image_list(self):
         """
@@ -122,7 +149,7 @@ class ImageDataService:
         :return: The list of images.
         :rtype: list
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             return self._image_list.copy()
 
     def image_is_current(self, image_path):
@@ -133,7 +160,7 @@ class ImageDataService:
         :return: True if the image is current, False otherwise.
         :rtype: bool
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             return self._current_index == self._image_list.index(image_path)
 
     def extend_image_list(self, image_list):
@@ -142,8 +169,17 @@ class ImageDataService:
 
         :param list image_list: The list of images.
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             self._image_list.extend(image_list)
+
+    def set_ongoing_file_tasks(self, ongoing_file_tasks):
+        """
+        Set the image list.
+
+        :param ongoing_file_tasks:
+        """
+        with QMutexLocker(self.ongoing_file_tasks_lock):
+            self._ongoing_file_tasks = ongoing_file_tasks
 
     def set_image_list(self, image_list):
         """
@@ -151,7 +187,7 @@ class ImageDataService:
 
         :param list image_list: The list of images.
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             self._image_list = image_list
 
     def insert_sorted_image(self, image_path):
@@ -160,7 +196,7 @@ class ImageDataService:
 
         :param str image_path: The path of the image to insert.
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             new_item_key = natsort.os_sort_key(image_path)
 
             index = 0
@@ -176,13 +212,21 @@ class ImageDataService:
             if self._current_image_path in self._image_list:
                 self._current_index = self._image_list.index(self._current_image_path)
 
+    def remove_file_task(self, image_path):
+        with QMutexLocker(self.ongoing_file_tasks_lock):
+            if image_path in self._ongoing_file_tasks:
+                self._ongoing_file_tasks.remove(image_path)
+            else:
+                logger.error(
+                    f'[ImageDataService] Image does not exist in the list of ongoing file tasks, cannot remove: {image_path}')
+
     def remove_image(self, image_path):
         """
         Remove an image from the image list and update the current index accordingly.
 
         :param str image_path: The path of the image to remove.
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             if image_path in self._image_list:
                 original_index = self._image_list.index(image_path)
                 self._image_list.remove(image_path)
@@ -207,7 +251,7 @@ class ImageDataService:
         :return: The current index.
         :rtype: int
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             return self._current_index
 
     def set_current_index(self, index):
@@ -216,7 +260,7 @@ class ImageDataService:
 
         :param int index: The index to set as current.
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             self._current_index = index
             if len(self._image_list) >= index + 1:
                 self.set_current_image_to_current_index()
@@ -229,14 +273,14 @@ class ImageDataService:
         :return: The index of the image in the list.
         :rtype: int
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             return self._image_list.index(image_path)
 
     def set_current_image_to_current_index(self):
         """
         Set the current image path based on the current index.
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             self._current_image_path = self._image_list[self._current_index]
 
     def set_cache_manager(self, cache_manager):
@@ -245,7 +289,7 @@ class ImageDataService:
 
         :param CacheManager cache_manager: The cache manager to set.
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             self.cache_manager = cache_manager
 
     def get_cache_manager(self):
@@ -255,5 +299,5 @@ class ImageDataService:
         :return: The cache manager.
         :rtype: CacheManager
         """
-        with QMutexLocker(self.lock):
+        with QMutexLocker(self.image_list_lock):
             return self.cache_manager

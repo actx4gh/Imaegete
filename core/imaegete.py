@@ -11,7 +11,7 @@ from image_processing.data_management.cache_manager import CacheManager
 from image_processing.data_management.image_cache_handler import ImageCacheHandler
 from image_processing.data_management.data_service import ImageDataService
 from image_processing.data_management.file_task_handler import FileTaskHandler
-from image_processing.new_image_handler import ImageHandler
+from image_processing.image_handler import ImageHandler
 from image_processing.data_management.image_list_manager import ImageListManager
 from image_processing.image_loader import ImageLoader
 from image_processing.image_controller import ImageController
@@ -32,7 +32,7 @@ def main():
 
     data_service.set_cache_manager(cache_manager)
     image_list_manager = ImageListManager(data_service=data_service, thread_manager=thread_manager)
-    file_task_handler = FileTaskHandler(thread_manager=thread_manager)
+    file_task_handler = FileTaskHandler(thread_manager=thread_manager, data_service=data_service)
     image_handler = ImageHandler(data_service, thread_manager, image_list_manager, file_task_handler)
     image_cache_handler = ImageCacheHandler(cache_manager=cache_manager)
     image_loader = ImageLoader(cache_handler=image_cache_handler, thread_manager=thread_manager)

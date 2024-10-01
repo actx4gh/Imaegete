@@ -1,7 +1,7 @@
 import os
 import random
 import time
-
+from copy import deepcopy
 from PyQt6.QtCore import QThread, QWaitCondition, QMutex, QMutexLocker
 from natsort import os_sorted
 
