@@ -1,4 +1,4 @@
-from core.logger import logger
+from imaegete.core.logger import logger
 
 
 class ImageLoader:

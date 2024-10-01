@@ -4,8 +4,8 @@ import io
 import pstats
 from functools import wraps
 
-from core import logger
-from core.imaegete import main
+from imaegete.core import logger
+from main import main
 
 
 def profile_function(func):

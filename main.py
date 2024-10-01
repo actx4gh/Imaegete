@@ -1,20 +1,20 @@
+import os
 import sys
-
-from PyQt6.QtWidgets import QApplication
-
-from imaegete.core import config, logger
+print(sys.path)
 from glavnaqt.core.thread_manager import ThreadManager
 from imaegete.gui.image_display import ImageDisplay
+from imaegete.core import config, logger
+from PyQt6.QtWidgets import QApplication
 from imaegete.gui.main_window import ImaegeteGUI
 from imaegete.gui.status_bar_manager import ImaegeteStatusBarManager
 from imaegete.image_processing.data_management.cache_manager import CacheManager
-from imaegete.image_processing.data_management.image_cache_handler import ImageCacheHandler
 from imaegete.image_processing.data_management.data_service import ImageDataService
 from imaegete.image_processing.data_management.file_task_handler import FileTaskHandler
-from imaegete.image_processing.image_handler import ImageHandler
+from imaegete.image_processing.data_management.image_cache_handler import ImageCacheHandler
 from imaegete.image_processing.data_management.image_list_manager import ImageListManager
-from imaegete.image_processing.image_loader import ImageLoader
 from imaegete.image_processing.image_controller import ImageController
+from imaegete.image_processing.image_handler import ImageHandler
+from imaegete.image_processing.image_loader import ImageLoader
 
 
 def main():

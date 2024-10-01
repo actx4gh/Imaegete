@@ -34,7 +34,7 @@ You can run the application from the command line with various options either by
 #### 1. Running with CLI Arguments
 
 ```bash
-python imaegete.py --categories cat1 cat2 --start_dirs /path/to/images --log_dir /path/to/logs --cache_dir /path/to/cache
+python main.py --categories cat1 cat2 --start_dirs /path/to/images --log_dir /path/to/logs --cache_dir /path/to/cache
 ```
 
 ##### Available CLI Arguments:
@@ -47,7 +47,7 @@ python imaegete.py --categories cat1 cat2 --start_dirs /path/to/images --log_dir
 
 Example:
 ```bash
-python imaegete.py --categories cats dogs --start_dirs ./images --log_dir ./logs --cache_dir ./cache
+python main.py --categories cats dogs --start_dirs ./images --log_dir ./logs --cache_dir ./cache
 ```
 
 #### 2. Running with Configuration File
@@ -55,7 +55,7 @@ python imaegete.py --categories cats dogs --start_dirs ./images --log_dir ./logs
 You can specify the configuration file by using the `--config` option:
 
 ```bash
-python imaegete.py --config config.yaml
+python main.py --config config.yaml
 ```
 
 ##### Example Config File (YAML):

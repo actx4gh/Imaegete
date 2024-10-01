@@ -1,6 +1,6 @@
 import os
 
-from confumo.confumo import Confumo
+from confumo import Confumo
 
 APP_NAME = 'Imaegete'
 
