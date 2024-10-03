@@ -241,8 +241,10 @@ class ImageDisplay(QLabel):
 
         if self.current_movie:
             pixmap_size = self.current_movie.currentPixmap().size()
-        else:
+        elif self.current_pixmap:
             pixmap_size = self.current_pixmap.size()
+        else:
+            return 100
         label_size = self.image_label.size()
         width_ratio = label_size.width() / pixmap_size.width()
         height_ratio = label_size.height() / pixmap_size.height()
