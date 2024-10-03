@@ -1,8 +1,11 @@
+import imghdr
 import os
 import pickle
 from collections import OrderedDict
-import imghdr
+
 from PIL import Image as PILImage
+from PyQt5.QtCore import QThread, QMutexLocker
+from PyQt5.QtGui import QImage, QMovie
 from PyQt6.QtCore import QMutex, QThread, QMutexLocker
 from PyQt6.QtCore import QObject, QCoreApplication, pyqtSignal
 from PyQt6.QtCore import QReadWriteLock
@@ -108,6 +111,14 @@ class CacheManager(QObject):
                 # Handle GIF as QMovie
                 movie = QMovie(image_path)
                 movie.start()  # Optionally start playing the GIF
+                movie.jumpToFrame(0)  # Force loading the first frame to get size
+                current_pixmap = movie.currentPixmap()
+                gif_size = current_pixmap.size()
+
+                if gif_size.width() == 0 or gif_size.height() == 0:
+                    logger.error(
+                        f"[CacheManager thread {thread_id}] QMovie loaded but has invalid dimensions for {image_path}")
+                    raise ValueError("Invalid QMovie dimensions.")
                 logger.debug(f"[CacheManager thread {thread_id}] Loaded animated GIF: {image_path}")
 
                 with QMutexLocker(self.cache_lock):
@@ -125,7 +136,8 @@ class CacheManager(QObject):
                     metadata = {
                         'type': 'gif',  # Indicate it's an animated GIF
                         'file_size': file_size,
-                        'last_modified': last_modified
+                        'last_modified': last_modified,
+                        'size': gif_size
                     }
                     self.metadata_manager.save_metadata(image_path, metadata)
                     self.metadata_cache[image_path] = metadata
