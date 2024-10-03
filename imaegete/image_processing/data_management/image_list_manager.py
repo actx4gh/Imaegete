@@ -17,6 +17,8 @@ class ImageListManager:
         self._shuffled_indices = []
         self.lock = QMutex()
         self.image_list_open_condition = QWaitCondition()
+        self.image_list_refresh_complete = QWaitCondition()
+        self.refreshing = False
 
     @property
     def start_dirs(self):
@@ -36,6 +38,8 @@ class ImageListManager:
         Emit signal when images are added in batches.
         """
         self._start_dirs = directories_to_process
+        if self._start_dirs:
+            self.refreshing = True
         for directory in self._start_dirs:
             self.thread_manager.submit_task(self.process_files_in_directory, directory=directory, signal=signal,
                                             folders_to_skip=folders_to_skip, tag="refresh_image_list",
@@ -124,6 +128,8 @@ class ImageListManager:
             return None
         self.start_dirs.remove(directory)
         self.image_list_open_condition.wakeAll()
+        if not self._start_dirs:
+            self.refreshing = False
 
     def add_image_to_list(self, image_path, index=None):
         """

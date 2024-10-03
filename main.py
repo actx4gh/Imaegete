@@ -1,6 +1,5 @@
 import sys
 
-print(sys.path)
 from glavnaqt.core.thread_manager import ThreadManager
 from imaegete.gui.image_display import ImageDisplay
 from imaegete.core import config, logger

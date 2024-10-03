@@ -78,7 +78,7 @@ class ImaegeteGUI(MainWindow):
         """
 
         if self.data_service.get_current_image_path():
-            self.image_display.update_image_label()
+            self.image_display.scale_and_apply_pixmap_to_label()
             self.resize_emission_args['zoom_percentage'] = self.image_display.get_zoom_percentage()
         super().resizeEvent(event)
 
@@ -107,7 +107,7 @@ class ImaegeteGUI(MainWindow):
         except TypeError:
             logger.debug("[ImaegeteGUI] No signals were connected or already disconnected.")
 
-    def update_ui_on_image_loaded(self, file_path, pixmap):
+    def update_ui_on_image_loaded(self, file_path, image):
         """
         Update the UI when a new image is loaded.
 
@@ -115,7 +115,7 @@ class ImaegeteGUI(MainWindow):
         :param pixmap: The QPixmap representation of the loaded image.
         """
         if self.image_display:
-            self.image_display.display_image(file_path, pixmap)
+            self.image_display.display_image(image)
         if self.status_bar:
             self.event_bus.emit('status_update', file_path, self.image_display.get_zoom_percentage())
         self.setWindowTitle(f"{self.app_name} - {os.path.basename(file_path)}")

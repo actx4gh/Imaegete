@@ -1,17 +1,18 @@
 import os
 import pickle
 from collections import OrderedDict
-
+import imghdr
+from PIL import Image as PILImage
 from PyQt6.QtCore import QMutex, QThread, QMutexLocker
 from PyQt6.QtCore import QObject, QCoreApplication, pyqtSignal
 from PyQt6.QtCore import QReadWriteLock
-from PyQt6.QtGui import QImage
+from PyQt6.QtGui import QImage, QMovie
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
+from glavnaqt.core.event_bus import create_or_get_shared_event_bus
 from imaegete.core import config
 from imaegete.core import logger
-from glavnaqt.core.event_bus import create_or_get_shared_event_bus
 from imaegete.image_processing.data_management.file_operations import is_image_file
 
 
@@ -48,8 +49,6 @@ class CacheManager(QObject):
         self.initialize_watchdog()
         self.currently_active_requests = set()
         self.display_requested_once = False
-
-        # Shutdown flag and mutex
 
     def is_shutting_down(self):
         return self.shutdown_flag
@@ -97,45 +96,93 @@ class CacheManager(QObject):
         if not image_path:
             logger.debug(f"[CacheManager thread {thread_id}] No image_path provided, returning without loading image")
             return
+
         if self.is_shutting_down():
             logger.debug(f"[CacheManager thread {thread_id}] Shutdown initiated, not loading image {image_path}.")
             return
-        image = QImage(image_path)
-        if not image.isNull():
-            index = self.data_service.get_index_for_image(image_path)
-            logger.debug(f"[CacheManager thread {thread_id}] Loaded image from disk: {image_path} index {index}")
-            with QMutexLocker(self.cache_lock):
-                if self.is_shutting_down():
-                    logger.debug(
-                        f"[CacheManager thread {thread_id}] Shutdown initiated, not caching image {image_path}.")
-                    return
-                self.image_cache[image_path] = image
-                self.image_cache.move_to_end(image_path)
 
-                if len(self.image_cache) > self.max_size:
-                    removed_item = self.image_cache.popitem(last=False)
-                    logger.debug(
-                        f"[CacheManager thread {thread_id}] Cache size exceeded while loading {image_path}, removing oldest item: {removed_item[0]}")
-                file_size = os.path.getsize(image_path)
-                last_modified = os.path.getmtime(image_path)
-                metadata = {
-                    'size': image.size(),
-                    'file_size': file_size,
-                    'last_modified': last_modified
-                }
-                self.metadata_manager.save_metadata(image_path, metadata)
-                self.metadata_cache[image_path] = metadata
-                if image_path in self.currently_active_requests and not self.display_requested_once:
-                    self.currently_active_requests.discard(image_path)
-                return image
-        else:
-            logger.error(
-                f"[CacheManager thread {thread_id}] Failed to load image from disk. Marking invalid: {image_path}")
+        try:
+            # Step 1: Detect if the file is an animated GIF or a static image
+            image_type = imghdr.what(image_path)
+            if image_type == 'gif':
+                # Handle GIF as QMovie
+                movie = QMovie(image_path)
+                movie.start()  # Optionally start playing the GIF
+                logger.debug(f"[CacheManager thread {thread_id}] Loaded animated GIF: {image_path}")
+
+                with QMutexLocker(self.cache_lock):
+                    self.image_cache[image_path] = movie
+                    self.image_cache.move_to_end(image_path)
+
+                    if len(self.image_cache) > self.max_size:
+                        removed_item = self.image_cache.popitem(last=False)
+                        logger.debug(
+                            f"[CacheManager thread {thread_id}] Cache size exceeded, removed oldest item: {removed_item[0]}")
+
+                    # Save metadata (same as before)
+                    file_size = os.path.getsize(image_path)
+                    last_modified = os.path.getmtime(image_path)
+                    metadata = {
+                        'type': 'gif',  # Indicate it's an animated GIF
+                        'file_size': file_size,
+                        'last_modified': last_modified
+                    }
+                    self.metadata_manager.save_metadata(image_path, metadata)
+                    self.metadata_cache[image_path] = metadata
+
+                    return movie
+
+            else:
+                # Handle static images as QImage (existing logic)
+                pil_image = PILImage.open(image_path)
+                exif_data = pil_image._getexif()
+
+                orientation = exif_data.get(274) if exif_data else None
+                if orientation:
+                    if orientation == 3:  # Rotate 180
+                        pil_image = pil_image.rotate(180)
+                    elif orientation == 6:  # Rotate 90 CW
+                        pil_image = pil_image.rotate(-90)
+                    elif orientation == 8:  # Rotate 90 CCW
+                        pil_image = pil_image.rotate(90)
+
+                # Convert the Pillow image to raw RGB data
+                pil_image = pil_image.convert("RGB")
+                data = pil_image.tobytes("raw", "RGB")
+                qimage = QImage(data, pil_image.size[0], pil_image.size[1], pil_image.size[0] * 3,
+                                QImage.Format.Format_RGB888)
+
+                logger.debug(f"[CacheManager thread {thread_id}] Loaded static image: {image_path}")
+
+                with QMutexLocker(self.cache_lock):
+                    self.image_cache[image_path] = qimage
+                    self.image_cache.move_to_end(image_path)
+
+                    if len(self.image_cache) > self.max_size:
+                        removed_item = self.image_cache.popitem(last=False)
+                        logger.debug(
+                            f"[CacheManager thread {thread_id}] Cache size exceeded, removed oldest item: {removed_item[0]}")
+
+                    # Save metadata
+                    file_size = os.path.getsize(image_path)
+                    last_modified = os.path.getmtime(image_path)
+                    metadata = {
+                        'type': 'image',  # Indicate it's a static image
+                        'size': qimage.size(),
+                        'file_size': file_size,
+                        'last_modified': last_modified
+                    }
+                    self.metadata_manager.save_metadata(image_path, metadata)
+                    self.metadata_cache[image_path] = metadata
+
+                    return qimage
+
+        except Exception as e:
+            logger.error(f"[CacheManager thread {thread_id}] Error loading image from disk: {image_path}: {e}")
             self.data_service.remove_image(image_path)
             self.event_bus.emit("update_image_total")
             with QMutexLocker(self.cache_lock):
                 self.currently_active_requests.discard(image_path)
-            # Optionally, you might want to handle loading another image
 
     def refresh_cache(self, image_path):
         if self.is_shutting_down():

@@ -1,12 +1,13 @@
 from threading import Event
 
-from PyQt6.QtCore import Qt, QObject, QTimer
+from PyQt6.QtCore import Qt, QTimer, QSize, QRect
+from PyQt6.QtGui import QPixmap, QImage, QPainter, QMovie
 from PyQt6.QtWidgets import QLabel, QSizePolicy
 
 from imaegete.core import logger
 
 
-class ImageDisplay(QObject):
+class ImageDisplay(QLabel):
 
     def __init__(self):
         """
@@ -17,35 +18,201 @@ class ImageDisplay(QObject):
         """
 
         super().__init__()
-        self.image_label = QLabel()
-        self.image_label.setObjectName("image_display_label")
-        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.image_label.setMinimumSize(1, 1)
+        self.setObjectName("image_display_label")
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setMinimumSize(1, 1)
+        self.setContentsMargins(0, 0, 0, 0)
         self.fullscreen_toggling = Event()
-        self.image_label.setContentsMargins(0, 0, 0, 0)
         self.current_pixmap = None
+        self.current_movie = None
+        self._movie_size = QSize()
+        self._min_size = QSize()
         self.is_fullscreen = False
+        self.timer = QTimer(self)
+        self.image_label = self
 
-    def display_image(self, image_path, pixmap):
+    def minimumSizeHint(self):
+        """Provide the minimum size hint based on the movie or pixmap size."""
+        return self._min_size if self._min_size.isValid() else super().minimumSizeHint()
+
+    def setMovie(self, movie):
+        """
+        Override the default setMovie method to handle movie size and state.
+        This ensures the movie is scaled and plays properly.
+        """
+        if self.current_movie == movie:
+            return
+
+        super().setMovie(movie)
+
+        if not isinstance(movie, QMovie) or not movie.isValid():
+            self._movie_size = QSize()
+            self._min_size = QSize()
+            self.updateGeometry()
+            return
+
+        # Save the current frame and state of the movie
+        current_frame = movie.currentFrameNumber()
+        movie_state = movie.state()
+
+        # Calculate the full size of the movie by iterating over the frames
+        movie.jumpToFrame(0)
+        rect = QRect()
+        for _ in range(movie.frameCount()):
+            movie.jumpToNextFrame()
+            rect |= movie.frameRect()
+
+        self._movie_size = QSize(rect.width(), rect.height())
+        self._min_size = self.calculate_min_size(self._movie_size)
+
+        # Restore the movie to the original frame and state
+        movie.jumpToFrame(current_frame)
+        if movie_state == QMovie.MovieState.Running:
+            movie.setPaused(False)
+
+        self.updateGeometry()
+
+    def calculate_min_size(self, movie_size):
+        """Calculate a reasonable minimum size based on the movie aspect ratio."""
+        width = movie_size.width()
+        height = movie_size.height()
+
+        if width == height:
+            base_size = 4 if width < 4 else width
+            return QSize(base_size, base_size)
+        else:
+            minimum = min(width, height)
+            maximum = max(width, height)
+            ratio = maximum / minimum
+            base = min(4, minimum)
+            return QSize(base, round(base * ratio))
+
+    def paintEvent(self, event):
+        """
+        Custom paint event to handle the scaling of QMovie frames while preserving aspect ratio.
+        """
+        movie = self.current_movie
+        if movie and movie.isValid():
+            painter = QPainter(self)
+            content_rect = self.contentsRect()
+
+            # Get the current movie frame as a pixmap
+            frame_pixmap = movie.currentPixmap()
+
+            if not frame_pixmap.isNull():
+                # Scale the frame to fit within the content rect while preserving aspect ratio
+                scaled_frame = frame_pixmap.scaled(
+                    content_rect.size(),
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation
+                )
+
+                # Center the scaled frame within the content rect
+                x_offset = (content_rect.width() - scaled_frame.width()) // 2
+                y_offset = (content_rect.height() - scaled_frame.height()) // 2
+
+                # Draw the pixmap at the calculated position
+                target_rect = QRect(x_offset, y_offset, scaled_frame.width(), scaled_frame.height())
+                painter.drawPixmap(target_rect, scaled_frame)
+            else:
+                logger.debug("[ImageDisplay] No valid pixmap for the current frame.")
+        else:
+            super().paintEvent(event)
+
+    def clear(self):
+        """Clear the current movie or pixmap from the QLabel."""
+        self.current_pixmap = None
+        self.current_movie = None
+        super().clear()
+
+    def display_image(self, image):
+        if isinstance(image, QImage):
+            pixmap = QPixmap(image)
+            self.display_pixmap(pixmap)
+        elif isinstance(image, QMovie):
+            movie = image
+            self.display_movie(movie)
+
+    def display_pixmap(self, pixmap):
         """
         Display the given image on the QLabel.
 
-        :param image_path: Path of the image file.
         :param pixmap: The QPixmap object representing the image.
         """
 
-        logger.debug(f"[ImageDisplay] Attempting to display image: {image_path}")
         if pixmap and self.current_pixmap != pixmap:
-            logger.info(f"[ImageDisplay] Displaying image: {image_path}")
             self.current_pixmap = pixmap
-            self.update_image_label()
-            logger.debug(f"[ImageDisplay] Image displayed: {image_path}")
-        else:
+
+            # Properly clean up the movie before switching to a pixmap
+            if self.current_movie:
+                logger.info("[ImageDisplay] Cleaning up movie before displaying pixmap.")
+                self.current_movie.stop()
+                self.current_movie.frameChanged.disconnect(self.on_frame_changed)
+                self.current_movie = None
+
+                # Stop and clear the timer
+                if self.timer.isActive():
+                    self.timer.stop()
+
+            self.scale_and_apply_pixmap_to_label()
+        elif not self.current_movie:
             self.image_label.setText("No image to display.")
             self.clear_image()
 
     def update_image_label(self):
+        if self.current_pixmap:
+            QTimer.singleShot(100, self.scale_and_apply_pixmap_to_label)
+        elif self.current_movie:
+            pass
+
+    def display_movie(self, movie):
+        """
+        Display a QMovie (animated GIF) and ensure it plays the animation.
+        """
+        if movie and self.current_movie != movie:
+            logger.info(f"[ImageDisplay] Displaying animated GIF.")
+            if self.timer and self.timer.isActive():
+                self.timer.stop()
+                self.timer.timeout.disconnect()
+            self.current_movie = movie
+            self.current_pixmap = None
+
+            # Set the movie to the label
+            self.setMovie(self.current_movie)
+
+            # Ensure frameChanged is connected
+            self.current_movie.frameChanged.connect(self.on_frame_changed)
+
+            # Start the movie
+            self.current_movie.start()
+
+            # Timer to manually jump to next frame if frameChanged isn't triggered
+            self.timer.timeout.connect(lambda: self.current_movie.jumpToNextFrame())
+            self.timer.start(self.current_movie.nextFrameDelay())  # Use the actual frame delay
+
+        elif not self.current_pixmap:
+            self.image_label.setText("No image to display.")
+            self.clear_image()
+
+    def on_frame_changed(self, frame_number):
+        """
+        Slot that handles frame changes in the QMovie.
+        Ensures the movie animation progresses smoothly and updates the timer delay for each frame.
+        """
+
+        # Repaint the current frame
+        self.repaint()
+
+        # Stop the current timer before setting the new delay
+        if self.timer.isActive():
+            self.timer.stop()
+
+        # Get the delay for the next frame and restart the timer
+        next_delay = self.current_movie.nextFrameDelay()
+        self.timer.start(next_delay)
+
+    def scale_and_apply_pixmap_to_label(self):
         """
         Update the QLabel to display the current pixmap, scaling it to fit the label size.
         """
@@ -56,8 +223,10 @@ class ImageDisplay(QObject):
                                                        Qt.TransformationMode.SmoothTransformation)
             self.image_label.setPixmap(scaled_pixmap)
             logger.debug(f"[ImageDisplay] Updated image label size: {self.image_label.size()}")
+        elif self.current_movie:
+            pass
         else:
-            logger.debug("[ImageDisplay] No pixmap found, clearing image.")
+            logger.debug("[ImageDisplay] No pixmap or movie found, clearing image.")
             self.clear_image()
 
     def clear_image(self):
@@ -67,6 +236,7 @@ class ImageDisplay(QObject):
 
         logger.info("[ImageDisplay] Clearing image")
         self.current_pixmap = None
+        self.current_movie = None
         self.image_label.clear()
 
     def get_zoom_percentage(self):
@@ -103,7 +273,7 @@ class ImageDisplay(QObject):
             main.showFullScreen()
 
         self.is_fullscreen = not self.is_fullscreen
-        QTimer.singleShot(50, self._resize_and_update_label)
+        self._resize_and_update_label()
 
     def _resize_and_update_label(self):
         self.update_image_label()

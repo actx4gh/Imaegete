@@ -1,5 +1,5 @@
 
-# Imaegete - Image Management and Sorting Application
+# Imaegete - Image Viewer and Sorting Application
 
 Imaegete is a Qt-based image management and sorting application. It allows users to organize, view, move, and delete images using customizable categories. The app is designed to be both a GUI and command-line utility with various configurable options.
 
@@ -103,9 +103,30 @@ The following keyboard shortcuts are available for quick navigation and manageme
 | Delete Image          | Delete      |
 | Undo Last Action      | U           |
 | Toggle Fullscreen     | F           |
+| Toggle Slideshow      | S           |
 | Quit Application      | Q           |
 
 These shortcuts can be used within the GUI to perform operations quickly.
+
+## Slideshow Feature
+
+### Overview
+
+The application now includes a slideshow mode that automatically cycles through images at a set interval. Users can control the direction of image cycling (next, previous, or random) and manually set the cycling rate by tapping the appropriate shortcut keys multiple times. When the slideshow is turned off, the cycling rate resets to its default value of 3 seconds.
+
+### Slideshow Controls:
+
+- **Toggle Slideshow On/Off**: Press the `S` key to start or stop the slideshow.
+- **Manual Image Cycling**: Use the following shortcut keys to manually cycle through images:
+    - **Next Image**: [Specify the key, e.g., Right Arrow or another key]
+    - **Previous Image**: [Specify the key, e.g., Left Arrow or another key]
+    - **Random Image**: [Specify the key, e.g., `R` or another key]
+
+### Manual Rate Setting:
+
+- To manually set the cycling rate, press any of the cycle shortcut keys twice in succession. The interval between the key presses will become the new cycling rate.
+- After 1 minute of inactivity, the manual rate setting times out if only pressed once
+
 
 ### Development
 
@@ -124,3 +145,5 @@ The tests cover key components like configuration parsing, image handling, and l
 ## License
 
 This project is licensed under the MIT License. See the `LICENSE` file for more details.
+
+
