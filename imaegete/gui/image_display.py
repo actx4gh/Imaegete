@@ -147,7 +147,6 @@ class ImageDisplay(QLabel):
             # Properly clean up the movie before switching to a pixmap
             if self.current_movie:
                 logger.info("[ImageDisplay] Cleaning up movie before displaying pixmap.")
-                self.current_movie.stop()
                 self.current_movie.frameChanged.disconnect(self.on_frame_changed)
                 self.current_movie = None
 
@@ -178,16 +177,10 @@ class ImageDisplay(QLabel):
             self.current_movie = movie
             self.current_pixmap = None
 
-            # Set the movie to the label
             self.setMovie(self.current_movie)
 
             # Ensure frameChanged is connected
             self.current_movie.frameChanged.connect(self.on_frame_changed)
-
-            # Start the movie
-            self.current_movie.start()
-
-            # Timer to manually jump to next frame if frameChanged isn't triggered
             self.timer.timeout.connect(lambda: self.current_movie.jumpToNextFrame())
             self.timer.start(self.current_movie.nextFrameDelay())  # Use the actual frame delay
 
@@ -246,9 +239,10 @@ class ImageDisplay(QLabel):
         :return: The zoom percentage as an integer.
         """
 
-        if not self.current_pixmap:
-            return 100
-        pixmap_size = self.current_pixmap.size()
+        if self.current_movie:
+            pixmap_size = self.current_movie.currentPixmap().size()
+        else:
+            pixmap_size = self.current_pixmap.size()
         label_size = self.image_label.size()
         width_ratio = label_size.width() / pixmap_size.width()
         height_ratio = label_size.height() / pixmap_size.height()

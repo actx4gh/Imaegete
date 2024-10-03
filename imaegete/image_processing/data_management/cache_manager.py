@@ -110,7 +110,6 @@ class CacheManager(QObject):
             if image_type == 'gif':
                 # Handle GIF as QMovie
                 movie = QMovie(image_path)
-                movie.start()  # Optionally start playing the GIF
                 movie.jumpToFrame(0)  # Force loading the first frame to get size
                 current_pixmap = movie.currentPixmap()
                 gif_size = current_pixmap.size()
