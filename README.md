@@ -1,4 +1,4 @@
-# This software is still experimental.  Use at your own risk. 
+# This software is still experimental. 
 
 # Imaegete - Image Viewer and Sorting Application
 
