@@ -1,5 +1,3 @@
-# This software is still experimental. 
-
 # Imaegete - Image Viewer and Sorting Application
 
 Imaegete is a Qt-based image management and sorting application. Its implementation is intended to perform well with large file libraries on local or remote storage. It allows users to organize, view, move, and delete images using customizable categories.  The app is designed to be both a GUI and command-line utility with various configurable options.  
