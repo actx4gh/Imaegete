@@ -1,9 +1,9 @@
 import sys
 
-from imaegete.core import config, logger
 from PyQt6.QtWidgets import QApplication
 
 from glavnaqt.core.thread_manager import ThreadManager
+from imaegete.core import config, logger
 from imaegete.gui.image_display import ImageDisplay
 from imaegete.gui.main_window import ImaegeteGUI
 from imaegete.gui.status_bar_manager import ImaegeteStatusBarManager
@@ -15,6 +15,7 @@ from imaegete.image_processing.data_management.image_list_manager import ImageLi
 from imaegete.image_processing.image_controller import ImageController
 from imaegete.image_processing.image_handler import ImageHandler
 from imaegete.image_processing.image_loader import ImageLoader
+from imaegete.key_binding.key_binder import bind_keys
 
 
 def main():
@@ -41,6 +42,8 @@ def main():
     image_display = ImageDisplay()
     sorter_gui = ImaegeteGUI(image_display=image_display, thread_manager=thread_manager,
                              image_controller=image_controller, data_service=data_service)
+
+    bind_keys(sorter_gui, image_controller, image_display)
 
     sorter_gui.show()
 

@@ -76,15 +76,26 @@ def is_valid_image(image_path):
     return reader.canRead()
 
 
+def get_supported_image_formats():
+    """
+    Retrieve the list of supported image formats dynamically using QImageReader.
+
+    :return: A list of supported image extensions (e.g., ['.png', '.jpg']).
+    """
+    supported_formats = QImageReader.supportedImageFormats()
+    # Convert to lowercase and add dot prefix for file extension comparison
+    return [f".{format.data().decode('utf-8').lower()}" for format in supported_formats]
+
+
 def is_image_file(filename):
     """
-    Check if a given file is a valid image format.
+    Check if a given file is a valid image format based on the dynamically supported formats.
 
     :param str filename: The name of the file to check.
     :return: True if the file is a valid image format, False otherwise.
     :rtype: bool
     """
-    valid_extensions = ['.webp', '.jpg', '.jpeg', '.png', '.bmp', '.gif']
+    valid_extensions = get_supported_image_formats()
     return any(filename.lower().endswith(ext) for ext in valid_extensions)
 
 

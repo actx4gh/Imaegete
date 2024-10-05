@@ -4,10 +4,9 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QMenu
 
-from imaegete.core import config, logger
 from glavnaqt.core import config as ui_config
 from glavnaqt.ui.main_window import MainWindow
-from imaegete.key_binding.key_binder import bind_keys
+from imaegete.core import config, logger
 
 
 class ImaegeteGUI(MainWindow):
@@ -41,8 +40,6 @@ class ImaegeteGUI(MainWindow):
         self.setup_interactive_status_bar()
         logger.debug("[ImaegeteGUI] UI configuration set up.")
 
-        bind_keys(self, self.image_controller, self.image_display)
-
         self.show()
         logger.debug("[ImaegeteGUI] Main window shown.")
 
@@ -62,12 +59,12 @@ class ImaegeteGUI(MainWindow):
         self.ui_config.enable_status_bar_manager = True
         if config.categories:
             self.ui_config.update_collapsible_section('top', self.format_category_keys(config.categories),
-                                                              self.ui_config.ALIGN_CENTER)
+                                                      self.ui_config.ALIGN_CENTER)
         self.ui_config.update_collapsible_section('main_content', 'test main content',
-                                                          alignment=self.ui_config.ALIGN_CENTER,
-                                                          widget=self.image_display.image_label)
+                                                  alignment=self.ui_config.ALIGN_CENTER,
+                                                  widget=self.image_display.image_label)
         self.ui_config.update_collapsible_section('bottom', 'test status bar',
-                                                          alignment=self.ui_config.ALIGN_CENTER)
+                                                  alignment=self.ui_config.ALIGN_CENTER)
 
     def resizeEvent(self, event):
 
