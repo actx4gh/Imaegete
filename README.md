@@ -146,3 +146,21 @@ The tests cover key components like configuration parsing, image handling, and l
 This project is licensed under the MIT License. See the `LICENSE` file for more details.
 
 
+
+## New Features
+
+### Animation Speed Controls
+- **Keyboard Shortcuts**: You can now control the animation speed in slideshows using the following keys:
+  - `[` : Decrease animation speed.
+  - `]` : Increase animation speed.
+  - `=` : Reset animation speed to normal.
+  
+- **Dynamic Speed Adjustment**: The `ImageDisplay` class now includes methods for adjusting frame delay in animations, allowing dynamic speed control during playback.
+
+### Enhanced Slideshow Feature
+- **Improved Slideshow Control**: Slideshow toggling and cycling are now integrated with the animation speed controls, providing a more interactive user experience.
+- **Smooth Frame Transitions**: The `on_frame_changed` method in `ImageDisplay` has been refactored to apply speed offsets, ensuring smooth frame transitions.
+- **Configurable Speed Control Keys**: New speed control keys are defined in `config.py`, making it easy to adjust key bindings as needed.
+
+### Key Bindings
+- **Key Bindings for Speed Control**: Added new shortcuts for speed control to `key_binder.py`, connecting them to the respective methods in `ImageDisplay`.

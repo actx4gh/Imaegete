@@ -2,10 +2,10 @@ from PyQt6.QtGui import QKeySequence, QShortcut
 
 from imaegete.core import config
 from imaegete.core.config import NEXT_KEY, PREV_KEY, FIRST_KEY, LAST_KEY, UNDO_KEY, DELETE_KEY, RANDOM_KEY, FULLSCREEN_KEY, \
-    QUIT_KEY, SLIDE_SHOW_KEY
+    QUIT_KEY, SLIDE_SHOW_KEY, SPEED_UP_KEY, SPEED_DOWN_KEY
 
 
-def bind_keys(gui, image_controller):
+def bind_keys(gui, image_controller, image_display):
     """
     Bind keyboard shortcuts to actions in the GUI.
 
@@ -13,6 +13,7 @@ def bind_keys(gui, image_controller):
     deletion of images, toggling fullscreen, and other image management functions. The shortcuts are
     connected to methods within the image_controller and gui.
 
+    :param image_display:
     :param gui: The main GUI window where shortcuts will be applied.
     :param image_controller: The image controller responsible for handling image-related operations.
     """
@@ -42,3 +43,7 @@ def bind_keys(gui, image_controller):
     quit_shortcut.activated.connect(gui.close)
     slide_show_shortcut = QShortcut(QKeySequence(SLIDE_SHOW_KEY), gui)
     slide_show_shortcut.activated.connect(image_controller.toggle_slideshow)
+    speed_up_shortcut = QShortcut(QKeySequence(SPEED_UP_KEY), gui)
+    speed_up_shortcut.activated.connect(image_display.increase_speed)
+    speed_down_shortcut = QShortcut(QKeySequence(SPEED_DOWN_KEY), gui)
+    speed_down_shortcut.activated.connect(image_display.decrease_speed)

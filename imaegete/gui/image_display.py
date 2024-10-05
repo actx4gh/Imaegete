@@ -28,6 +28,7 @@ class ImageDisplay(QLabel):
         self.current_movie = None
         self._movie_size = QSize()
         self._min_size = QSize()
+        self.current_frame_delay_offset = 0
         self.is_fullscreen = False
         self.timer = QTimer(self)
         self.image_label = self
@@ -188,10 +189,30 @@ class ImageDisplay(QLabel):
             self.image_label.setText("No image to display.")
             self.clear_image()
 
+    def set_speed_offset(self, offset):
+        """
+        Set the frame delay offset for controlling animation speed.
+        Positive values slow down the animation, negative values speed it up.
+        """
+        self.current_frame_delay_offset = offset
+        logger.debug(f"[ImageDisplay] Animation speed adjusted with offset: {self.current_frame_delay_offset}")
+
+    def normal_speed(self):
+        """ Increase the animation speed by decreasing the delay. """
+        self.set_speed_offset(0)
+
+    def increase_speed(self, increment=10):
+        """ Increase the animation speed by decreasing the delay. """
+        self.set_speed_offset(self.current_frame_delay_offset - increment)
+
+    def decrease_speed(self, decrement=10):
+        """ Decrease the animation speed by increasing the delay. """
+        self.set_speed_offset(self.current_frame_delay_offset + decrement)
+
     def on_frame_changed(self, frame_number):
         """
         Slot that handles frame changes in the QMovie.
-        Ensures the movie animation progresses smoothly and updates the timer delay for each frame.
+        Ensures the movie animation progresses smoothly and applies the delay offset.
         """
 
         # Repaint the current frame
@@ -201,9 +222,12 @@ class ImageDisplay(QLabel):
         if self.timer.isActive():
             self.timer.stop()
 
-        # Get the delay for the next frame and restart the timer
-        next_delay = self.current_movie.nextFrameDelay()
-        self.timer.start(next_delay)
+        # Calculate the adjusted delay with the offset
+        base_delay = self.current_movie.nextFrameDelay()
+        adjusted_delay = max(1, base_delay + self.current_frame_delay_offset)  # Ensure delay is at least 1 ms
+
+        # Start the timer with the adjusted delay
+        self.timer.start(adjusted_delay)
 
     def scale_and_apply_pixmap_to_label(self):
         """

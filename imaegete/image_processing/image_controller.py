@@ -2,13 +2,12 @@ from PyQt6.QtCore import QObject, QRecursiveMutex, QTimer, QTime, pyqtSignal
 from PyQt6.QtGui import QPixmap
 
 from glavnaqt.core.event_bus import create_or_get_shared_event_bus
-from imaegete.core.logger import logger, config
+from imaegete.core.logger import logger
 
 
 class ImageController(QObject):
     image_loaded = pyqtSignal(str, object)
     image_cleared = pyqtSignal()
-    image_list_updated = pyqtSignal()
     image_ready = pyqtSignal(str, object)
 
     def __init__(self, image_list_manager, image_loader, image_handler):
@@ -21,12 +20,7 @@ class ImageController(QObject):
         self.loading_images = set()  # Track currently loading images
         self.event_bus = create_or_get_shared_event_bus()
         self.image_ready.connect(self.send_image_to_display)
-        self.image_list_updated.connect(self.on_image_list_updated)
-        self.event_bus.emit('show_busy')
-        self.folders_to_skip = self._get_folders_to_skip()
-        self.image_list_manager.refresh_image_list(config.start_dirs.copy(), folders_to_skip=self.folders_to_skip,
-                                                   signal=self.image_list_updated)
-
+        self.image_list_manager.image_list_updated.connect(self.on_image_list_updated)
         self.last_cycle_type = 'next'  # Default cycle type is next
         self.cycle_interval = 3000  # Default cycle interval in milliseconds
         self.tap_times = []
@@ -137,8 +131,6 @@ class ImageController(QObject):
             self.update_cycle_rate(interval)  # Set new cycle rate
             self.tap_times = self.tap_times[-2:]  # Keep only the last two times to track
 
-
-
     def show_image(self, image_path=None):
         if image_path in self.loading_images:
             return
@@ -181,14 +173,6 @@ class ImageController(QObject):
         last_action = self.image_handler.undo_last_action()
         if last_action:
             self.show_image()
-
-    def _get_folders_to_skip(self):
-        folders_to_skip = []
-        for start_dir, subfolders in config.dest_folders.items():
-            folders_to_skip.extend(subfolders.values())
-        for start_dir, delete_folder in config.delete_folders.items():
-            folders_to_skip.append(delete_folder)
-        return folders_to_skip
 
     def on_image_list_updated(self):
         """

@@ -4,8 +4,6 @@ import pickle
 from collections import OrderedDict
 
 from PIL import Image as PILImage
-from PyQt5.QtCore import QThread, QMutexLocker
-from PyQt5.QtGui import QImage, QMovie
 from PyQt6.QtCore import QMutex, QThread, QMutexLocker
 from PyQt6.QtCore import QObject, QCoreApplication, pyqtSignal
 from PyQt6.QtCore import QReadWriteLock

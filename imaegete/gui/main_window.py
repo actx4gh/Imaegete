@@ -41,7 +41,7 @@ class ImaegeteGUI(MainWindow):
         self.setup_interactive_status_bar()
         logger.debug("[ImaegeteGUI] UI configuration set up.")
 
-        bind_keys(self, self.image_controller)
+        bind_keys(self, self.image_controller, self.image_display)
 
         self.show()
         logger.debug("[ImaegeteGUI] Main window shown.")

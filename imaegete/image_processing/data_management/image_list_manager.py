@@ -2,15 +2,21 @@ import os
 import random
 import time
 
-from PyQt6.QtCore import QThread, QWaitCondition, QMutex
+from PyQt6.QtCore import QThread, QWaitCondition, QMutex, pyqtSignal, QObject
 from natsort import os_sorted
 
+from glavnaqt.core.event_bus import create_or_get_shared_event_bus
 from imaegete.core.logger import logger, config
 from imaegete.image_processing.data_management.file_operations import is_image_file
 
 
-class ImageListManager:
+class ImageListManager(QObject):
+    image_list_updated = pyqtSignal()
+
     def __init__(self, data_service, thread_manager):
+        super().__init__()
+        self.event_bus = create_or_get_shared_event_bus()
+        self.event_bus.subscribe('refresh_image_list', self.refresh_image_list)
         self.data_service = data_service
         self.thread_manager = thread_manager
         self._start_dirs = []
@@ -32,24 +38,36 @@ class ImageListManager:
             self._start_dirs = os_sorted(config.start_dirs)
         return self._start_dirs
 
-    def refresh_image_list(self, directories_to_process, folders_to_skip=None, signal=None):
+    def _get_folders_to_skip(self):
+        folders_to_skip = []
+        for start_dir, subfolders in config.dest_folders.items():
+            folders_to_skip.extend(subfolders.values())
+        for start_dir, delete_folder in config.delete_folders.items():
+            folders_to_skip.append(delete_folder)
+        return folders_to_skip
+
+    def refresh_image_list(self):
         """
         Refresh the image list by scanning directories asynchronously.
         Emit signal when images are added in batches.
         """
-        self._start_dirs = directories_to_process
+
+        folders_to_skip = self._get_folders_to_skip()
+        self._start_dirs = self.start_dirs.copy()
         if self._start_dirs:
             self.refreshing = True
+            self.event_bus.emit('show_busy')
         for directory in self._start_dirs:
-            self.thread_manager.submit_task(self.process_files_in_directory, directory=directory, signal=signal,
+            self.thread_manager.submit_task(self.process_files_in_directory, directory=directory,
                                             folders_to_skip=folders_to_skip, tag="refresh_image_list",
                                             on_finished=self.thread_manager.task_finished_callback)
 
-    def process_files_in_directory(self, directory, folders_to_skip, signal, stop_flag):
+    def process_files_in_directory(self, directory, folders_to_skip, stop_flag):
         """
         Process image files in a given directory, updating the image list in batches.
         Emit signal after each batch of images is processed.
         """
+        signal = self.image_list_updated
         thread_id = int(QThread.currentThreadId())
         logger.debug(f"[ImageListManager thread {thread_id}] Starting processing {directory}.")
 
