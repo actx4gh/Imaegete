@@ -140,8 +140,9 @@ class ImageController(QObject):
         def display_callback(image):
             self.loading_images.discard(image_path)
             if image:
-                self.image_loaded.emit(image_path, image)
-                self.current_displayed_image = image_path
+                current_image_path = self.image_list_manager.data_service.get_current_image_path()
+                self.image_loaded.emit(current_image_path, image)
+                self.current_displayed_image = current_image_path
             else:
                 self.image_cleared.emit()
 

@@ -1,9 +1,9 @@
 import sys
 
+from imaegete.core import config, logger
 from PyQt6.QtWidgets import QApplication
 
 from glavnaqt.core.thread_manager import ThreadManager
-from imaegete.core import config, logger
 from imaegete.gui.image_display import ImageDisplay
 from imaegete.gui.main_window import ImaegeteGUI
 from imaegete.gui.status_bar_manager import ImaegeteStatusBarManager
