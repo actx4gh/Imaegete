@@ -148,6 +148,7 @@ class ImageListManager(QObject):
         self.image_list_open_condition.wakeAll()
         if not self._start_dirs:
             self.refreshing = False
+        self.event_bus.emit('hide_busy')
 
     def add_image_to_list(self, image_path, index=None):
         """

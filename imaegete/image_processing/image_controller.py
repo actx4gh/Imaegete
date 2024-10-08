@@ -189,8 +189,6 @@ class ImageController(QObject):
             else:
                 self.current_displayed_image = ''
                 logger.error("[ImageController] Could not get current image from data service.")
-        else:
-            self._hide_busy_indicator()
 
     def _hide_busy_indicator(self):
         if not self.image_list_manager.refreshing:
