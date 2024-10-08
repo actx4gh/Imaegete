@@ -112,11 +112,11 @@ class ImageListManager(QObject):
                     if stop_flag():
                         return None
                     self.data_service.extend_image_list(image_list)
-                    image_list = []
-                    if signal:
+                    if signal and image_list:
                         if stop_flag():
                             return None
                         signal.emit()
+                    image_list = []
 
                 # Adjust batch size based on processing time
                 batch_processing_time = time.time() - start_time
