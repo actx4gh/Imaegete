@@ -1,7 +1,7 @@
 colorama==0.4.6
--e git+https://github.com/actx4gh/confumo.git@21731ccccca6b572ea0078e09e323d965d9c226c#egg=confumo
+-e git+https://github.com/actx4gh/confumo.git@96e8b41dc88fd0a993b9a2c16e18b87af526048c#egg=confumo
 exceptiongroup==1.2.2
--e git+https://github.com/actx4gh/GlavnaQt.git@ee9ed6ee9fe4e0a5030739e39e153f249ee72e19#egg=GlavnaQt
+-e git+https://github.com/actx4gh/GlavnaQt.git@f87bc2ef620da432068e239351ee67e44159fb8b#egg=GlavnaQt
 iniconfig==2.0.0
 natsort==8.4.0
 packaging==24.1

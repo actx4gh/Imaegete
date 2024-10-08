@@ -1,5 +1,4 @@
 import os
-
 from confumo import Confumo
 
 APP_NAME = 'Imaegete'
@@ -95,5 +94,6 @@ class Config(Confumo):
             config['delete_folders'][start_dir] = delete_path
 
         return config
+
 
 config = Config.get_instance()
